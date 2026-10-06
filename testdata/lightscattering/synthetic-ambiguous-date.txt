@@ -1,0 +1,4 @@
+Sample ID: E5
+Date: 03/04/2026 08:00:00
+Effective Diameter (nm): 230.0
+Polydispersity: 0.150

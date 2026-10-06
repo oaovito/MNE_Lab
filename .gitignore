@@ -1,0 +1,20 @@
+# Build output
+/dist/
+/build/
+/out/
+/web/node_modules/
+/web/dist/*
+!/web/dist/.gitkeep
+*.exe
+# Local runtime data
+/data/
+/.mnelab/
+*.log
+# Secrets and private material
+.env
+.env.*
+*.pem
+*.key
+release-signing*
+/secrets/
+*.syso

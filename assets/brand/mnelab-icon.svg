@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A2940"/><stop offset="1" stop-color="#0A0F17"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#5EEAD4" stop-opacity="0.45"/><stop offset="0.55" stop-color="#2DD4BF" stop-opacity="0.08"/><stop offset="1" stop-color="#2DD4BF" stop-opacity="0"/></radialGradient>
+<linearGradient id="beamIn" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#2DD4BF" stop-opacity="0"/><stop offset="0.5" stop-color="#5EEAD4" stop-opacity="0.8"/><stop offset="1" stop-color="#CCFBF1"/></linearGradient>
+<linearGradient id="beamOut" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#5EEAD4" stop-opacity="0.55"/><stop offset="1" stop-color="#5EEAD4" stop-opacity="0"/></linearGradient>
+<linearGradient id="ray90" x1="0" x2="0" y1="1" y2="0"><stop offset="0" stop-color="#CCFBF1"/><stop offset="1" stop-color="#5EEAD4" stop-opacity="0.7"/></linearGradient>
+<radialGradient id="particle" cx="0.36" cy="0.32" r="0.78"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.42" stop-color="#A7F3E9"/><stop offset="1" stop-color="#0FA394"/></radialGradient>
+</defs>
+<rect x="32" y="32" width="960" height="960" rx="216" fill="url(#bg)"/>
+<rect x="33" y="33" width="958" height="958" rx="215" fill="none" stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="2"/>
+<circle cx="512" cy="624" r="260" fill="url(#glow)"/>
+<g stroke="#5EEAD4" stroke-linecap="round"><line x1="641.9" y1="549.0" x2="797.8" y2="459.0" stroke-width="14" stroke-opacity="0.3"/><line x1="598.0" y1="501.1" x2="695.5" y2="361.9" stroke-width="14" stroke-opacity="0.4"/><line x1="426.0" y1="501.1" x2="328.5" y2="361.9" stroke-width="14" stroke-opacity="0.4"/><line x1="382.1" y1="549.0" x2="226.2" y2="459.0" stroke-width="14" stroke-opacity="0.3"/><line x1="641.9" y1="699.0" x2="745.8" y2="759.0" stroke-width="14" stroke-opacity="0.16"/><line x1="587.0" y1="753.9" x2="637.0" y2="840.5" stroke-width="14" stroke-opacity="0.2"/><line x1="437.0" y1="753.9" x2="387.0" y2="840.5" stroke-width="14" stroke-opacity="0.2"/><line x1="382.1" y1="699.0" x2="278.2" y2="759.0" stroke-width="14" stroke-opacity="0.16"/></g>
+<rect x="512" y="615" width="400" height="18" rx="9" fill="url(#beamOut)"/>
+<rect x="112" y="603" width="400" height="42" rx="21" fill="url(#beamIn)"/>
+<rect x="495" y="274" width="34" height="350" rx="17" fill="url(#ray90)"/>
+<path d="M631.9 231.9A410 410 0 0 0 392.1 231.9" fill="none" stroke="#CCFBF1" stroke-width="50" stroke-linecap="round"/>
+<circle cx="512" cy="624" r="100" fill="url(#particle)"/>
+</svg>
