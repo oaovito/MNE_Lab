@@ -75,10 +75,10 @@ function Header() {
         <kbd>Ctrl K</kbd>
       </button>
       <StatusPill />
-      <Button kind="ghost" icon="qr" tip={t('hdr.mobile')} label={t('hdr.mobile')} selected={s.mobile.active} onClick={() => openPanel('mobile')} />
-      <Button kind="ghost" icon="gauge" tip={turbo ? t('hdr.turbo_on') : t('hdr.turbo_off')} label="Turbo" selected={turbo} onClick={toggleTurbo} />
+      <Button kind="ghost" icon="qr" class="hdr-mobile" tip={t('hdr.mobile')} label={t('hdr.mobile')} selected={s.mobile.active} onClick={() => openPanel('mobile')} />
+      <Button kind="ghost" icon="gauge" class="hdr-turbo" tip={turbo ? t('hdr.turbo_on') : t('hdr.turbo_off')} label="Turbo" selected={turbo} onClick={toggleTurbo} />
       <span style={{ position: 'relative', display: 'inline-grid' }}>
-        <Button kind="ghost" icon="help" tip={t('hdr.help')} label={t('hdr.help')} onClick={() => openPanel('help')} />
+        <Button kind="ghost" icon="help" class="hdr-help" tip={t('hdr.help')} label={t('hdr.help')} onClick={() => openPanel('help')} />
         {hasNews() && <span class="dot" style={{ position: 'absolute', top: 6, right: 6, color: 'var(--accent)', width: 7, height: 7 }} />}
       </span>
       <AvatarMenu />

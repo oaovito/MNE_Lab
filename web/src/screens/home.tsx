@@ -54,7 +54,7 @@ export function Home() {
             )}
           </div>
         </div>
-        <Button kind="primary" icon="upload" onClick={() => importFiles()}>
+        <Button kind="primary" icon="upload" class="hero-import" onClick={() => importFiles()}>
           {t('ls.import')}
         </Button>
       </div>

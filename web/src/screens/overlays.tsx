@@ -1,11 +1,12 @@
 // Overlays opened from anywhere: Mobile Access, first-use explanations
 // (Turbo, Save Clean & Exit), the onboarding tour, the LIGHTSCATTERING
 // introduction, contextual tips, restart and exit screens.
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { markSeen, seen, setTurbo, startExit } from '../lib/actions';
 import { api, get, post } from '../lib/api';
 import { fmtRel } from '../lib/format';
 import { t } from '../lib/i18n';
+import { navigate } from '../lib/route';
 import { app, closePanel, openPanel, refresh, run } from '../lib/state';
 import { useStore } from '../lib/store';
 import type { MobileInfo } from '../lib/types';
@@ -336,22 +337,196 @@ function Slides(p: { slides: Slide[]; onDone: () => void; title: string; finish:
   );
 }
 
-const TOUR: Slide[] = [
-  { icon: 'flask', key: 'tour.welcome', points: [{ icon: 'users', key: 'tour.p.profiles' }, { icon: 'shieldOk', key: 'tour.p.private' }, { icon: 'wifiOff', key: 'tour.p.offline' }, { icon: 'globe', key: 'tour.p.languages' }] },
-  { icon: 'drive', key: 'tour.storage', points: [{ icon: 'usb', key: 'tour.p.usb_cloud' }, { icon: 'drive', key: 'tour.p.usb_only' }, { icon: 'cloud', key: 'tour.p.cloud_only' }, { icon: 'refresh', key: 'tour.p.sync' }] },
-  { icon: 'usb', key: 'tour.modes', points: [{ icon: 'usb', key: 'tour.p.portable' }, { icon: 'laptop', key: 'tour.p.temporary' }, { icon: 'history', key: 'tour.p.backup' }, { icon: 'lifebuoy', key: 'tour.p.recovery' }] },
-  { icon: 'package', key: 'tour.updates', points: [{ icon: 'package', key: 'tour.p.auto' }, { icon: 'lock', key: 'tour.p.locked' }] },
-  { icon: 'phone', key: 'tour.mobile', points: [{ icon: 'qr', key: 'tour.p.qr' }, { icon: 'present', key: 'tour.p.controller' }, { icon: 'devices', key: 'tour.p.viewer' }] },
-  { icon: 'microscope', key: 'tour.ls', points: [{ icon: 'fileUp', key: 'ls.flow.import' }, { icon: 'chart', key: 'ls.flow.graph' }, { icon: 'cycle', key: 'ls.flow.cycle' }, { icon: 'download', key: 'ls.flow.export' }] },
-  { icon: 'archive', key: 'tour.everyday', points: [{ icon: 'archive', key: 'tour.p.mystuff' }, { icon: 'gauge', key: 'tour.p.turbo' }, { icon: 'search', key: 'tour.p.search' }, { icon: 'power', key: 'tour.p.exit' }] },
+// The first-run tutorial points at the real interface, one stop at a time,
+// so it teaches where things are instead of listing features.
+type Stop = { key: string; icon: IconName; target?: string[]; points?: { icon: IconName; key: string }[] };
+
+const TOUR: Stop[] = [
+  { key: 'tour.welcome', icon: 'sparkles' },
+  { key: 'tour.import', icon: 'upload', target: ['.hero-import'], points: [{ icon: 'fileUp', key: 'tour.p.drop' }] },
+  {
+    key: 'tour.ls',
+    icon: 'flask',
+    target: ['.nav a[href="/ls/files"]'],
+    points: [
+      { icon: 'listChecks', key: 'tour.p.files' },
+      { icon: 'chart', key: 'tour.p.graphs' },
+      { icon: 'cycle', key: 'tour.p.cycles' },
+      { icon: 'present', key: 'tour.p.share' },
+    ],
+  },
+  { key: 'tour.status', icon: 'cloudOk', target: ['.status-pill'] },
+  { key: 'tour.search', icon: 'search', target: ['.search-btn'] },
+  {
+    key: 'tour.tools',
+    icon: 'qr',
+    target: ['.hdr-mobile', '.hdr-turbo', '.hdr-help'],
+    points: [
+      { icon: 'phone', key: 'tour.p.phone' },
+      { icon: 'gauge', key: 'tour.p.turbo' },
+      { icon: 'help', key: 'tour.p.help' },
+    ],
+  },
+  {
+    key: 'tour.profile',
+    icon: 'user',
+    target: ['.avatar-btn'],
+    points: [
+      { icon: 'archive', key: 'tour.p.mystuff' },
+      { icon: 'settings', key: 'tour.p.settings' },
+      { icon: 'power', key: 'tour.p.exit' },
+    ],
+  },
 ];
 
+const FLOW: { icon: IconName; k: string }[] = [
+  { icon: 'upload', k: 'import' },
+  { icon: 'listChecks', k: 'review' },
+  { icon: 'chart', k: 'graph' },
+  { icon: 'cycle', k: 'cycle' },
+  { icon: 'present', k: 'present' },
+  { icon: 'download', k: 'export' },
+];
+
+type Box = { x: number; y: number; w: number; h: number };
+
+/** The union of the visible target elements, or null to center the card. */
+function measure(sel?: string[]): Box | null {
+  if (!sel) return null;
+  const rs = sel.flatMap((q) => [...document.querySelectorAll(q)].map((e) => e.getBoundingClientRect())).filter((r) => r.width > 0 && r.height > 0);
+  if (!rs.length) return null;
+  const x = Math.min(...rs.map((r) => r.left)),
+    y = Math.min(...rs.map((r) => r.top));
+  const w = Math.max(...rs.map((r) => r.right)) - x,
+    h = Math.max(...rs.map((r) => r.bottom)) - y;
+  return { x: x - 6, y: y - 6, w: w + 12, h: h + 12 };
+}
+
 export function Tour() {
+  const [i, setI] = useState(0);
+  const [box, setBox] = useState<Box | null>(null);
+  const [vw, setVw] = useState(innerWidth);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const stop = TOUR[i];
+  const last = i === TOUR.length - 1;
   const done = () => {
     closePanel();
     markSeen('tour');
   };
-  return <Slides slides={TOUR} onDone={done} title={t('tour.title')} finish={t('tour.start')} />;
+  const go = (n: number) => n >= 0 && n < TOUR.length && setI(n);
+
+  // The stops live on the home screen.
+  useEffect(() => navigate('/'), []);
+  useLayoutEffect(() => {
+    let prev = '';
+    const update = () => {
+      const b = measure(stop.target);
+      const k = JSON.stringify(b) + innerWidth;
+      if (k === prev) return;
+      prev = k;
+      setBox(b);
+      setVw(innerWidth);
+    };
+    update();
+    const raf = requestAnimationFrame(update);
+    const iv = setInterval(update, 400);
+    addEventListener('resize', update);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(iv);
+      removeEventListener('resize', update);
+    };
+  }, [i]);
+  useEffect(() => {
+    cardRef.current?.querySelector<HTMLElement>('button.primary')?.focus();
+  }, [i]);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        done();
+      } else if (e.key === 'ArrowRight') go(i + 1);
+      else if (e.key === 'ArrowLeft') go(i - 1);
+      else if (e.key === 'Tab' && cardRef.current) {
+        const f = cardRef.current.querySelectorAll<HTMLElement>('button:not([disabled])');
+        const a = f[0],
+          b = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === a) (e.preventDefault(), b.focus());
+        else if (!e.shiftKey && document.activeElement === b) (e.preventDefault(), a.focus());
+      }
+    };
+    document.addEventListener('keydown', k);
+    return () => document.removeEventListener('keydown', k);
+  }, [i]);
+
+  // The card sits under its target (every stop is near the top), aligned to
+  // it and kept inside the window; a stop without a target is centered.
+  const W = Math.min(box ? 360 : 440, vw - 32);
+  let place: Record<string, string | number> = {};
+  let caret: number | undefined;
+  if (box) {
+    const left = Math.max(16, Math.min(box.x + box.w / 2 - W / 2, vw - 16 - W));
+    place = { left, top: box.y + box.h + 14, width: W };
+    caret = Math.max(22, Math.min(box.x + box.w / 2 - left, W - 22));
+  }
+
+  return (
+    <div class="coach" role="presentation">
+      {box ? <div class="coach-hole" style={{ left: box.x, top: box.y, width: box.w, height: box.h }} /> : <div class="coach-scrim" />}
+      <div ref={cardRef} class={`coach-card ${box ? '' : 'coach-center'}`} style={box ? place : { width: W }} role="dialog" aria-modal="true" aria-labelledby="coach-title" aria-describedby="coach-desc">
+        {caret !== undefined && <span class="coach-caret" style={{ left: caret }} />}
+        <div class="row gap3">
+          <span class="coach-icon">
+            <Icon name={stop.icon} size="sm" />
+          </span>
+          <span class="xs muted grow">{t('tour.kicker')}</span>
+          <span class="xs faint num">{t('tour.step', { n: i + 1, total: TOUR.length })}</span>
+        </div>
+        <div class="col gap2" key={i}>
+          <h3 id="coach-title">{t(stop.key)}</h3>
+          <p id="coach-desc" class="muted small">
+            {t(stop.key + '.d')}
+          </p>
+        </div>
+        {i === 0 && (
+          <ol class="coach-flow">
+            {FLOW.map((f) => (
+              <li>
+                <Icon name={f.icon} size="sm" />
+                <span>{t('home.flow.' + f.k)}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+        {stop.points && (
+          <ul class="coach-points">
+            {stop.points.map((x) => (
+              <li>
+                <Icon name={x.icon} size="sm" />
+                <span>{t(x.key)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div class="row gap2 coach-foot">
+          <Button kind="ghost" size="sm" onClick={done}>
+            {t('tour.skip')}
+          </Button>
+          <span class="spacer" />
+          <span class="row gap1" aria-hidden="true">
+            {TOUR.map((_, k) => (
+              <span class="dot" style={{ color: k === i ? 'var(--accent)' : 'var(--border-2)' }} />
+            ))}
+          </span>
+          <span class="spacer" />
+          {i > 0 && <Button size="sm" icon="back" label={t('ui.back')} tip={t('ui.back')} onClick={() => go(i - 1)} />}
+          <Button kind="primary" size="sm" trail={last ? undefined : 'next'} onClick={() => (last ? done() : go(i + 1))}>
+            {last ? t('tour.start') : t('ui.next')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const LS_INTRO: Slide[] = [

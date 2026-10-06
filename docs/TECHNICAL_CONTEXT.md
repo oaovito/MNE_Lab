@@ -57,8 +57,8 @@ interface translates.
 - **Go for the core.** A single static binary per platform (no runtime to
   install), fast start, low memory use, and simple cross-compilation for
   Windows on x86, x64 and ARM.
-- **Preact for the interface.** About 450 KiB of script before compression
-  (about 54 KiB compressed) for the whole desktop interface.
+- **Preact for the interface.** About 450 KiB of script (about 135 KiB
+  gzip-compressed) and 55 KiB of styles for the whole desktop interface.
 - **No central server.** Accounts and data live on the drive and in the
   user's own cloud. MNE Lab never receives credentials or data.
 - **Content-addressed sync.** Record versions are immutable files named by

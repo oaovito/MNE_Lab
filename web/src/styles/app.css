@@ -1730,6 +1730,134 @@
   color: var(--accent);
   margin-top: 1px;
 }
+/* first-run tutorial: a cut-out over the real control and a card under it */
+.coach {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+}
+.coach-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  animation: fade-in var(--t2) var(--ease);
+}
+.coach-hole {
+  position: absolute;
+  border-radius: var(--r);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 200vmax var(--overlay);
+  transition: left var(--t3) var(--ease-out), top var(--t3) var(--ease-out), width var(--t3) var(--ease-out), height var(--t3) var(--ease-out);
+  pointer-events: none;
+}
+.coach-card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5);
+  background: var(--raised);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-pop);
+  transition: left var(--t3) var(--ease-out), top var(--t3) var(--ease-out);
+  animation: pop-in var(--t3) var(--ease-out);
+}
+.coach-card.coach-center {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: var(--s6);
+  transition: none;
+  animation: fade-in var(--t3) var(--ease);
+}
+.coach-card h3 {
+  font-size: var(--fs-lg);
+}
+.coach-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+.coach-caret {
+  position: absolute;
+  top: -7px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: var(--raised);
+  border-left: 1px solid var(--border-2);
+  border-top: 1px solid var(--border-2);
+  transform: rotate(45deg);
+  transition: left var(--t3) var(--ease-out);
+}
+.coach-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--r);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.coach-points,
+.coach-flow {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.coach-points {
+  display: grid;
+  gap: var(--s2);
+}
+.coach-points li {
+  display: flex;
+  gap: var(--s2);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.coach-points .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.coach-flow {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--s2);
+  counter-reset: flow;
+}
+.coach-flow li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--s3) 4px;
+  border-radius: var(--r);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  text-align: center;
+  counter-increment: flow;
+}
+.coach-flow li::before {
+  content: counter(flow);
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.coach-flow .icon {
+  color: var(--accent);
+}
+.coach-foot {
+  align-items: center;
+  margin-top: var(--s1);
+}
+@media (max-width: 520px) {
+  .coach-flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 .tip {
   position: fixed;
   z-index: 75;

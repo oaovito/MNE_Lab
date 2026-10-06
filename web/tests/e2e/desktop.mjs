@@ -106,7 +106,31 @@ await screen('mobile-qr', async () => (await go('/'), await click(`header button
 await api(page, 'POST', '/api/mobile/stop', {});
 await screen('turbo-first', async () => (await onboarding({ turbo: false }), await click('header button[aria-label="Turbo"]')));
 await screen('exit-confirm', async () => (await onboarding({ exit: false }), await go('/'), await click('.quick-row button.primary')));
-await screen('tour', () => onboarding({ tour: false }));
+// The first-run tutorial: every stop after the welcome points at its control,
+// and the last one closes it for good.
+try {
+  await onboarding({ tour: false });
+  const stops = await page.locator('.coach-foot .dot').count();
+  report.check('the tutorial opens on first use', stops >= 5, String(stops));
+  for (let k = 0; k < stops; k++) {
+    if (k) await page.locator('.coach-card button.primary').click({ timeout: 3000 });
+    await sleep(500);
+    await page.screenshot({ path: path.join(out, `tour-${k + 1}.png`) });
+    for (const p of await layoutProblems(page, keys)) report.check(`tour-${k + 1}`, false, p);
+    if (k) {
+      const hole = await page.locator('.coach-hole').boundingBox();
+      const card = await page.locator('.coach-card').boundingBox();
+      report.check(`tutorial stop ${k + 1} points at its control`, !!hole && hole.width > 0);
+      report.check(`tutorial stop ${k + 1} fits the window`, !!card && card.x >= 0 && card.y >= 0 && card.x + card.width <= W && card.y + card.height <= H, JSON.stringify(card));
+    }
+  }
+  await page.locator('.coach-card button.primary').click({ timeout: 3000 });
+  await sleep(600);
+  report.check('the tutorial closes on the last stop', (await page.locator('.coach').count()) === 0);
+  report.check('the tutorial is not shown again', (await api(page, 'GET', '/api/state')).profile?.settings?.onboarding?.tour === true);
+} catch (e) {
+  report.check('tour', false, e.message.split('\n')[0]);
+}
 await screen('ls-intro', async () => (await onboarding({ ls: false }), await go('/ls/files')));
 await onboarding({});
 if (graphs.length) {
