@@ -1,30 +1,31 @@
 # MNE Lab
 
-MNE Lab is a desktop laboratory application for organizing, analyzing and
-presenting LIGHTSCATTERING measurements (NanoBrook 90Plus exports). It is
-built to run well on inexpensive computers: one small native executable, no
-bundled browser engine, low memory use.
+O MNE Lab é um aplicativo de laboratório para computador que organiza,
+analisa e apresenta medições de LIGHTSCATTERING (exportações do NanoBrook
+90Plus). Ele foi feito para rodar bem em computadores baratos: um único
+executável nativo e pequeno, sem navegador embutido e com pouco uso de
+memória.
 
-## What it does
+## O que ele faz
 
-- Up to five protected profiles per account, each with its own storage choice:
-  **USB Drive + Cloud**, **USB Drive Only** or **Cloud Only**.
-- Sync to the person's own cloud: Google Drive / Google One, iCloud or
-  Microsoft OneDrive.
-- **Portable USB Mode** (everything lives on the drive) and **Temporary Machine
-  Mode** (nothing stays on the computer after Save, Clean & Exit).
-- LIGHTSCATTERING library: import, graphs, stability cycles, statistics and
-  presentation.
-- Smart Export: figures (PNG, SVG, PDF, TIFF, JPEG, WebP), data (XLSX, CSV,
-  TSV, TXT, JSON) and research packages (ZIP), with provenance.
-- Phone access by QR code: viewer and presentation controller.
-- Automatic updates, LockedBuild and the Stable build selector.
-- Interface in English, Portuguese (Brazil) and Spanish, following the
-  device language.
+- Até cinco perfis protegidos por conta, cada um com a sua forma de guardar:
+  **USB + nuvem**, **Somente USB** ou **Somente nuvem**.
+- Sincronização com a nuvem da própria pessoa: Google Drive / Google One,
+  iCloud ou Microsoft OneDrive.
+- **Modo USB portátil** (tudo fica no pendrive) e **Modo máquina temporária**
+  (nada fica no computador depois de Salvar, limpar e sair).
+- Biblioteca LIGHTSCATTERING: importação, gráficos, ciclos de estabilidade,
+  estatísticas e apresentação.
+- Exportação inteligente: figuras (PNG, SVG, PDF, TIFF, JPEG, WebP), dados
+  (XLSX, CSV, TSV, TXT, JSON) e pacotes de pesquisa (ZIP), com proveniência.
+- Acesso pelo celular com QR code: visualizador e controle da apresentação.
+- Atualizações automáticas, LockedBuild e o seletor de builds Stable.
+- Interface em português (Brasil), inglês e espanhol, seguindo o idioma do
+  aparelho.
 
-## Build
+## Como compilar
 
-Requirements: Go 1.26 and Node.js 22.
+Requisitos: Go 1.26 e Node.js 22.
 
 ```sh
 cd web
@@ -34,51 +35,52 @@ cd ..
 scripts/build.sh
 ```
 
-`scripts/build.sh` writes the application and the Portable USB launcher for
-Windows (x64, x86, ARM64) and Linux (x64, ARM64) into `out/`. Windows builds
-carry the MNE Lab icon and version information and open without a console
-window. macOS builds need cgo (tray icon), so they are built on a Mac with
-`scripts/build.sh darwin/arm64 darwin/amd64`. `VERSION` and `CHANNEL` set the
-version written into the executables.
+O `scripts/build.sh` gera o aplicativo e o inicializador do Modo USB portátil
+para Windows (x64, x86, ARM64) e Linux (x64, ARM64) em `out/`. As builds de
+Windows têm o ícone e as informações de versão do MNE Lab e abrem sem janela
+de console. As builds de macOS precisam de cgo (ícone na bandeja), então são
+feitas em um Mac com `scripts/build.sh darwin/arm64 darwin/amd64`. `VERSION`
+e `CHANNEL` definem a versão gravada nos executáveis.
 
-Cloud provider credentials are not part of the repository. Release builds
-receive them through `-ldflags -X`; see
+As credenciais dos provedores de nuvem não ficam no repositório. As builds de
+release as recebem por `-ldflags -X`; veja
 [docs/TECHNICAL_CONTEXT.md](docs/TECHNICAL_CONTEXT.md).
 
-## Checks
+## Verificações
 
 ```sh
 cd web && npm run typecheck && npm test && cd ..
 gofmt -l . && go vet ./... && go test -race ./...
 ```
 
-Browser tests (needs Chromium: `cd web && npx playwright-core install chromium`):
+Testes no navegador (precisam do Chromium: `cd web && npx playwright-core install chromium`):
 
 ```sh
 scripts/e2e.sh
 ```
 
-They open every screen in English, Portuguese and Spanish, in both themes and
-two window sizes, and the phone flow, and save screenshots to `out/e2e/`.
+Eles abrem todas as telas em português, inglês e espanhol, nos dois temas e
+em dois tamanhos de janela, e o fluxo do celular, e salvam as capturas de tela
+em `out/e2e/`.
 
-## Layout
+## Estrutura
 
-| Path | Contents |
+| Caminho | Conteúdo |
 |---|---|
-| `cmd/mnelab` | The application. |
-| `cmd/mnelab-launcher` | Launcher for Portable USB installs. |
-| `cmd/mnelab-release` | Release signing and manifest tool. |
-| `internal/` | Core packages (storage, sync, providers, updates, science, export). |
-| `web/` | Desktop and phone interface. |
-| `web/tests/e2e` | Browser tests. |
-| `scripts/` | Build, browser tests and repository audit. |
-| `assets/brand` | MNE Lab icons and marks. |
-| `testdata/` | Synthetic test files. |
+| `cmd/mnelab` | O aplicativo. |
+| `cmd/mnelab-launcher` | Inicializador das instalações no pendrive. |
+| `cmd/mnelab-release` | Ferramenta de assinatura e manifesto das releases. |
+| `internal/` | Pacotes do núcleo (armazenamento, sincronização, provedores, atualizações, ciência, exportação). |
+| `web/` | Interface do computador e do celular. |
+| `web/tests/e2e` | Testes no navegador. |
+| `scripts/` | Compilação, testes no navegador e auditoria do repositório. |
+| `assets/brand` | Ícones e marcas do MNE Lab. |
+| `testdata/` | Arquivos de teste sintéticos. |
 
-## More
+## Mais
 
-- [Technical context](docs/TECHNICAL_CONTEXT.md): architecture, decisions,
-  status and next steps.
-- [Third-party notices](THIRD_PARTY_NOTICES.md).
+- [Contexto técnico](docs/TECHNICAL_CONTEXT.md) (em inglês): arquitetura,
+  decisões, situação atual e próximos passos.
+- [Avisos de terceiros](THIRD_PARTY_NOTICES.md) (em inglês).
 
 made by oaovito
