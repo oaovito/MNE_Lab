@@ -1,0 +1,131 @@
+    **** Brookhaven Instruments Corp.****
+ZetaPlus Particle Sizing Software Version 5.34
+Sample Identification:C-RT A 2 (Combined)
+Operator Identification: Unknown Operator
+Measurement Date: Apr 6, 2026
+Measurement Time: 15:20:56
+Batch: 0
+
+    **** Measurement Parameters ****
+Temperature = 25.0
+Suspension = Water
+Viscosity = 0.890 cp
+Ref.Index Fluid = 1.330
+Angle = 90.00
+Wavelength = 660.0 nm
+Runs Completed = 3
+Run Duration = 00:01:00
+Total Elapsed Time = 00:03:00
+Average Count Rate = 751.5 kcps
+Ref.Index Real = 1.590
+Ref.Index Imag = 0.000
+
+    **** Measurement Results ****
+C-RT A 2 (Combined)
+Effective Diameter: 59.8
+Polydispersity: 0.047
+Baseline Index: 8.2
+Elapsed Time = 00:03:00
+
+ Run   Eff. Diam. (nm)   Half Width (nm)   Polydispersity   Baseline Index
+---------------------------------------------------------------------------
+  1          58.8              9.4              0.025             7.2
+  2          59.8             12.9              0.047             7.6
+  3          60.6             16.9              0.078             9.8
+---------------------------------------------------------------------------
+Mean         59.7             13.1              0.050             8.2
+Std.Error     0.5              2.2              0.015             0.8
+Combined     59.8             12.9              0.047             8.2
+
+    **** Lognormal Size Distribution Results ****
+GSD: 1.238
+   d(nm)  G(d) C(d) |   d(nm)  G(d) C(d) |   d(nm)  G(d) C(d)
+--------------------------------------------------------------
+    42.1   26    5  |    56.7   97   40  |    69.1   80   75
+    45.5   44   10  |    58.2   99   45  |    71.6   70   80
+    47.9   58   15  |    59.8  100   50  |    74.7   58   85
+    50.0   70   20  |    61.5   99   55  |    78.7   44   90
+    51.8   80   25  |    63.2   97   60  |    85.1   26   95
+    53.5   87   30  |    65.0   93   65  | 
+    55.1   93   35  |    66.9   87   70  | 
+
+    **** Multimodal Size Distribution Results ****
+Mean Diameter: 58.670
+Relative Variance: 0.000
+Skew: -0.183
+
+   d(nm)  G(d) C(d) |   d(nm)  G(d) C(d) |   d(nm)  G(d) C(d)
+--------------------------------------------------------------
+    56.6    0    0  |    58.0    5    1  |    59.4    0  100
+    56.7    0    0  |    58.2   12    3  |    59.5    0  100
+    56.8    0    0  |    58.3   26    7  |    59.6    0  100
+    56.9    0    0  |    58.4   47   15  |    59.8    0  100
+    57.1    0    0  |    58.5   71   27  |    59.9    0  100
+    57.2    0    0  |    58.6   92   43  |    60.0    0  100
+    57.3    0    0  |    58.7  100   60  |    60.2    0  100
+    57.4    0    0  |    58.8   92   76  |    60.3    0  100
+    57.6    0    0  |    58.9   71   88  |    60.4    0  100
+    57.7    0    0  |    59.0   47   96  |    60.6    0  100
+    57.9    0    0  |    59.1   26  100  |    60.7    0  100
+
+    **** Lognormal Size Distribution Results/Spreadsheet Format  ****
+  42.1, 26,  5
+  45.5, 44, 10
+  47.9, 58, 15
+  50.0, 70, 20
+  51.8, 80, 25
+  53.5, 87, 30
+  55.1, 93, 35
+  56.7, 97, 40
+  58.2, 99, 45
+  59.8,100, 50
+  61.5, 99, 55
+  63.2, 97, 60
+  65.0, 93, 65
+  66.9, 87, 70
+  69.1, 80, 75
+  71.6, 70, 80
+  74.7, 58, 85
+  78.7, 44, 90
+  85.1, 26, 95
+
+
+
+
+    **** Multimodal Size Distribution Results/Spreadsheet Format   ****
+  56.6,  0,  0
+  56.7,  0,  0
+  56.8,  0,  0
+  56.9,  0,  0
+  57.1,  0,  0
+  57.2,  0,  0
+  57.3,  0,  0
+  57.4,  0,  0
+  57.6,  0,  0
+  57.7,  0,  0
+  57.9,  0,  0
+  58.0,  5,  1
+  58.2, 12,  3
+  58.3, 26,  7
+  58.4, 47, 15
+  58.5, 71, 27
+  58.6, 92, 43
+  58.7,100, 60
+  58.8, 92, 76
+  58.9, 71, 88
+  59.0, 47, 96
+  59.1, 26,100
+  59.4,  0,100
+  59.5,  0,100
+  59.6,  0,100
+  59.8,  0,100
+  59.9,  0,100
+  60.0,  0,100
+  60.2,  0,100
+  60.3,  0,100
+  60.4,  0,100
+  60.6,  0,100
+  60.7,  0,100
+
+
+
