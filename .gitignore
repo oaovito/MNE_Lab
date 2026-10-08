@@ -1,0 +1,33 @@
+# Build output
+/dist/
+/build/
+/out/
+/web/node_modules/
+/web/dist/*
+!/web/dist/.gitkeep
+*.exe
+# Local runtime data
+/data/
+/.mnelab/
+*.log
+# Secrets and private material
+.env
+.env.*
+*.pem
+*.key
+release-signing*
+/secrets/
+*.syso
+# Private development data and coordination stay outside the public checkout.
+/C-RT/
+/C-SR/
+/F-RT/
+/F-SR/
+/Zeta.xlsx
+MNE_Lab-master-prompt.md
+AGENTS.md
+CLAUDE.md
+
+/PROMPT_MESTRE_MNE_LAB_CURRENT.md
+/MNE_Lab_Pacote_Mestre*/
+/MNE_Lab_Pacote_Mestre*.zip

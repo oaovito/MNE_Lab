@@ -1,0 +1,70 @@
+// Builds the desktop interface and the mobile interface into dist/.
+import * as esbuild from 'esbuild';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const dist = 'dist';
+fs.rmSync(dist, { recursive: true, force: true });
+fs.mkdirSync(dist, { recursive: true });
+fs.writeFileSync(path.join(dist, '.gitkeep'), '');
+
+const common = {
+  bundle: true,
+  minify: true,
+  sourcemap: false,
+  target: ['chrome100', 'edge100'],
+  jsx: 'automatic',
+  jsxImportSource: 'preact',
+  loader: { '.woff2': 'file', '.svg': 'text' },
+  entryNames: 'assets/[name]-[hash]',
+  assetNames: 'assets/[name]-[hash]',
+  metafile: true,
+  legalComments: 'none',
+  outdir: dist,
+  define: { 'process.env.NODE_ENV': '"production"' },
+};
+
+async function build(entry, publicPath) {
+  const r = await esbuild.build({ ...common, entryPoints: { [entry.name]: entry.file }, publicPath });
+  const outs = Object.keys(r.metafile.outputs);
+  const js = outs.find((o) => o.endsWith('.js'));
+  const css = outs.find((o) => o.endsWith('.css'));
+  return { js: path.relative(dist, js), css: css && path.relative(dist, css) };
+}
+
+const app = await build({ name: 'app', file: 'src/main.tsx' }, '/');
+const mob = await build({ name: 'm', file: 'src/mobile/main.tsx' }, '/m/');
+
+const icon = fs.readFileSync('../assets/brand/mnelab-icon.svg', 'utf8');
+fs.writeFileSync(path.join(dist, 'icon.svg'), icon);
+fs.copyFileSync('../assets/brand/png/icon-192.png', path.join(dist, 'icon-192.png'));
+fs.copyFileSync('../assets/brand/png/icon-512.png', path.join(dist, 'icon-512.png'));
+fs.copyFileSync('../assets/brand/png/icon-180.png', path.join(dist, 'apple-touch-icon.png'));
+
+const page = (title, base, files, extra = '') => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0B0F14">
+<meta name="referrer" content="no-referrer">
+<title>${title}</title>
+<link rel="icon" href="${base}icon.svg" type="image/svg+xml">
+${extra}${files.css ? `<link rel="stylesheet" href="${base}${files.css}">` : ''}
+<script type="module" src="${base}${files.js}"></script>
+</head>
+<body><div id="app"></div></body>
+</html>
+`;
+fs.writeFileSync(path.join(dist, 'index.html'), page('MNE Lab', '/', app));
+fs.writeFileSync(path.join(dist, 'm.html'), page('MNE Lab', '/m/', mob,
+  '<link rel="apple-touch-icon" href="/m/apple-touch-icon.png">\n<link rel="manifest" href="/m/manifest.webmanifest">\n<meta name="apple-mobile-web-app-capable" content="yes">\n'));
+fs.writeFileSync(path.join(dist, 'manifest.webmanifest'), JSON.stringify({
+  name: 'MNE Lab', short_name: 'MNE Lab', start_url: '/m', display: 'standalone',
+  background_color: '#0B0F14', theme_color: '#0B0F14',
+  icons: [{ src: '/m/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/m/icon-512.png', sizes: '512x512', type: 'image/png' }],
+}));
+const size = (f) => (fs.statSync(path.join(dist, f)).size / 1024).toFixed(0) + ' KiB';
+console.log('app', app.js, size(app.js), app.css ? size(app.css) : '');
+console.log('mobile', mob.js, size(mob.js), mob.css ? size(mob.css) : '');

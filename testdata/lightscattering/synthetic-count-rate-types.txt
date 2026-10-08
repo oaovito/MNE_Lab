@@ -1,0 +1,11 @@
+# Synthetic fixture: independently reported current and average count rates.
+Sample ID: SYNTHETIC-COUNT-RATE-TYPES
+Measurement Date: 2026-02-16 08:30:00
+Current Count Rate: 73.250 kcps
+Average Count Rate = 0.18450 Mcps
+Effective Diameter: 83.125 nm
+Polydispersity: 0.160
+Diameter (nm),Intensity (%)
+40,10
+80,60
+160,30

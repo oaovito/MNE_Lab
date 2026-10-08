@@ -1,0 +1,244 @@
+/* MNE Lab design system: tokens. Every color, size and motion value used
+   by the interface comes from here. */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../../node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2') format('woff2');
+}
+
+:root {
+  /* Type */
+  --font: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 26px;
+  --fs-3xl: 34px;
+  --lh: 1.45;
+
+  /* Space (4 px grid) */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+  --s12: 48px;
+
+  /* Shape */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-full: 999px;
+
+  /* Sizes */
+  --header-h: 56px;
+  --control-h: 36px;
+  --control-h-sm: 30px;
+  --icon: 18px;
+  --icon-sm: 16px;
+  --icon-stroke: 1.75;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --t1: 110ms;
+  --t2: 180ms;
+  --t3: 260ms;
+
+  /* Brand */
+  --brand: #2dd4bf;
+  --brand-2: #5eead4;
+  --brand-ink: #042f2e;
+
+  /* Profile colors (avatar fallbacks) */
+  --pc0: #2dd4bf;
+  --pc1: #60a5fa;
+  --pc2: #a78bfa;
+  --pc3: #f472b6;
+  --pc4: #fb923c;
+  --pc5: #facc15;
+  --pc6: #4ade80;
+  --pc7: #94a3b8;
+
+  color-scheme: dark;
+  --bg: #0b0f14;
+  --bg-grad: radial-gradient(1200px 600px at 85% -10%, rgba(45, 212, 191, 0.07), transparent 60%), radial-gradient(900px 500px at -10% 110%, rgba(96, 165, 250, 0.05), transparent 60%);
+  --surface: #11161d;
+  --surface-2: #161c25;
+  --surface-3: #1c2430;
+  --surface-hover: #1f2733;
+  --raised: #18202a;
+  --overlay: rgba(4, 7, 11, 0.62);
+  --border: #222b37;
+  --border-2: #2d3846;
+  --border-strong: #3a4757;
+  --text: #e7ecf2;
+  --text-2: #aab5c3;
+  --text-3: #788596;
+  --text-4: #566272;
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-ink: #032826;
+  --accent-soft: rgba(45, 212, 191, 0.12);
+  --accent-line: rgba(45, 212, 191, 0.35);
+  --focus: #5eead4;
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.13);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.13);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.13);
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.13);
+  --paper: #ffffff;
+  --paper-border: #e3e7ed;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --skeleton: #1a212b;
+  --skeleton-hi: #232c38;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f4f6f9;
+  --bg-grad: radial-gradient(1200px 600px at 85% -10%, rgba(13, 148, 136, 0.06), transparent 60%), radial-gradient(900px 500px at -10% 110%, rgba(59, 130, 246, 0.05), transparent 60%);
+  --surface: #ffffff;
+  --surface-2: #f7f9fb;
+  --surface-3: #eef2f6;
+  --surface-hover: #f0f4f8;
+  --raised: #ffffff;
+  --overlay: rgba(15, 23, 32, 0.38);
+  --border: #e2e7ee;
+  --border-2: #d6dde6;
+  --border-strong: #c3ccd8;
+  --text: #121821;
+  --text-2: #4a5565;
+  --text-3: #6b7685;
+  --text-4: #96a0ad;
+  --accent: #0d9488;
+  --accent-hover: #0f766e;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(13, 148, 136, 0.1);
+  --accent-line: rgba(13, 148, 136, 0.35);
+  --focus: #0d9488;
+  --success: #059669;
+  --success-soft: rgba(5, 150, 105, 0.1);
+  --warning: #b45309;
+  --warning-soft: rgba(217, 119, 6, 0.12);
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.09);
+  --info: #2563eb;
+  --info-soft: rgba(37, 99, 235, 0.09);
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-2: 0 6px 18px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 18px 48px rgba(16, 24, 40, 0.16), 0 2px 8px rgba(16, 24, 40, 0.08);
+  --skeleton: #eceff3;
+  --skeleton-hi: #f6f8fa;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme='system'] {
+    color-scheme: light;
+    --bg: #f4f6f9;
+    --bg-grad: radial-gradient(1200px 600px at 85% -10%, rgba(13, 148, 136, 0.06), transparent 60%), radial-gradient(900px 500px at -10% 110%, rgba(59, 130, 246, 0.05), transparent 60%);
+    --surface: #ffffff;
+    --surface-2: #f7f9fb;
+    --surface-3: #eef2f6;
+    --surface-hover: #f0f4f8;
+    --raised: #ffffff;
+    --overlay: rgba(15, 23, 32, 0.38);
+    --border: #e2e7ee;
+    --border-2: #d6dde6;
+    --border-strong: #c3ccd8;
+    --text: #121821;
+    --text-2: #4a5565;
+    --text-3: #6b7685;
+    --text-4: #96a0ad;
+    --accent: #0d9488;
+    --accent-hover: #0f766e;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(13, 148, 136, 0.1);
+    --accent-line: rgba(13, 148, 136, 0.35);
+    --focus: #0d9488;
+    --success: #059669;
+    --success-soft: rgba(5, 150, 105, 0.1);
+    --warning: #b45309;
+    --warning-soft: rgba(217, 119, 6, 0.12);
+    --danger: #dc2626;
+    --danger-soft: rgba(220, 38, 38, 0.09);
+    --info: #2563eb;
+    --info-soft: rgba(37, 99, 235, 0.09);
+    --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+    --shadow-2: 0 6px 18px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.06);
+    --shadow-pop: 0 18px 48px rgba(16, 24, 40, 0.16), 0 2px 8px rgba(16, 24, 40, 0.08);
+    --skeleton: #eceff3;
+    --skeleton-hi: #f6f8fa;
+  }
+}
+
+/* Compact density on short screens (inexpensive notebooks, 1366×768). */
+@media (max-height: 760px) {
+  :root {
+    --header-h: 50px;
+    --control-h: 34px;
+    --s6: 20px;
+    --s8: 26px;
+  }
+}
+
+/* Turbo Mode and reduced motion: no cosmetic animation. */
+:root.turbo *,
+:root.turbo *::before,
+:root.turbo *::after {
+  transition: none !important;
+  animation: none !important;
+  scroll-behavior: auto !important;
+}
+:root.turbo {
+  --bg-grad: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
