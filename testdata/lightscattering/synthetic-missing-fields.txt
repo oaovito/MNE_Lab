@@ -1,0 +1,4 @@
+Sample ID: D4
+Effective Diameter (nm): 198.6
+Polydispersity: 0.231
+Current Count Rate: 280.1

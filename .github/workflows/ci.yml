@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the audit reads the whole history
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26' # latest patch release, with its security fixes
+          check-latest: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Interface — install
+        working-directory: web
+        run: npm ci
+      - name: Interface — type check
+        working-directory: web
+        run: npm run typecheck
+      - name: Interface — tests (translations, coverage of every text)
+        working-directory: web
+        run: npm test
+      - name: Interface — build
+        working-directory: web
+        run: npm run build
+
+      - name: Core — format
+        run: test -z "$(gofmt -l cmd internal web)"
+      - name: Core — vet
+        run: go vet ./...
+      - name: Core — tests (parsers, graph engine, exports, storage, sync, backups, updates, mobile)
+        run: go test -race ./...
+
+      - name: Dependency audit (Go)
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: Dependency audit (interface)
+        working-directory: web
+        run: npm audit --omit=dev
+
+      - name: Build (Windows x64, x86, ARM64; Linux x64, ARM64)
+        run: scripts/build.sh
+
+      - name: Audit (secrets, private files, unwanted terms, build paths)
+        env:
+          AUDIT_TERMS: ${{ secrets.AUDIT_TERMS }}
+        run: |
+          if [ -n "$AUDIT_TERMS" ]; then printf '%s\n' "$AUDIT_TERMS" > "$RUNNER_TEMP/terms"; export AUDIT_TERMS_FILE="$RUNNER_TEMP/terms"; fi
+          scripts/audit.sh out web/dist
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26' # latest patch release, with its security fixes
+          check-latest: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build
+        run: |
+          (cd web && npm ci && npm run build)
+          go test ./...
+          scripts/build.sh darwin/arm64 darwin/amd64
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Interface — install and build
+        working-directory: web
+        run: npm ci && npm run build
+      - name: Chromium
+        working-directory: web
+        run: npx playwright-core install --with-deps chromium
+      - name: Browser tests (3 languages, both themes, two window sizes, both modes, phone)
+        run: scripts/e2e.sh
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: out/e2e
+          retention-days: 14

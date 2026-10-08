@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="currentColor">
+<g stroke="currentColor" stroke-linecap="round" fill="none"><line x1="641.9" y1="549.0" x2="797.8" y2="459.0" stroke-width="14" stroke-opacity="0.3"/><line x1="598.0" y1="501.1" x2="695.5" y2="361.9" stroke-width="14" stroke-opacity="0.4"/><line x1="426.0" y1="501.1" x2="328.5" y2="361.9" stroke-width="14" stroke-opacity="0.4"/><line x1="382.1" y1="549.0" x2="226.2" y2="459.0" stroke-width="14" stroke-opacity="0.3"/><line x1="641.9" y1="699.0" x2="745.8" y2="759.0" stroke-width="14" stroke-opacity="0.16"/><line x1="587.0" y1="753.9" x2="637.0" y2="840.5" stroke-width="14" stroke-opacity="0.2"/><line x1="437.0" y1="753.9" x2="387.0" y2="840.5" stroke-width="14" stroke-opacity="0.2"/><line x1="382.1" y1="699.0" x2="278.2" y2="759.0" stroke-width="14" stroke-opacity="0.16"/></g>
+<rect x="512" y="615" width="400" height="18" rx="9" fill-opacity="0.35"/>
+<rect x="112" y="603" width="400" height="42" rx="21" fill-opacity="0.7"/>
+<rect x="495" y="274" width="34" height="350" rx="17"/>
+<path d="M631.9 231.9A410 410 0 0 0 392.1 231.9" fill="none" stroke="currentColor" stroke-width="50" stroke-linecap="round"/>
+<circle cx="512" cy="624" r="100"/>
+</svg>
