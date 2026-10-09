@@ -352,6 +352,7 @@ export const core: Record<string, readonly [string, string, string]> = {
   'stor.coll.ls.cycle': ['Cycle', 'Ciclo', 'Ciclo'],
   'stor.coll.settings': ['Profile settings', 'Preferências do perfil', 'Preferencias del perfil'],
   'stor.coll.export.history': ['Export history', 'Histórico de exportações', 'Historial de exportaciones'],
+  'stor.coll.import.profile': ['Import selection', 'Seleção de importação', 'Selección de importación'],
   'stor.coll.recent': ['Recent items', 'Itens recentes', 'Elementos recientes'],
   'bk.d.portable': ['Backups are kept on this USB drive and checked after they are written.', 'Os backups ficam neste pendrive e são conferidos depois de gravados.', 'Las copias se guardan en esta unidad USB y se comprueban después de escribirse.'],
   'bk.d.temporary': ['Backups are kept in your cloud while this computer is only temporary.', 'Os backups ficam na sua nuvem enquanto este computador é apenas temporário.', 'Las copias se guardan en su nube mientras este equipo sea solo temporal.'],

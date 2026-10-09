@@ -188,6 +188,7 @@ export type ImportResult = {
 
 export type SheetSelection = { name: string; range?: string };
 export type ImportSelection = { sheets: SheetSelection[] };
+export type ImportProfile = { id: string; schema: number; name: string; format: string; selection?: ImportSelection; parser: string; spec: string; createdAt: string };
 export type ImportInspection = {
   selection?: ImportSelection;
   name: string; sha256: string; format: string; module?: string;

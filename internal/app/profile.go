@@ -24,13 +24,14 @@ import (
 // Collections of a profile store. Names starting with "_" never leave the
 // device.
 const (
-	CollFiles        = "ls.file"
-	CollMeasurements = "ls.measurement"
-	CollGraphs       = "ls.graph"
-	CollCycles       = "ls.cycle"
-	CollSettings     = "settings"
-	CollExports      = "export.history"
-	CollRecent       = "recent"
+	CollFiles          = "ls.file"
+	CollMeasurements   = "ls.measurement"
+	CollGraphs         = "ls.graph"
+	CollCycles         = "ls.cycle"
+	CollSettings       = "settings"
+	CollExports        = "export.history"
+	CollRecent         = "recent"
+	CollImportProfiles = "import.profile"
 )
 
 // ProfileSettings are the preferences of one profile (synchronized).

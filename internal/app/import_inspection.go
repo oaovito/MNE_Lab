@@ -40,6 +40,7 @@ type ImportInspection struct {
 }
 
 type importClaim struct {
+	Format    string                 `json:"format"`
 	Selection *model.ImportSelection `json:"selection,omitempty"`
 	Version   int                    `json:"v"`
 	Account   string                 `json:"account"`
@@ -131,7 +132,7 @@ func (p *Profile) InspectImportSelection(name string, data []byte, selection *mo
 		return ImportInspection{}, ErrImportScope
 	}
 	if r.Status != "failed" && out.Module != "" {
-		claim := importClaim{Version: 1, Account: out.AccountID, Profile: out.ProfileID, Name: name, SHA256: out.SHA256, Parser: r.Parser, Spec: r.Spec, Expires: time.Now().Add(30 * time.Minute).Unix(), Selection: selection}
+		claim := importClaim{Version: 1, Account: out.AccountID, Profile: out.ProfileID, Name: name, SHA256: out.SHA256, Parser: r.Parser, Spec: r.Spec, Expires: time.Now().Add(30 * time.Minute).Unix(), Selection: selection, Format: format}
 		payload, _ := json.Marshal(claim)
 		out.Receipt = base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(p.importMAC(payload))
 	}
@@ -232,30 +233,39 @@ func (p *Profile) ConfirmImportSelection(name string, data []byte, receipt strin
 	if err != nil {
 		return ImportResult{}, err
 	}
-	if len(receipt) > 65536 || receipt == "" {
-		return ImportResult{}, ErrImportReview
-	}
-	parts := strings.Split(receipt, ".")
-	if len(parts) != 2 {
-		return ImportResult{}, ErrImportReview
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	claim, err := p.reviewClaim(receipt)
 	if err != nil {
-		return ImportResult{}, ErrImportReview
-	}
-	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil || !hmac.Equal(signature, p.importMAC(payload)) {
-		return ImportResult{}, ErrImportReview
-	}
-	var claim importClaim
-	if json.Unmarshal(payload, &claim) != nil || claim.Version != 1 || time.Now().Unix() >= claim.Expires {
-		return ImportResult{}, ErrImportReview
-	}
-	if p.closed.Load() || p.app.exiting.Load() || claim.Account != p.acct.ID() || claim.Profile != p.Entry.ID {
-		return ImportResult{}, ErrImportScope
+		return ImportResult{}, err
 	}
 	if !sameImportSelection(claim.Selection, selection) || len(data) == 0 || len(data) > lightscattering.MaxFileSize || name != claim.Name || secure.HashHex(data) != claim.SHA256 || claim.Parser != lightscattering.Version || claim.Spec != lightscattering.Parse(nil).Spec {
 		return ImportResult{}, ErrImportChanged
 	}
 	return p.importSelected(name, data, force, selection), nil
+}
+
+// reviewClaim also authorizes saving a reviewed selection; no file is stored.
+func (p *Profile) reviewClaim(receipt string) (importClaim, error) {
+	if len(receipt) > 65536 || receipt == "" {
+		return importClaim{}, ErrImportReview
+	}
+	parts := strings.Split(receipt, ".")
+	if len(parts) != 2 {
+		return importClaim{}, ErrImportReview
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return importClaim{}, ErrImportReview
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil || !hmac.Equal(signature, p.importMAC(payload)) {
+		return importClaim{}, ErrImportReview
+	}
+	var claim importClaim
+	if json.Unmarshal(payload, &claim) != nil || claim.Version != 1 || time.Now().Unix() >= claim.Expires {
+		return importClaim{}, ErrImportReview
+	}
+	if p.closed.Load() || p.app.exiting.Load() || claim.Account != p.acct.ID() || claim.Profile != p.Entry.ID {
+		return importClaim{}, ErrImportScope
+	}
+	return claim, nil
 }

@@ -29,7 +29,16 @@ source range. Duplicate detection compares original SHA-256 and selection,
 including a check inside the write transaction for concurrent confirmation.
 Importing another subset of the same workbook produces a separate dataset.
 
+Users can explicitly save a reviewed XLSX worksheet/range selection in the
+current encrypted Profile and apply it to another workbook. Saved selections
+contain configuration only, without source bytes, hashes or review receipts.
+Applying one requires a fresh inspection before confirming any import. Names
+are unique within the Profile; deleting a selection leaves imported datasets
+intact. The authenticated `/api/import/profiles` endpoints enforce the same
+account/profile scope as inspection. Recipe schema 1 supports XLSX worksheet
+selections; it does not map scientific columns or supply missing units.
+
 The legacy `/api/files` endpoint remains available for existing programmatic
 clients; the desktop chooser uses the inspect/confirm sequence. Native XLS/ODS,
-manual scientific column mapping and reusable Profile-scoped import recipes
-remain pending. Scientific interpretation remains provisional.
+manual scientific column mapping and richer import recipes remain pending.
+Scientific interpretation remains provisional.

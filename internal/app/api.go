@@ -506,6 +506,53 @@ func (s *Server) routes() {
 	})
 
 	// ---- LIGHTSCATTERING: files and measurements ----
+	// Saved import selections live only in the active Profile's encrypted store.
+	importProfileScope := func(r *http.Request) (*Profile, error) {
+		p, err := prof()
+		if err != nil {
+			return nil, err
+		}
+		if p.closed.Load() || r.Header.Get("X-Account-ID") != p.acct.ID() || r.Header.Get("X-Profile-ID") != p.Entry.ID {
+			return nil, ErrImportScope
+		}
+		return p, nil
+	}
+	s.handle("GET /api/import/profiles", func(w http.ResponseWriter, r *http.Request) (any, error) {
+		p, err := importProfileScope(r)
+		if err != nil {
+			return nil, err
+		}
+		return p.ImportProfiles()
+	})
+	s.handle("POST /api/import/profiles", func(w http.ResponseWriter, r *http.Request) (any, error) {
+		p, err := importProfileScope(r)
+		if err != nil {
+			return nil, err
+		}
+		var in struct {
+			Name    string `json:"name"`
+			Receipt string `json:"receipt"`
+		}
+		if err := decode(r, &in); err != nil {
+			return nil, err
+		}
+		recipe, err := p.SaveImportProfile(in.Name, in.Receipt)
+		if err == nil {
+			a.hub.Publish("library", nil)
+		}
+		return recipe, err
+	})
+	s.handle("DELETE /api/import/profiles/{id}", func(w http.ResponseWriter, r *http.Request) (any, error) {
+		p, err := importProfileScope(r)
+		if err != nil {
+			return nil, err
+		}
+		err = p.DeleteImportProfile(pathID(r))
+		if err == nil {
+			a.hub.Publish("library", nil)
+		}
+		return nil, err
+	})
 	// Inspection and confirmation are explicitly bound to the chooser's scope.
 	for _, action := range []string{"inspect", "confirm"} {
 		s.handle("POST /api/import/"+action, func(w http.ResponseWriter, r *http.Request) (any, error) {
