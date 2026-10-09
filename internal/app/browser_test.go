@@ -90,6 +90,11 @@ func TestBrowserHarness(t *testing.T) {
 	if err := workbook.SaveAs(filepath.Join(dir, "synthetic-selection.xlsx")); err != nil {
 		t.Fatal(err)
 	}
+	workbook.NewSheet("Preset context")
+	workbook.SetCellValue("Preset context", "A1", "Explicitly synthetic saved-selection fixture")
+	if err := workbook.SaveAs(filepath.Join(dir, "synthetic-preset.xlsx")); err != nil {
+		t.Fatal(err)
+	}
 	workbook.Close()
 	methods, err := os.ReadFile(filepath.Join("..", "..", "testdata", "lightscattering", "synthetic-nanobrook-methods.txt"))
 	if err != nil {

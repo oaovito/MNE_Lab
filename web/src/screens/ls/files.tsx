@@ -9,7 +9,7 @@ import { measurementName, PARAMS, useFiles, useRelations, warnText } from '../..
 import { navigate, useRoute } from '../../lib/route';
 import { app, openPanel, run, toast } from '../../lib/state';
 import { createStore, useStore } from '../../lib/store';
-import type { FileView, ImportInspection, ImportResult, ImportSelection, SheetSelection, Measurement, MeasurementSummary, SourceFile } from '../../lib/types';
+import type { FileView, ImportInspection, ImportResult, ImportSelection, SheetSelection, ImportProfile, Measurement, MeasurementSummary, SourceFile } from '../../lib/types';
 import { Icon } from '../../ui/icons';
 import { Badge, Button, Check, confirmDialog, Empty, Field, Input, Menu as MenuLazy, Modal, Notice, Seg, Select, Skeleton, Spinner, Tabs, useAsync } from '../../ui/kit';
 
@@ -173,12 +173,13 @@ function ImportItem(p: { row: ImportRow }) {
         })}
         {r.state === 'editing' && <Button size="sm" onClick={() => inspectOne(r)}>{t('imp.update_preview')}</Button>}
       </div>}
+      {preview?.format === 'xlsx' && !r.result?.fileId && <ImportProfilePicker row={r} />}
       {preview && <details class="xs" style={{ marginTop: 10 }}>
         <summary>{t('imp.detected')} · {preview.format.toUpperCase()}{preview.module ? ' · LIGHTSCATTERING' : ''}</summary>
         <p>{t('imp.encoding')}: {preview.result.encoding}{preview.result.delimiter ? ' · ' + t('imp.delimiter') + ': ' + JSON.stringify(preview.result.delimiter) : ''}</p>
         {(preview.result.measurements || []).map((m) => <div class="col gap1">
           <b>{m.sampleId || t('imp.measurement')}{m.sourceSheet ? ' · ' + m.sourceSheet : ''}{m.sourceRange ? ' · ' + m.sourceRange : ''}</b>
-          {m.fields?.map((f) => <span>{f.label}{!f.key ? ' (' + t('imp.unmapped') + ')' : ''}: {f.text}{f.unit ? ' ' + f.unit : ''} · {t('imp.source_line', { n: f.line })}</span>)}
+          {m.fields?.map((f) => <span>{f.label}{!f.key ? ' (' + t('imp.unmapped') + ')' : ''}: {f.text}{f.unit ? ' · ' + t('col.unit') + ': ' + f.unit : ''} · {t('imp.source_line', { n: f.line })}</span>)}
           {(m.distributions || (m.distribution ? [m.distribution] : [])).map((d) => <div>
             <b>{d.method || t('imp.distribution')} · {d.format}</b>
             <table><thead><tr>{d.columns.map((c) => <th>{c.label}{c.unit ? ' (' + c.unit + ')' : ''}</th>)}</tr></thead>
@@ -204,6 +205,57 @@ function ImportItem(p: { row: ImportRow }) {
       )}
     </div>
   );
+}
+
+// Saved selections are explicitly applied and inspected again for this file.
+function ImportProfilePicker({ row }: { row: ImportRow }) {
+  const [name, setName] = useState('');
+  const [selected, setSelected] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const headers = { 'X-Account-ID': row.accountId, 'X-Profile-ID': row.profileId };
+  const profiles = useAsync(() => get<ImportProfile[]>('/api/import/profiles', { headers }), [row.accountId, row.profileId]);
+  const available = (profiles.data || []).filter((p) => p.schema === 1 && p.format === 'xlsx');
+  useEffect(() => {
+    const chosen = available.find((p) => p.id === selected);
+    const canonical = (selection?: ImportSelection) => JSON.stringify(selection?.sheets.map((s) => ({ name: s.name, range: s.range?.trim().toUpperCase() || '' })).sort((a, b) => a.name.localeCompare(b.name)) || null);
+    if (chosen && canonical(chosen.selection) !== canonical(row.recipe)) setSelected('');
+  }, [row.recipe, profiles.data, selected]);
+  const disabled = busy || row.state === 'running' || row.state === 'saving';
+  const save = async () => {
+    if (disabled || row.state !== 'ready' || !row.preview?.receipt || !name.trim()) return;
+    setBusy(true); setError('');
+    try {
+      const saved = await post<ImportProfile>('/api/import/profiles', { name, receipt: row.preview.receipt }, { headers });
+      setName(''); setSelected(saved.id); profiles.reload();
+    } catch (e: any) { setError(e?.code || 'app.internal_error'); }
+    finally { setBusy(false); }
+  };
+  const remove = async () => {
+    if (disabled || !selected) return;
+    setBusy(true); setError('');
+    try { await api('DELETE', '/api/import/profiles/' + encodeURIComponent(selected), undefined, { headers }); setSelected(''); profiles.reload(); }
+    catch (e: any) { setError(e?.code || 'app.internal_error'); }
+    finally { setBusy(false); }
+  };
+  return <div class="col gap2" style={{ marginTop: 12 }}>
+    <b class="xs">{t('imp.saved_selections')}</b>
+    <div class="row gap2">
+      <select class="select grow" aria-label={t('imp.saved_selections')} value={selected} disabled={disabled || profiles.loading} onChange={(e) => {
+        const id = (e.target as HTMLSelectElement).value; setSelected(id); setError('');
+        const chosen = available.find((p) => p.id === id);
+        if (chosen) updateImport(row, { recipe: chosen.selection, state: 'editing', result: undefined });
+      }}>
+        <option value="">{t('imp.custom_selection')}</option>
+        {available.map((p) => <option value={p.id}>{p.name}</option>)}
+      </select>
+      <Button size="sm" kind="ghost" icon="trash" disabled={!selected || disabled} onClick={remove}>{t('imp.delete_selection')}</Button>
+    </div>
+    <Field label={t('imp.selection_name')}><Input aria-label={t('imp.selection_name')} value={name} onValue={setName} maxLength={96} disabled={disabled} /></Field>
+    <Button size="sm" disabled={disabled || row.state !== 'ready' || !row.preview?.receipt || !name.trim()} onClick={save}>{t('imp.save_selection')}</Button>
+    <span class="xs faint">{t('imp.selection_hint')}</span>
+    {(error || profiles.error) && <Notice kind="danger">{errText(error || profiles.error!)}</Notice>}
+  </div>;
 }
 
 // ---- library ----
