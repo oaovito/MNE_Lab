@@ -7,9 +7,9 @@ const out = path.join(outRoot, 'inspection');
 fs.mkdirSync(out, { recursive: true });
 const report = new Report('import-inspection');
 const labels = {
-  en: { pick: 'Import files', confirm: 'Import reviewed files', cancel: 'Cancel', done: 'Done', detected: 'Detected data', literal: 'Literal source table' },
-  'pt-BR': { pick: 'Importar arquivos', confirm: 'Importar arquivos revisados', cancel: 'Cancelar', done: 'Concluído', detected: 'Dados detectados', literal: 'Tabela literal da fonte' },
-  es: { pick: 'Importar archivos', confirm: 'Importar archivos revisados', cancel: 'Cancelar', done: 'Listo', detected: 'Datos detectados', literal: 'Tabla literal de origen' },
+  en: { pick: 'Import files', confirm: 'Import reviewed files', cancel: 'Cancel', done: 'Done', detected: 'Detected data', literal: 'Literal source table', readonly: 'Read-only preview', declared: 'Declared value' },
+  'pt-BR': { pick: 'Importar arquivos', confirm: 'Importar arquivos revisados', cancel: 'Cancelar', done: 'Concluído', detected: 'Dados detectados', literal: 'Tabela literal da fonte', readonly: 'Prévia somente leitura', declared: 'Valor declarado' },
+  es: { pick: 'Importar archivos', confirm: 'Importar archivos revisados', cancel: 'Cancelar', done: 'Listo', detected: 'Datos detectados', literal: 'Tabla literal de origen', readonly: 'Vista previa de solo lectura', declared: 'Valor declarado' },
 };
 const browser = await launchBrowser();
 try {
@@ -48,6 +48,22 @@ try {
   report.check(`${lang}: literal table localized layout`, literalProblems.length === 0, literalProblems.join('; '));
   await page.screenshot({ path: path.join(out, `literal-table-${lang}.png`) });
   await page.getByRole('button', { name: l.done, exact: true }).click();
+  for (const [theme, viewport] of [['light', { width: 1366, height: 768 }], ['dark', { width: 1024, height: 600 }]]) {
+   await api(page, 'PUT', '/api/profile/settings', { language: lang, theme, onboarding: { tour: true, ls: true, turbo: true }, whatsNewSeen: state.version });
+   await page.setViewportSize(viewport); await page.reload(); await page.waitForLoadState('networkidle');
+   await choose(`invented-${lang}.ods`, fs.readFileSync('../testdata/ods-preview/invented.ods'));
+   await page.getByRole('button', { name: l.done, exact: true }).waitFor();
+   await page.locator('summary').filter({ hasText: l.literal }).click();
+   const text = await page.locator('.overlay').innerText();
+   report.check(`${lang}/${theme}: ODS display and declared precision are separate`, text.includes('1,2300') && text.includes('1.2300') && text.includes(l.declared) && text.includes('0.50') && text.includes('50%'));
+   report.check(`${lang}/${theme}: ODS is read-only and cannot confirm scientific data`, text.includes(l.readonly) && await page.getByRole('button', { name: l.confirm, exact: true }).count() === 0 && confirmations === 0 && JSON.stringify(before) === JSON.stringify(await api(page, 'GET', '/api/files')));
+   const odsProblems = await layoutProblems(page, translationKeys());
+   report.check(`${lang}/${theme}: ODS localized bounded layout`, odsProblems.length === 0, odsProblems.join('; '));
+   await page.screenshot({ path: path.join(out, `ods-${lang}-${theme}.png`) });
+   await page.getByRole('button', { name: l.done, exact: true }).click();
+  }
+  await api(page, 'PUT', '/api/profile/settings', { language: lang, theme: 'light', onboarding: { tour: true, ls: true, turbo: true }, whatsNewSeen: state.version });
+  await page.setViewportSize({ width: 1366, height: 768 }); await page.reload(); await page.waitForLoadState('networkidle');
   await choose(`invalid-${lang}.txt`, Buffer.from('Unrecognized synthetic report'));
   await page.getByRole('button', { name: l.done, exact: true }).waitFor();
   report.check(`${lang}: invalid preview cannot be confirmed`, await page.getByRole('button', { name: l.confirm, exact: true }).count() === 0 && JSON.stringify(before) === JSON.stringify(await api(page, 'GET', '/api/files')));

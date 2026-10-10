@@ -24,6 +24,9 @@ func Identity(name string, data []byte) (string, string) {
 	if dts.IsCompound(data) || strings.EqualFold(filepath.Ext(name), ".dts") {
 		return dts.Version, DTSSpec
 	}
+	if strings.EqualFold(filepath.Ext(name), ".ods") || lightscattering.IsODSPackage(data) {
+		return lightscattering.ODSReaderVersion, ""
+	}
 	return lightscattering.Version, lightscattering.Parse(nil).Spec
 }
 
@@ -41,12 +44,18 @@ func Inspect(name string, data []byte, selection *model.ImportSelection) (Result
 		return r, format, nil
 	}
 	r, format, table := lightscattering.InspectFileSelection(name, data, selection)
+	if format == "ods" {
+		return Result{Result: r}, format, table // literal container, no scientific adapter assigned
+	}
 	return Result{Result: r, Module: module.LightScattering}, format, table
 }
 
 func Parse(name string, data []byte, selection *model.ImportSelection) (Result, string) {
 	if !dts.IsCompound(data) && !strings.EqualFold(filepath.Ext(name), ".dts") {
 		r, format := lightscattering.ParseFileSelection(name, data, selection)
+		if format == "ods" {
+			return Result{Result: r}, format
+		}
 		return Result{Result: r, Module: module.LightScattering}, format
 	}
 	out := Result{Result: lightscattering.Result{Status: "failed", Parser: dts.Version, Spec: DTSSpec, Measurements: []model.Measurement{}, Recognized: []string{}}}

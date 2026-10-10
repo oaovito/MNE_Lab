@@ -45,7 +45,10 @@ func ParseFileSelection(name string, data []byte, selection *model.ImportSelecti
 	if len(data) > MaxFileSize {
 		return spreadsheetFailure(ErrTooLarge), ""
 	}
-	if ext == ".xls" || ext == ".ods" || ext == ".xlsm" || bytes.HasPrefix(data, []byte{0xd0, 0xcf, 0x11, 0xe0}) {
+	if ext == ".ods" || IsODSPackage(data) {
+		return odsFailure(ErrSpreadsheetUnsupported), "ods"
+	}
+	if ext == ".xls" || ext == ".xlsm" || bytes.HasPrefix(data, []byte{0xd0, 0xcf, 0x11, 0xe0}) {
 		return spreadsheetFailure(ErrSpreadsheetUnsupported), ""
 	}
 	if ext == ".xlsx" || bytes.HasPrefix(data, []byte("PK\x03\x04")) {
