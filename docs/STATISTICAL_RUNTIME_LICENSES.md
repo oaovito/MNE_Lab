@@ -80,9 +80,17 @@ hash verification. This preparation does not change runtime assets.
 The recipes identify R 4.6.0 and Emscripten 5.0.7. The top-level Docker base
 uses `flang-wasm:main`, and flang's LLVM source clone uses a mutable `wasm`
 branch. Those references do not identify the exact release-time compiler/image.
-The R release-source/checksum endpoints returned HTTP CONNECT 403 in the current
-environment; required CRAN domain additions were saved for environment review.
-Remaining gates include complete release/component source archives and verified
+The earlier R source requests returned HTTP CONNECT 403. Configuration readback
+now reports the source-download domains in the active base with no pending
+draft, and both official HTTPS mirrors are accessible. The exact recipe's
+`R-4.6.0.tar.gz` was acquired from cran.rstudio.com and compared byte-for-byte
+with cloud.r-project.org: 40,916,004 bytes, SHA-256
+`b8dc9b4543660c7b596b87938df532394350360976527d344228ee0ed12e45ec`.
+All 5,457 member paths, VERSION=4.6.0 and COPYING were checked without
+installing or changing the product runtime. This is a locally calculated hash
+plus agreement of official HTTPS mirrors; an independently published upstream
+checksum/signature has not been obtained and is not fabricated.
+Remaining gates include complete component source archives and verified
 checksums, exact compiler/image inputs, patches, build/install machinery,
 reconstruction or a fully documented compliant source distribution, and the
 project's distribution licensing decision. A pinned subset of source or a
