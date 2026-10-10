@@ -24,7 +24,7 @@ const toggleSel = (ids: string[], on: boolean) => {
 
 // ---- import ----
 
-type ImportRow = { name: string; size: number; state: 'waiting' | 'running' | 'ready' | 'editing' | 'saving' | 'done'; result?: ImportResult; preview?: ImportInspection; recipe?: ImportSelection; file: File; accountId: string; profileId: string; abort: AbortController };
+type ImportRow = { name: string; size: number; state: 'waiting' | 'running' | 'ready' | 'editing' | 'saving' | 'done'; result?: ImportResult; preview?: ImportInspection; sheets?: ImportInspection['result']['sheets']; recipe?: ImportSelection; file: File; accountId: string; profileId: string; abort: AbortController };
 export const imports = createStore<{ rows: ImportRow[]; open: boolean }>({ rows: [], open: false });
 const updateImport = (row: ImportRow, value: Partial<ImportRow>) => imports.set((s) => ({ rows: s.rows.map((x) => x === row ? Object.assign(row, value) : x) }));
 const importHeaders = (row: ImportRow) => ({ 'X-File-Name': encodeURIComponent(row.name), 'X-Account-ID': row.accountId, 'X-Profile-ID': row.profileId, ...(row.recipe ? { 'X-Import-Selection': encodeURIComponent(JSON.stringify(row.recipe)) } : {}), 'Content-Type': 'application/octet-stream' });
@@ -35,7 +35,7 @@ async function inspectOne(row: ImportRow) {
   updateImport(row, { state: 'running', result: undefined });
   try {
     const preview = await api<ImportInspection>('POST', '/api/import/inspect', undefined, { raw: row.file, headers: importHeaders(row), signal: row.abort.signal });
-    updateImport(row, { state: preview.receipt ? 'ready' : 'done', preview });
+    updateImport(row, { state: preview.receipt ? 'ready' : 'done', preview, sheets: preview.result.sheets?.length ? preview.result.sheets : row.sheets });
   } catch (e: any) { if (!row.abort.signal.aborted) importFailure(row, e); }
 }
 
@@ -157,7 +157,7 @@ function ImportItem(p: { row: ImportRow }) {
       </div>
       {preview?.result.sourceInfo && <Notice kind="warning">{t(preview.result.sourceInfo.vendor === 'USER_DECLARED' ? 'imp.mapping_warning' : 'dts.partial')} · {preview.result.sourceInfo.support} / {preview.result.sourceInfo.scientificValidation}</Notice>}
       {literalODS && <Notice kind="warning">{t('imp.ods_readonly')}</Notice>}
-      {!!preview?.result.sheets?.length && !r.result?.fileId && <div class="col gap2" style={{ marginTop: 10 }}>
+      {!!preview?.result.sheets?.length && !r.recipe?.mapping && !r.result?.fileId && <div class="col gap2" style={{ marginTop: 10 }}>
         <b class="xs">{t('imp.sheets')}</b>
         {preview.result.sheets.map((sheet) => {
           const selected = !r.recipe || r.recipe.sheets.some((s) => s.name === sheet.name);
@@ -176,7 +176,7 @@ function ImportItem(p: { row: ImportRow }) {
         })}
         {r.state === 'editing' && <Button size="sm" onClick={() => inspectOne(r)}>{t('imp.update_preview')}</Button>}
       </div>}
-      {!r.result?.fileId && (r.recipe?.mapping || ((preview?.format === 'csv' || preview?.format === 'tsv') && preview.tabular && !preview.tabular.error)) && <ColumnMappingEditor row={r} />}
+      {!r.result?.fileId && (r.recipe?.mapping || ((preview?.format === 'csv' || preview?.format === 'tsv' || preview?.format === 'xlsx') && preview.tabular && !preview.tabular.error)) && <ColumnMappingEditor row={r} />}
       {(preview?.format === 'xlsx' || preview?.format === 'csv' || preview?.format === 'tsv') && !r.result?.fileId && <ImportProfilePicker row={r} />}
       {preview?.tabular && <details class="xs" style={{marginTop:10}}>
         <summary>{t('imp.literal_table')}</summary>
@@ -226,27 +226,31 @@ function ImportItem(p: { row: ImportRow }) {
 const MAPPING_KEYS = ['effective_diameter', 'polydispersity', 'count_rate', 'average_count_rate', 'baseline_index'];
 function ColumnMappingEditor({ row }: { row: ImportRow }) {
   const m = row.recipe?.mapping;
+  const workbook = m?.schema === 2 || (!m && row.preview?.format === 'xlsx');
+  const sheets = row.sheets || row.preview?.result.sheets || [];
+  const sheet = sheets.find(s=>s.name===m?.sheet) || sheets[0];
   const disabled = row.state === 'running' || row.state === 'saving';
   const change = (value: Partial<ColumnMapping>) => {
     if (!m) return;
     updateImport(row, { recipe: { sheets: [], mapping: { ...m, ...value } }, state: 'editing', result: undefined });
   };
-  const number = (key: 'headerRecord' | 'firstRecord' | 'lastRecord' | 'sampleColumn', label: string) => <Field label={t(label)}><Input type="number" aria-label={t(label)} value={String(m?.[key] || 0)} min={key === 'sampleColumn' ? 0 : 1} max={key === 'sampleColumn' ? 1024 : 100000} disabled={disabled} onValue={v => change({ [key]: Number(v) })} /></Field>;
+  const number = (key: 'headerRecord' | 'firstRecord' | 'lastRecord' | 'headerRow' | 'firstRow' | 'lastRow' | 'sampleColumn', label: string) => <Field label={t(label)}><Input type="number" aria-label={t(label)} value={String(m?.[key] || 0)} min={key === 'sampleColumn' ? 0 : 1} max={key === 'sampleColumn' ? (workbook ? 16384 : 1024) : 100000} disabled={disabled} onValue={v => change({ [key]: Number(v) })} /></Field>;
   return <details class="col gap2" style={{marginTop:12}} open={!!m}>
     <summary>{t('imp.mapping_title')}</summary>
     <Notice kind="warning">{t('imp.mapping_warning')}</Notice>
-    {!m ? <Button size="sm" disabled={disabled} onClick={() => updateImport(row, { recipe: { sheets: [], mapping: { schema: 1, module: 'lightscattering', delimiter: (row.preview?.tabular?.delimiter || 'comma') as ColumnMapping['delimiter'], decimal: 'dot', headerRecord: 1, firstRecord: 2, lastRecord: row.preview?.tabular?.tables?.[0]?.rowCount || 2, columns: [] } }, state: 'editing', result: undefined })}>{t('imp.mapping_enable')}</Button> : <div class="col gap2">
-      <p class="xs faint">{t('imp.mapping_records')}</p>
+    {!m ? <Button size="sm" disabled={disabled || (workbook && !sheet)} onClick={() => updateImport(row, { recipe: { sheets: [], mapping: workbook ? { schema: 2, module: 'lightscattering', sheet: sheet.name, delimiter: '', decimal: 'dot', headerRecord: 0, firstRecord: 0, lastRecord: 0, headerRow: 1, firstRow: 2, lastRow: Math.max(2,sheet.rows), columns: [] } : { schema: 1, module: 'lightscattering', delimiter: (row.preview?.tabular?.delimiter || 'comma') as ColumnMapping['delimiter'], decimal: 'dot', headerRecord: 1, firstRecord: 2, lastRecord: row.preview?.tabular?.tables?.[0]?.rowCount || 2, columns: [] } }, state: 'editing', result: undefined })}>{t('imp.mapping_enable')}</Button> : <div class="col gap2">
+      <p class="xs faint">{t(workbook ? 'imp.mapping_workbook_rows' : 'imp.mapping_records')}</p>
       <div class="row gap2 wrap">
-        <Field label={t('imp.delimiter')}><select class="select" aria-label={t('imp.delimiter')} disabled={disabled} value={m.delimiter} onChange={e=>change({delimiter:(e.target as HTMLSelectElement).value as ColumnMapping['delimiter']})}>{['comma','semicolon','tab'].map(v=><option value={v}>{t('imp.sep.'+v)}</option>)}</select></Field>
+        {!workbook && <Field label={t('imp.delimiter')}><select class="select" aria-label={t('imp.delimiter')} disabled={disabled} value={m.delimiter} onChange={e=>change({delimiter:(e.target as HTMLSelectElement).value as ColumnMapping['delimiter']})}>{['comma','semicolon','tab'].map(v=><option value={v}>{t('imp.sep.'+v)}</option>)}</select></Field>}
         <Field label={t('imp.mapping_decimal')}><select class="select" aria-label={t('imp.mapping_decimal')} disabled={disabled} value={m.decimal} onChange={e=>change({decimal:(e.target as HTMLSelectElement).value as ColumnMapping['decimal']})}><option value="dot">.</option><option value="comma">,</option></select></Field>
       </div>
-      <div class="row gap2 wrap">{number('headerRecord','imp.mapping_header')}{number('firstRecord','imp.mapping_first')}{number('lastRecord','imp.mapping_last')}{number('sampleColumn','imp.mapping_sample')}</div>
+      {workbook && <Field label={t('imp.mapping_sheet')}><select class="select" aria-label={t('imp.mapping_sheet')} disabled={disabled} value={m.sheet} onChange={e=>change({sheet:(e.target as HTMLSelectElement).value})}>{sheets.map(s=><option value={s.name}>{s.name}</option>)}</select></Field>}
+      <div class="row gap2 wrap">{workbook ? <>{number('headerRow','imp.mapping_header_row')}{number('firstRow','imp.mapping_first_row')}{number('lastRow','imp.mapping_last_row')}</> : <>{number('headerRecord','imp.mapping_header')}{number('firstRecord','imp.mapping_first')}{number('lastRecord','imp.mapping_last')}</>}{number('sampleColumn','imp.mapping_sample')}</div>
       {MAPPING_KEYS.map(key => {
         const c=m.columns.find(c=>c.key===key);
         const set=(column:number,unit:string)=>change({columns:[...m.columns.filter(c=>c.key!==key),...(column ? [{key,column,unit}] : [])]});
         return <div class="row gap2 wrap">
-          <Field label={t('param.'+key)+' · '+t('imp.mapping_column')}><Input type="number" min={0} max={1024} aria-label={t('param.'+key)+' · '+t('imp.mapping_column')} value={String(c?.column || 0)} disabled={disabled} onValue={v=>set(Number(v),c?.unit || '')} /></Field>
+          <Field label={t('param.'+key)+' · '+t('imp.mapping_column')}><Input type="number" min={0} max={workbook ? 16384 : 1024} aria-label={t('param.'+key)+' · '+t('imp.mapping_column')} value={String(c?.column || 0)} disabled={disabled} onValue={v=>set(Number(v),c?.unit || '')} /></Field>
           <Field label={t('param.'+key)+' · '+t('imp.mapping_unit')}><Input aria-label={t('param.'+key)+' · '+t('imp.mapping_unit')} value={c?.unit || ''} maxLength={64} disabled={disabled || !c} onValue={v=>set(c!.column,v)} /></Field>
         </div>;
       })}
@@ -267,7 +271,7 @@ function ImportProfilePicker({ row }: { row: ImportRow }) {
   const [error, setError] = useState('');
   const headers = { 'X-Account-ID': row.accountId, 'X-Profile-ID': row.profileId };
   const profiles = useAsync(() => get<ImportProfile[]>('/api/import/profiles', { headers }), [row.accountId, row.profileId]);
-  const available = (profiles.data || []).filter((p) => p.format === row.preview?.format && ((p.schema === 1 && p.format === 'xlsx') || p.schema === 2));
+  const available = (profiles.data || []).filter((p) => p.format === row.preview?.format && ((p.schema === 1 && p.format === 'xlsx') || (p.schema === 2 && (p.format === 'csv' || p.format === 'tsv')) || (p.schema === 3 && p.format === 'xlsx')));
   useEffect(() => {
     const chosen = available.find((p) => p.id === selected);
     const canonical = (selection?: ImportSelection) => JSON.stringify(selection?.mapping ? { ...selection.mapping, columns: [...selection.mapping.columns].sort((a,b) => a.column-b.column).map(c=>({column:c.column,key:c.key,unit:c.unit})) } : selection?.sheets.map((s) => ({ name: s.name, range: s.range?.trim().toUpperCase() || '' })).sort((a, b) => a.name.localeCompare(b.name)) || null);
@@ -305,7 +309,7 @@ function ImportProfilePicker({ row }: { row: ImportRow }) {
     </div>
     <Field label={t('imp.selection_name')}><Input aria-label={t('imp.selection_name')} value={name} onValue={setName} maxLength={96} disabled={disabled} /></Field>
     <Button size="sm" disabled={disabled || row.state !== 'ready' || !row.preview?.receipt || !name.trim()} onClick={save}>{t('imp.save_selection')}</Button>
-    <span class="xs faint">{t(row.preview?.format === 'xlsx' ? 'imp.selection_hint' : 'imp.mapping_saved_hint')}</span>
+    <span class="xs faint">{t(row.preview?.format === 'xlsx' && !row.recipe?.mapping ? 'imp.selection_hint' : 'imp.mapping_saved_hint')}</span>
     {(error || profiles.error) && <Notice kind="danger">{errText(error || profiles.error!)}</Notice>}
   </div>;
 }

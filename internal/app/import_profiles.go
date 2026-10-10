@@ -74,10 +74,14 @@ func (p *Profile) SaveImportProfile(name, receipt string) (ImportProfile, error)
 		return ImportProfile{}, err
 	}
 	manual := claim.Selection != nil && claim.Selection.Mapping != nil
-	if (!manual && (claim.Parser != lightscattering.Version || claim.Spec != lightscattering.Parse(nil).Spec)) || (manual && (claim.Parser != lightscattering.MappingVersion || claim.Spec != lightscattering.MappingSpec)) {
+	parser, spec := lightscattering.MappingIdentity(nil)
+	if manual {
+		parser, spec = lightscattering.MappingIdentity(claim.Selection.Mapping)
+	}
+	if (!manual && (claim.Parser != lightscattering.Version || claim.Spec != lightscattering.Parse(nil).Spec)) || (manual && (claim.Parser != parser || claim.Spec != spec)) {
 		return ImportProfile{}, ErrImportChanged
 	}
-	if (!manual && claim.Format != "xlsx") || (manual && claim.Format != "csv" && claim.Format != "tsv") {
+	if (!manual && claim.Format != "xlsx") || (manual && ((claim.Selection.Mapping.Schema == 1 && claim.Format != "csv" && claim.Format != "tsv") || (claim.Selection.Mapping.Schema == 2 && claim.Format != "xlsx"))) {
 		return ImportProfile{}, ErrImportProfileFormat
 	}
 	selection, err := lightscattering.NormalizeSelection(claim.Selection)
@@ -87,6 +91,9 @@ func (p *Profile) SaveImportProfile(name, receipt string) (ImportProfile, error)
 	schema := 1
 	if manual {
 		schema = 2
+		if claim.Selection.Mapping.Schema == 2 {
+			schema = 3
+		}
 	}
 	profile := ImportProfile{ID: secure.NewID(), Schema: schema, Name: name, Format: claim.Format, Selection: selection, Parser: claim.Parser, Spec: claim.Spec, CreatedAt: time.Now().UTC()}
 	done := p.app.begin("import-profile")

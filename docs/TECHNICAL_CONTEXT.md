@@ -462,7 +462,8 @@ file or drawing a graph does not establish scientific validity.
 | NTA | Architecture/preparation allowed | No real NTA result fixture | PENDING / UNVALIDATED | Official NanoSight export/software schema and settings documentation; real tracking/summary/distribution exports with corresponding trusted results; independent field/unit/numerical comparisons |
 | Malvern DTS | PARTIAL: bounded container/record metadata, reviewed import, File Library, original/metadata export | Independent stream inventory/hash comparison, malformed cases/fuzzing, scoped import/export | UNVALIDATED scientific semantics; no normalized quantities | Identify version-aware field serialization and authoritative field meanings; reproduce summaries/distributions against official exports; ZETA requires its own matching real evidence |
 | Literal CSV/TSV/XLSX review | PARTIAL: bounded read-only cells/physical positions | Quoted/multiline/ragged cells, truncation, workbook selections, persistence rejection | Not a scientific calculation | Additional workbook formats and supported mappings have independent contracts |
-| Explicit CSV/TSV DLS mapping | PARTIAL: versioned user choices for five existing scalar fields, units, record extent and separators; scoped review/confirmation and encrypted saved recipes | Invalid/changed choices, missing/zero/full-source fidelity; graph/cycle/analysis snapshots and export; localized browser workflow | UNVALIDATED field/unit declarations; software tests do not validate measurements or instrument semantics | Workbook/distribution mappings, adequate instrument documentation and trustworthy paired reference results; no ZETA/NTA mapping permitted |
+| Explicit CSV/TSV DLS mapping | PARTIAL: versioned user choices for five existing scalar fields, units, record extent and separators; scoped review/confirmation and encrypted saved recipes | Invalid/changed choices, missing/zero/full-source fidelity; graph/cycle/analysis snapshots and export; localized browser workflow | UNVALIDATED field/unit declarations; software tests do not validate measurements or instrument semantics | Distribution mappings, adequate instrument documentation and trustworthy paired reference results; no ZETA/NTA mapping permitted |
+| Explicit XLSX DLS mapping | PARTIAL: versioned sheet/physical-row/column declarations, preserved XML precision and user-unit provenance; encrypted recipe schema 3 | Independent invented XML fixture; unsafe excluded sheets, coordinates, missing/zero/full-source, receipts, graph/cycle/analysis/export and localized browser workflow | UNVALIDATED declarations; opening/plotting/software tests do not validate instrument semantics | Adequate instrument documentation and paired trustworthy reference results; merged/linked workbooks, distributions and ZETA/NTA mappings unsupported |
 | Literal ODS 1.3 review | PARTIAL: native bounded plain-cell preview; display and declared values separate | Independently generated schema-checked invented fixture; repetitions, positions, unsafe/malformed sources, scoped read-only HTTP and localized browser review | Not a scientific calculation; no quantities or import receipt | Scientific mapping/import, other ODF versions, merged/richer cells and real instrument oracles remain unsupported |
 | Shared storage / File Library / Graph / Cycle / Statistics / Export | Yes for existing supported data | Isolation, receipts, snapshots, native rendering and exports | Per scientific adapter; never inherited by a new module | New adapters must supply documented quantity and provenance contracts |
 | Sign Export / Verify Signature | No | No | Not applicable | Implement global signing/verification, canonical manifest, certificate/key handling and integrity tests |
@@ -519,7 +520,7 @@ uncertainty rather than inventing a field or an algorithm.
 - Cloud export writes to the desktop client's folder only (no direct upload
   of exports).
 - EPS and Parquet are not offered.
-- XLS and scientific ODS import, workbook/distribution column mapping, and export signing with
+- XLS and scientific ODS import, distribution column mapping, and export signing with
   certificates/PFX/P12 (including PDF/CMS verification) are not implemented.
 - The desktop window still needs a supported installed Chromium browser and
   normal operating-system services. Native science/render/export tests can run
@@ -569,3 +570,9 @@ Neither module borrows validation from DLS, ANOVA, a working file reader or a
 rendered graph. No unit, calculation model, quality threshold or missing value
 is supplied by inference. See [DTS_FORMAT.md](DTS_FORMAT.md) for implemented
 partial binary interoperability and its separate technical/scientific status.
+
+## 23. Readiness and owner intervention
+
+See [READINESS.md](READINESS.md) for the explicit remaining owner actions and
+separate development tasks. A tested development checkpoint is not a complete
+Stable release. No native persistent scheduling mechanism has been verified.

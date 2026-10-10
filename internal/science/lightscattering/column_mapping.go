@@ -18,6 +18,17 @@ import (
 )
 
 const MappingVersion = "dls-column-reader/1.0.0"
+const WorkbookMappingVersion = "dls-workbook-column-reader/1.0.0"
+const WorkbookMappingSpec = "dls-user-workbook-mapping/1-unvalidated"
+
+// MappingIdentity keeps existing CSV recipes/receipts version-bound.
+func MappingIdentity(m *model.ColumnMapping) (string, string) {
+	if m != nil && m.Schema == 2 {
+		return WorkbookMappingVersion, WorkbookMappingSpec
+	}
+	return MappingVersion, MappingSpec
+}
+
 const MappingSpec = "dls-user-column-mapping/1-unvalidated"
 
 var ErrColumnMapping = errors.New("ls.invalid_column_mapping")
@@ -26,7 +37,24 @@ var mappingNumber = regexp.MustCompile(`^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?
 
 func normalizeMapping(in *model.ImportSelection) (*model.ImportSelection, error) {
 	m := in.Mapping
-	if len(in.Sheets) != 0 || m.Schema != 1 || m.Module != "lightscattering" || (m.Delimiter != "comma" && m.Delimiter != "semicolon" && m.Delimiter != "tab") || (m.Decimal != "dot" && m.Decimal != "comma") || m.HeaderRecord < 1 || m.FirstRecord <= m.HeaderRecord || m.LastRecord < m.FirstRecord || m.LastRecord > maxTextLines || m.SampleColumn < 0 || m.SampleColumn > maxTextColumns || len(m.Columns) == 0 || len(m.Columns) > 5 {
+	if len(in.Sheets) != 0 || m.Module != "lightscattering" || (m.Decimal != "dot" && m.Decimal != "comma") || len(m.Columns) == 0 || len(m.Columns) > 5 {
+		return nil, ErrColumnMapping
+	}
+	maxColumn := maxTextColumns
+	switch m.Schema {
+	case 1:
+		if m.Sheet != "" || m.HeaderRow != 0 || m.FirstRow != 0 || m.LastRow != 0 || (m.Delimiter != "comma" && m.Delimiter != "semicolon" && m.Delimiter != "tab") || m.HeaderRecord < 1 || m.FirstRecord <= m.HeaderRecord || m.LastRecord < m.FirstRecord || m.LastRecord > maxTextLines {
+			return nil, ErrColumnMapping
+		}
+	case 2:
+		maxColumn = 16384
+		if m.Sheet == "" || len(m.Sheet) > 128 || !utf8.ValidString(m.Sheet) || strings.IndexFunc(m.Sheet, unicode.IsControl) >= 0 || m.Delimiter != "" || m.HeaderRecord != 0 || m.FirstRecord != 0 || m.LastRecord != 0 || m.HeaderRow < 1 || m.FirstRow <= m.HeaderRow || m.LastRow < m.FirstRow || m.LastRow > maxWorkbookRows {
+			return nil, ErrColumnMapping
+		}
+	default:
+		return nil, ErrColumnMapping
+	}
+	if m.SampleColumn < 0 || m.SampleColumn > maxColumn {
 		return nil, ErrColumnMapping
 	}
 	out := in.Clone()
@@ -40,7 +68,7 @@ func normalizeMapping(in *model.ImportSelection) (*model.ImportSelection, error)
 		default:
 			return nil, ErrColumnMapping
 		}
-		if c.Column < 1 || c.Column > maxTextColumns || cols[c.Column] || keys[c.Key] || len(c.Unit) > 64 || !utf8.ValidString(c.Unit) || strings.TrimSpace(c.Unit) != c.Unit || strings.IndexFunc(c.Unit, unicode.IsControl) >= 0 {
+		if c.Column < 1 || c.Column > maxColumn || cols[c.Column] || keys[c.Key] || len(c.Unit) > 64 || !utf8.ValidString(c.Unit) || strings.TrimSpace(c.Unit) != c.Unit || strings.IndexFunc(c.Unit, unicode.IsControl) >= 0 {
 			return nil, ErrColumnMapping
 		}
 		cols[c.Column], keys[c.Key] = true, true
@@ -162,24 +190,9 @@ func parseMappedDelimited(name string, data []byte, m *model.ColumnMapping, insp
 				continue
 			}
 			raw := values[c.Column-1]
-			token := strings.TrimSpace(raw)
-			if m.Decimal == "comma" {
-				if strings.Contains(token, ".") {
-					return fail(ErrMappedNumber)
-				}
-				token = strings.ReplaceAll(token, ",", ".")
-			}
-			if !mappingNumber.MatchString(token) {
-				return fail(ErrMappedNumber)
-			}
-			value, e := strconv.ParseFloat(token, 64)
-			if e != nil || math.IsNaN(value) || math.IsInf(value, 0) {
-				return fail(ErrMappedNumber)
-			}
-			// Reject underflow instead of turning a nonzero declared quantity into zero.
-			mantissa := strings.Split(strings.ToLower(token), "e")[0]
-			if value == 0 && strings.ContainsAny(mantissa, "123456789") {
-				return fail(ErrMappedNumber)
+			value, e := mappedNumber(raw, m.Decimal)
+			if e != nil {
+				return fail(e)
 			}
 			cellLine, _ := r.FieldPos(c.Column - 1)
 			measurement.Params[c.Key] = model.Quantity{Value: value, Raw: raw, Unit: c.Unit, UnitOrigin: "user_mapping", SourceColumn: c.Column, Label: headers[c.Column-1], Line: cellLine}
@@ -219,4 +232,28 @@ func parseMappedDelimited(name string, data []byte, m *model.ColumnMapping, insp
 	}
 	preview.Tables = []PreviewTable{table}
 	return result, format, preview
+}
+
+// Text decimals are declared by the user; OOXML numeric cells use the
+// format's dot decimal syntax regardless of a workbook's display locale.
+func mappedNumber(raw, decimal string) (float64, error) {
+	token := strings.TrimSpace(raw)
+	if decimal == "comma" {
+		if strings.Contains(token, ".") {
+			return 0, ErrMappedNumber
+		}
+		token = strings.ReplaceAll(token, ",", ".")
+	}
+	if !mappingNumber.MatchString(token) {
+		return 0, ErrMappedNumber
+	}
+	value, err := strconv.ParseFloat(token, 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, ErrMappedNumber
+	}
+	mantissa := strings.Split(strings.ToLower(token), "e")[0]
+	if value == 0 && strings.ContainsAny(mantissa, "123456789") {
+		return 0, ErrMappedNumber
+	}
+	return value, nil
 }

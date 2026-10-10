@@ -40,7 +40,7 @@ selections; it does not map scientific columns or supply missing units.
 
 The legacy `/api/files` endpoint remains available for existing programmatic
 clients; the desktop chooser uses the inspect/confirm sequence. Native XLS,
-scientific ODS import, workbook column mapping and richer import recipes remain pending.
+scientific ODS import, distribution mapping and richer import recipes remain pending.
 Scientific interpretation remains provisional.
 
 ## Literal ODS review
@@ -132,6 +132,53 @@ Measurement/cycle/analysis exports preserve raw values, unit origin and source
 columns/labels/lines. These extra flat columns appear only for mapped data;
 existing native-only export layouts stay compatible. Structured provenance
 retains original SHA and recipe. Tests of these mechanics validate software
-behavior, not the scientific meaning chosen by a user. Workbook mapping, ODS
-scientific import, additional adapters and instrument-reference comparisons
+behavior, not the scientific meaning chosen by a user. ODS
+scientific import, distribution mapping, additional adapters and instrument-reference comparisons
 remain pending. No historical quantity is relabelled or migrated.
+
+
+## Explicit XLSX DLS mapping (PARTIAL / UNVALIDATED)
+
+Workbook mapping is a separate `ImportSelection.mapping` schema **2**:
+`sheet`, `headerRow`, `firstRow`, `lastRow`, optional `sampleColumn`, the same
+five scalar `columns`, assigned units and a text-cell `decimal` choice.
+Delimited `headerRecord/firstRecord/lastRecord` must be zero and `delimiter`
+must be empty. Sheet-selection recipes cannot be combined with it. Each
+selected physical row is an observation, including missing/omitted rows. The
+source range of each observation is its original A1 row extent, with the
+original sheet, quantity column and physical row retained. The original blob
+and its SHA remain complete and immutable.
+
+Numeric OOXML cells are read with `RawCellValue: true`: declared `<v>` digits
+are preserved, including trailing zeros; locale/display formatting does not
+replace them. Their decimal syntax is always dot as specified by OOXML.
+The user's dot/comma choice applies to shared/inline text cells only. Boolean,
+date, error and formula-result cells are rejected as assigned numeric values.
+No dates, physical experimental units, units from headers or scale conversion
+are inferred. Invalid numeric values reject the whole source without partial
+persistence. Original source headers remain literal even when they conflict
+with user-assigned units.
+
+All parts and all sheets are validated before confirmation, including excluded
+sheets. Formulas/macros, merged cells, external relationships and ambiguous,
+duplicate or conflicting physical coordinates are rejected. Rows/cells without
+explicit coordinates are outside this supported subset. Limits are 32 MiB
+input, 64 MiB expanded package, 4,096 ZIP entries, 256 sheets, 100,000 physical
+rows across sheets, 16,384 columns and one million cells. The bounded literal
+and scientific previews never supply the confirmed observations.
+
+The reader is `dls-workbook-column-reader/1.0.0`, with specification
+`dls-user-workbook-mapping/1-unvalidated`. Saved-profile schema **3** contains
+only the reviewed XLSX recipe. Existing schema 1 native workbook selections,
+schema 2 saved CSV/TSV recipes and their parser identities remain unchanged.
+Every sheet/row/column/key/unit/decimal/sample choice is bound to the scoped
+review receipt and duplicate identity; applying a saved recipe requires fresh
+inspection. Failed review retains worksheet choices in the editor so the user
+can correct the recipe without importing anything.
+
+Graph, Cycle, Statistics and CSV/TSV/JSON/XLSX data export use the same copied
+user-declaration provenance. Sources always remain `USER_DECLARED / PARTIAL /
+UNVALIDATED`, with `unitOrigin: user_mapping`. Tests compare an independently
+constructed invented XML fixture, immutable originals, receipt changes and
+snapshots, including localized light/dark browser workflows. These are software
+checks, not validation of scientific interpretation or instrument semantics.

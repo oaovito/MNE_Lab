@@ -46,6 +46,10 @@ func ParseFileSelection(name string, data []byte, selection *model.ImportSelecti
 		return spreadsheetFailure(ErrTooLarge), ""
 	}
 	if selection != nil && selection.Mapping != nil {
+		if selection.Mapping.Schema == 2 {
+			r, format, _ := parseMappedWorkbook(name, data, selection.Mapping, false)
+			return r, format
+		}
 		r, format, _ := parseMappedDelimited(name, data, selection.Mapping, false)
 		return r, format
 	}

@@ -15,6 +15,8 @@ import (
 	"github.com/oaovito/mne_lab/internal/science/graph"
 	"github.com/oaovito/mne_lab/internal/science/lightscattering"
 	"github.com/oaovito/mne_lab/internal/science/model"
+	"github.com/xuri/excelize/v2"
+	"strings"
 )
 
 func appMapping() *model.ImportSelection {
@@ -104,121 +106,159 @@ func TestMappedImportReviewBindsAllChoicesAndPreservesFullSource(t *testing.T) {
 }
 
 func TestManualMappingIntegratesGraphCycleExportsAndAnalysisSnapshots(t *testing.T) {
-	_, _, p := inspectionProfile(t)
-	data := []byte("sample,value\nA,1.000\nA,2.000\nA,3.000\nB,4.000\nB,5.000\nB,6.000\n")
-	s := appMapping()
-	s.Mapping.LastRecord = 7
-	s.Mapping.SampleColumn = 1
-	review, e := p.InspectImportSelection("invented.csv", data, s)
-	if e != nil {
-		t.Fatal(e)
-	}
-	imported, e := p.ConfirmImportSelection("invented.csv", data, review.Receipt, false, s)
-	if e != nil {
-		t.Fatal(e)
-	}
-	file, ms, e := p.File(imported.FileID)
-	if e != nil {
-		t.Fatal(e)
-	}
-	in := graph.Input{Files: map[string]model.SourceFile{file.ID: file}, Measurements: map[string]model.Measurement{}}
-	ids := []string{}
-	assignments := []cycle.Assignment{}
-	d := analysis.Definition{Schema: 1, Module: "lightscattering", Title: "Invented mapped analysis", Variable: model.EffectiveDiameter, Structure: "independent", StructureReviewed: true, Method: "one_way", Alpha: .05, PostHoc: "none"}
-	for i, m := range ms {
-		in.Measurements[m.ID] = m
-		ids = append(ids, m.ID)
-		assignments = append(assignments, cycle.Assignment{MeasurementID: m.ID, Point: 0, Status: "confirmed"})
-		group := "A"
-		if i >= 3 {
-			group = "B"
+	for _, workbook := range []bool{false, true} {
+		name := "csv"
+		if workbook {
+			name = "xlsx"
 		}
-		d.Observations = append(d.Observations, analysis.ObservationDefinition{MeasurementID: m.ID, FactorA: group})
-	}
-	cfg := cycle.Config{Name: "Explicit invented cycle", Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), StartTZ: true, Interval: 1, Unit: cycle.Days, Duration: 1}
-	points, e := cfg.Points()
-	if e != nil {
-		t.Fatal(e)
-	}
-	cy := graph.CycleInput{Config: cfg, Points: points, Assignments: assignments}
-	g, e := graph.ParameterTime(graph.Definition{Param: model.EffectiveDiameter}, in, cy)
-	if e != nil || g.Y.Unit != "nm" || len(g.Series[0].Y) != 6 || !slices.Contains(g.Warnings, "ls.user_mapping_unvalidated") || g.Provenance.Sources[0].Parameters[model.EffectiveDiameter].UnitOrigin != "user_mapping" {
-		t.Fatal("graph lost assignment provenance", e)
-	}
-	translate := func(key string, kv ...string) string { return key }
-	measurement := export.MeasurementData("Mapped", ids, in, nil, translate)
-	parameter, e := export.ParameterData("Mapped", model.EffectiveDiameter, in, cy, translate)
-	if e != nil {
-		t.Fatal(e)
-	}
-	for _, ds := range []export.DataSet{measurement, parameter} {
-		table := ds.Tables[0]
-		rawValues := map[string]bool{}
-		for _, row := range table.Rows {
-			fields := map[string]string{}
-			for i, c := range table.Columns {
-				fields[c.Key] = row[i].String(".")
+		t.Run(name, func(t *testing.T) {
+			_, _, p := inspectionProfile(t)
+			data := []byte("sample,value\nA,1.000\nA,2.000\nA,3.000\nB,4.000\nB,5.000\nB,6.000\n")
+			s := appMapping()
+			s.Mapping.LastRecord = 7
+			s.Mapping.SampleColumn = 1
+			filename := "invented.csv"
+			if workbook {
+				f := excelize.NewFile()
+				defer f.Close()
+				f.SetSheetName("Sheet1", "Mapped")
+				for i, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+					for col, raw := range strings.Split(line, ",") {
+						address, _ := excelize.CoordinatesToCellName(col+1, i+2)
+						if err := f.SetCellStr("Mapped", address, raw); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+				buf, err := f.WriteToBuffer()
+				if err != nil {
+					t.Fatal(err)
+				}
+				data = buf.Bytes()
+				filename = "invented.xlsx"
+				s.Mapping.Schema = 2
+				s.Mapping.Sheet = "Mapped"
+				s.Mapping.Delimiter = ""
+				s.Mapping.HeaderRecord = 0
+				s.Mapping.FirstRecord = 0
+				s.Mapping.LastRecord = 0
+				s.Mapping.HeaderRow = 2
+				s.Mapping.FirstRow = 3
+				s.Mapping.LastRow = 8
 			}
-			rawValues[fields[model.EffectiveDiameter+"_raw"]] = true
-			if fields[model.EffectiveDiameter+"_unit_origin"] != "user_mapping" || fields[model.EffectiveDiameter+"_source_column"] != "2" || fields[model.EffectiveDiameter+"_source_label"] != "value" {
-				t.Fatal("flat export lost declared origin")
+			review, e := p.InspectImportSelection(filename, data, s)
+			if e != nil {
+				t.Fatal(e)
 			}
-		}
-		for _, raw := range []string{"1.000", "2.000", "3.000", "4.000", "5.000", "6.000"} {
-			if !rawValues[raw] {
-				t.Fatal("export lost original value", raw)
+			imported, e := p.ConfirmImportSelection(filename, data, review.Receipt, false, s)
+			if e != nil {
+				t.Fatal(e)
 			}
-		}
-		if len(rawValues) != 6 || ds.Provenance[0].ImportSelection.Mapping == nil {
-			t.Fatal("structured export lost recipe")
-		}
+			file, ms, e := p.File(imported.FileID)
+			if e != nil {
+				t.Fatal(e)
+			}
+			in := graph.Input{Files: map[string]model.SourceFile{file.ID: file}, Measurements: map[string]model.Measurement{}}
+			ids := []string{}
+			assignments := []cycle.Assignment{}
+			d := analysis.Definition{Schema: 1, Module: "lightscattering", Title: "Invented mapped analysis", Variable: model.EffectiveDiameter, Structure: "independent", StructureReviewed: true, Method: "one_way", Alpha: .05, PostHoc: "none"}
+			for i, m := range ms {
+				in.Measurements[m.ID] = m
+				ids = append(ids, m.ID)
+				assignments = append(assignments, cycle.Assignment{MeasurementID: m.ID, Point: 0, Status: "confirmed"})
+				group := "A"
+				if i >= 3 {
+					group = "B"
+				}
+				d.Observations = append(d.Observations, analysis.ObservationDefinition{MeasurementID: m.ID, FactorA: group})
+			}
+			cfg := cycle.Config{Name: "Explicit invented cycle", Start: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), StartTZ: true, Interval: 1, Unit: cycle.Days, Duration: 1}
+			points, e := cfg.Points()
+			if e != nil {
+				t.Fatal(e)
+			}
+			cy := graph.CycleInput{Config: cfg, Points: points, Assignments: assignments}
+			g, e := graph.ParameterTime(graph.Definition{Param: model.EffectiveDiameter}, in, cy)
+			if e != nil || g.Y.Unit != "nm" || len(g.Series[0].Y) != 6 || !slices.Contains(g.Warnings, "ls.user_mapping_unvalidated") || g.Provenance.Sources[0].Parameters[model.EffectiveDiameter].UnitOrigin != "user_mapping" {
+				t.Fatal("graph lost assignment provenance", e)
+			}
+			translate := func(key string, kv ...string) string { return key }
+			measurement := export.MeasurementData("Mapped", ids, in, nil, translate)
+			parameter, e := export.ParameterData("Mapped", model.EffectiveDiameter, in, cy, translate)
+			if e != nil {
+				t.Fatal(e)
+			}
+			for _, ds := range []export.DataSet{measurement, parameter} {
+				table := ds.Tables[0]
+				rawValues := map[string]bool{}
+				for _, row := range table.Rows {
+					fields := map[string]string{}
+					for i, c := range table.Columns {
+						fields[c.Key] = row[i].String(".")
+					}
+					rawValues[fields[model.EffectiveDiameter+"_raw"]] = true
+					if fields[model.EffectiveDiameter+"_unit_origin"] != "user_mapping" || fields[model.EffectiveDiameter+"_source_column"] != "2" || fields[model.EffectiveDiameter+"_source_label"] != "value" {
+						t.Fatal("flat export lost declared origin")
+					}
+				}
+				for _, raw := range []string{"1.000", "2.000", "3.000", "4.000", "5.000", "6.000"} {
+					if !rawValues[raw] {
+						t.Fatal("export lost original value", raw)
+					}
+				}
+				if len(rawValues) != 6 || ds.Provenance[0].ImportSelection.Mapping == nil {
+					t.Fatal("structured export lost recipe")
+				}
 
-		for _, format := range []string{"csv", "tsv", "json", "xlsx"} {
-			if _, err := export.WriteData(ds, format, export.DataOptions{}); err != nil {
-				t.Fatal(format, err)
-			}
-		}
-	}
-	prepared, e := p.PrepareAnalysis(d)
-	if e != nil || !slices.Contains(prepared.Design.Warnings, "ls.user_mapping_unvalidated") || prepared.Observations[0].Quantity.UnitOrigin != "user_mapping" || prepared.Sources[0].File.ImportSelection.Mapping == nil {
-		t.Fatal("analysis discarded mapping", e)
-	}
-	saved, e := p.SaveAnalysis(d, prepared.Receipt, statisticalContract(prepared), "")
-	if e != nil {
-		t.Fatal(e)
-	}
-	ds := export.StatisticalData(saved)
-	found := false
-	for _, table := range ds.Tables {
-		if table.ID == "observations" {
-			for i, c := range table.Columns {
-				if c.Key == "quantity_unit_origin" && table.Rows[0][i].String(".") == "user_mapping" {
-					found = true
+				for _, format := range []string{"csv", "tsv", "json", "xlsx"} {
+					if _, err := export.WriteData(ds, format, export.DataOptions{}); err != nil {
+						t.Fatal(format, err)
+					}
 				}
 			}
-		}
-	}
-	if !found {
-		t.Fatal("statistical export lost assignment origin")
-	}
-	// Alteration of source provenance invalidates fresh-save receipt, while the
-	// saved analysis and its export keep the originally reviewed declaration.
-	e = p.St.Update(func(tx *store.Tx) error {
-		m := ms[0]
-		q := m.Params[model.EffectiveDiameter]
-		q.UnitOrigin = "changed"
-		m.Params[model.EffectiveDiameter] = q
-		_, err := tx.Put(CollMeasurements, m.ID, m)
-		return err
-	})
-	if e != nil {
-		t.Fatal(e)
-	}
-	if _, err := p.SaveAnalysis(d, prepared.Receipt, statisticalContract(prepared), ""); !errors.Is(err, analysis.ErrSource) {
-		t.Fatal("changed provenance accepted", err)
-	}
-	old, e := p.Analysis(saved.ID)
-	if e != nil || old.Snapshot.Observations[0].Quantity.UnitOrigin != "user_mapping" {
-		t.Fatal("saved snapshot rewritten", e)
+			prepared, e := p.PrepareAnalysis(d)
+			if e != nil || !slices.Contains(prepared.Design.Warnings, "ls.user_mapping_unvalidated") || prepared.Observations[0].Quantity.UnitOrigin != "user_mapping" || prepared.Sources[0].File.ImportSelection.Mapping == nil {
+				t.Fatal("analysis discarded mapping", e)
+			}
+			saved, e := p.SaveAnalysis(d, prepared.Receipt, statisticalContract(prepared), "")
+			if e != nil {
+				t.Fatal(e)
+			}
+			ds := export.StatisticalData(saved)
+			found := false
+			for _, table := range ds.Tables {
+				if table.ID == "observations" {
+					for i, c := range table.Columns {
+						if c.Key == "quantity_unit_origin" && table.Rows[0][i].String(".") == "user_mapping" {
+							found = true
+						}
+					}
+				}
+			}
+			if !found {
+				t.Fatal("statistical export lost assignment origin")
+			}
+			// Alteration of source provenance invalidates fresh-save receipt, while the
+			// saved analysis and its export keep the originally reviewed declaration.
+			e = p.St.Update(func(tx *store.Tx) error {
+				m := ms[0]
+				q := m.Params[model.EffectiveDiameter]
+				q.UnitOrigin = "changed"
+				m.Params[model.EffectiveDiameter] = q
+				_, err := tx.Put(CollMeasurements, m.ID, m)
+				return err
+			})
+			if e != nil {
+				t.Fatal(e)
+			}
+			if _, err := p.SaveAnalysis(d, prepared.Receipt, statisticalContract(prepared), ""); !errors.Is(err, analysis.ErrSource) {
+				t.Fatal("changed provenance accepted", err)
+			}
+			old, e := p.Analysis(saved.ID)
+			if e != nil || old.Snapshot.Observations[0].Quantity.UnitOrigin != "user_mapping" {
+				t.Fatal("saved snapshot rewritten", e)
+			}
+
+		})
 	}
 }

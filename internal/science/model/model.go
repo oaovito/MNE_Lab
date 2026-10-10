@@ -167,9 +167,14 @@ type ImportSelection struct {
 }
 
 // ColumnMapping is a user declaration, not an instrument schema or validation.
-// Record indices count CSV records, whereas Quantity.Line counts physical lines.
+// Schema 1 counts CSV records. Schema 2 names a workbook sheet and physical
+// rows explicitly; neither contract infers instrument semantics.
 type ColumnMapping struct {
 	Schema       int            `json:"schema"`
+	Sheet        string         `json:"sheet,omitempty"`
+	HeaderRow    int            `json:"headerRow,omitempty"`
+	FirstRow     int            `json:"firstRow,omitempty"`
+	LastRow      int            `json:"lastRow,omitempty"`
 	Module       string         `json:"module"`
 	Delimiter    string         `json:"delimiter"`
 	Decimal      string         `json:"decimal"`
