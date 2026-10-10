@@ -2,7 +2,9 @@
 
 The current development branch supports encrypted Accounts/Profiles, File
 Library, immutable originals, provenance, graphs, Cycles, supported Statistical
-Analysis, backups, sync infrastructure and export. Explicit CSV/TSV/XLSX DLS
+Analysis, backups, sync infrastructure and export. File producer-origin declarations are recorded separately from
+transport/parser recognition; see [FILE_PRODUCER_ORIGIN.md](FILE_PRODUCER_ORIGIN.md).
+Explicit CSV/TSV/XLSX DLS
 mapping is PARTIAL / UNVALIDATED. Statistical Analysis is IMPLEMENTED / TESTED /
 VALIDATED only within [STATISTICAL_ANALYSIS.md](STATISTICAL_ANALYSIS.md).
 DLS remains provisional; ZETA and NTA scientific validation is pending.
@@ -58,7 +60,9 @@ handoff and an exact next action. Main and the preserved ferramenta history rema
 unchanged.
 
 The current configuration readback reports an active base containing the saved
-source-download domains and startup instructions, with no pending draft.
+source-download domains and startup instructions, with a pending research-network draft (revision 11). Its additional manufacturer,
+search, archive and institutional domains are saved but still require review/save/
+publication in environment settings.
 CRAN R 4.6.0 source download now succeeds: two official HTTPS mirrors returned
 identical archives, and VERSION/COPYING and member paths were checked. This
 resolves the earlier network blocker; it does not prove complete source

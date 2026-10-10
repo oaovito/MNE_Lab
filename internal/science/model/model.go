@@ -212,6 +212,7 @@ type SheetSelection struct {
 // SourceFile describes an imported original file. The bytes live in the
 // profile's blob store under BlobID and are never modified.
 type SourceFile struct {
+	ProducerOrigin  *ProducerOrigin  `json:"producerOrigin,omitempty"`
 	SourceInfo      *SourceInfo      `json:"sourceInfo,omitempty"`
 	ImportSelection *ImportSelection `json:"importSelection,omitempty"`
 	ID              string           `json:"id"`
