@@ -6,6 +6,12 @@ consulted privately; interpretation of instrument algorithms and undocumented
 fields remains provisional. Development validation uses private experimental corpora outside the source
 tree, public fixtures and release packages.
 
+An independent literal reader matched 216 summary quantities and 216
+distribution candidates in 54 private reports. This establishes extraction
+fidelity for those layouts; missing units and undocumented scientific meanings
+remain unresolved. The complete scope and remaining evidence are recorded in
+[DLS_VALIDATION.md](DLS_VALIDATION.md). The specification remains provisional.
+
 ## Current and average count rates
 
 `Current Count Rate` and `Average Count Rate` are separate reported quantities.
