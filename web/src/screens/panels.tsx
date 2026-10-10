@@ -8,6 +8,7 @@ import { CycleWizard } from './ls/cycles';
 import { MyStuff } from './mystuff';
 import { Busy, ExitConfirm, LsIntro, MobilePanel, Tour, TurboPanel } from './overlays';
 import { Settings } from './settings';
+import { VerifySignature } from './signature';
 
 export function Panels() {
   const panel = useStore(app, (s) => s.panel);
@@ -15,6 +16,8 @@ export function Panels() {
   const hasProfile = useStore(app, (s) => !!s.s?.profile);
   if (!panel) return null;
   switch (panel) {
+    case 'verify-signature':
+      return <VerifySignature />;
     case 'help':
       return <HelpCenter arg={arg} />;
     case 'restarting':

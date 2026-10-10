@@ -92,6 +92,7 @@ func (s *Server) routes() {
 
 	// ---- state and events ----
 	s.handle("GET /api/state", func(w http.ResponseWriter, r *http.Request) (any, error) { return a.State(), nil })
+	s.handle("POST /api/signatures/verify", verifySignatureUpload)
 	s.mux.HandleFunc("GET /api/events", s.events)
 
 	// ---- application ----

@@ -1,0 +1,93 @@
+name: Windows owner test (draft only)
+
+on:
+  push:
+    branches: [codex/mne-lab-checkpoint-20261008]
+
+permissions:
+  contents: read
+
+jobs:
+  owner-test:
+    if: contains(github.event.head_commit.message, '[windows-test]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      SOURCE_REF: 8a12ff636f867e89f84b1db0bf3db14e8c4da9cf
+      TEST_TAG: 0.1.0-dev.8a12ff6
+      DRAFT_ID: '409188088'
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: oaovito/MNE_Lab
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: packaging
+          persist-credentials: false
+      - name: Require the existing private draft and exact source
+        run: |
+          gh api "repos/$GH_REPO/releases/$DRAFT_ID" > "$RUNNER_TEMP/draft.json"
+          python - <<'PY'
+          import json, os
+          draft=json.load(open(os.environ['RUNNER_TEMP']+'/draft.json'))
+          assert draft['draft'] is True
+          assert draft['tag_name']==os.environ['TEST_TAG']
+          assert draft['target_commitish']==os.environ['SOURCE_REF']
+          assert not draft['assets'], 'Refuse to overwrite existing owner-test assets.'
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: 8a12ff636f867e89f84b1db0bf3db14e8c4da9cf
+          path: candidate
+          fetch-depth: 1
+      - name: Fetch only the source revision ancestry
+        working-directory: candidate
+        run: git fetch --no-tags --unshallow origin "$SOURCE_REF"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.9'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the requested checkpoint with embedded offline runtime
+        working-directory: candidate
+        env:
+          VERSION: 0.1.0-dev.8a12ff6
+          CHANNEL: dev
+        run: |
+          (cd web && npm ci && npm run build)
+          scripts/build.sh windows/amd64
+          scripts/audit.sh out web/dist
+      - name: Package and verify PE, archive members, CRC and hashes
+        run: python packaging/scripts/package_windows_test.py --repo candidate --out "$RUNNER_TEMP/windows-test"
+      - name: Upload to the existing draft; never publish a release
+        run: |
+          gh api "repos/$GH_REPO/releases/$DRAFT_ID" > "$RUNNER_TEMP/draft.json"
+          python - <<'PY'
+          import json, os
+          draft=json.load(open(os.environ['RUNNER_TEMP']+'/draft.json'))
+          assert draft['draft'] is True and not draft['assets']
+          assert draft['target_commitish']==os.environ['SOURCE_REF']
+          PY
+          gh release upload "$TEST_TAG" "$RUNNER_TEMP/windows-test/"*.zip "$RUNNER_TEMP/windows-test/"*.sha256
+          gh release download "$TEST_TAG" --dir "$RUNNER_TEMP/received" --pattern '*.zip'
+          cmp "$RUNNER_TEMP/windows-test/MNE_Lab-Windows-x64-teste-8a12ff6.zip" "$RUNNER_TEMP/received/MNE_Lab-Windows-x64-teste-8a12ff6.zip"
+          python - <<'PY'
+          import json, os
+          folder=os.environ['RUNNER_TEMP']+'/windows-test/'
+          receipt=json.load(open(folder+'windows-test-package.json'))
+          body='''Pacote privado de teste do proprietário — Windows 10/11 x64.
+
+          Extraia TODO o ZIP e abra **MNE Lab.exe**. Precisa de Edge/Chrome/Brave/Chromium instalado; não requer Go, Node, R, Python ou Office. Crie uma conta/perfil de teste. Dados ficam na pasta portátil `data`. Não envie senhas nem chaves nos relatos.
+
+          Source checkpoint: `8a12ff636f867e89f84b1db0bf3db14e8c4da9cf`, branch `codex/mne-lab-checkpoint-20261008`. ZIP inclui snapshot limpo do código, licenças, escopos e instruções.
+
+          Build dev sem assinatura Authenticode oficial, fora de Stable/update. PE/CRC/hashes e download de retorno do GitHub conferidos. GUI Windows/USB real precisa do seu teste. Statistical Analysis validado apenas no escopo documentado; DLS parcial/provisório; ZETA/NTA cientificamente não validados. Este checkpoint antecede CMS/Verify em implementação.
+
+          Manter como **draft**, sem publicação pública: Corresponding Source completo/reconstrução/licenciamento do runtime e os demais gates continuam pendentes. Corpus privado, histórico Git, contas, credenciais e chaves não acompanham o pacote. Main intacta.
+          '''
+          body+='\nSHA-256 do ZIP efetivamente enviado: `'+receipt['sha256']+'`.\n'
+          open(os.environ['RUNNER_TEMP']+'/test-notes.md','w').write(body)
+          PY
+          gh release edit "$TEST_TAG" --notes-file "$RUNNER_TEMP/test-notes.md"
+          gh api "repos/$GH_REPO/releases/$DRAFT_ID" --jq '{draft, html_url, assets: [.assets[] | {name, size, digest}]}'

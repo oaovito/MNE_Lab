@@ -4,7 +4,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { post } from '../lib/api';
 import { fmtDate } from '../lib/format';
 import { errText, t } from '../lib/i18n';
-import { app, refresh, run, toast } from '../lib/state';
+import { app, openPanel, refresh, run, toast } from '../lib/state';
 import { createStore, useStore } from '../lib/store';
 import type { AccountView } from '../lib/types';
 import { LangSelect, ModeBadge, ThemeToggle } from '../ui/common';
@@ -41,6 +41,7 @@ export function Start() {
         <div class="start-top">
           <ModeBadge mode={s.mode} />
           <span class="spacer" />
+          <Button kind="ghost" icon="shieldOk" tip={t('signature.title')} label={t('signature.title')} onClick={() => openPanel('verify-signature')} />
           <LangSelect />
           <ThemeToggle />
         </div>

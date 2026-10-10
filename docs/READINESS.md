@@ -31,12 +31,15 @@ and comparison with a trustworthy reference, with stated tolerances.
 
 - Native XLS, scientific ODS import and distribution mapping with their own
   versioned contracts, safe reader behavior and appropriate reference evidence.
-- Global Sign Export / Verify Signature, certificate/PFX/P12 handling and
-  interoperable PDF/CMS verification. Obtaining a certificate alone does not
+- Smart Export signing integration, certificate/PFX/P12 handling and
+  interoperable PDF verification. Native detached CMS signing infrastructure
+  and the global read-only detached Verify panel are PARTIAL, independently
+  compared with OpenSSL; see CMS_SIGNATURES.md. Obtaining a certificate alone does not
   implement this feature; private-key exclusion from sync/backups/recovery and
   export packages must be tested. Package /2 checksum coverage and the native
-  integrity verifier are partial backend prerequisites, not completed signing
-  or a global Verify interface; see PACKAGE_INTEGRITY.md.
+  integrity verifier remain separate from authenticated signatures; see
+  PACKAGE_INTEGRITY.md. Visible/Complete signing, local credential handling,
+  PAdES, revocation and trusted timestamps still require implementation.
 - Desktop distribution/bootstrap packaging and verified offline USB behavior
   on supported clean operating systems; browser/runtime acquisition must be
   reproducible and integrity checked.
