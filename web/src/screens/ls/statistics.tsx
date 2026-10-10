@@ -857,11 +857,14 @@ function AnalysisResults(p: {
         <h3>{t("stat.diagnostics")}</h3>
         <Notice kind="info">{t("stat.diagnostics_help")}</Notice>
         {r.diagnostics.map((d) => (
+          <div class="col gap1">
           <div class="row gap3">
             <b>{t("stat.diagnostic." + d.code)}</b>
             <span>
               {num(d.statistic)} · p={pvalue(d.p)}
             </span>
+          </div>
+          {d.details && <details><summary>{t("stat.diagnostic_details")}</summary><p>{d.details}</p></details>}
           </div>
         ))}
         {r.corrections && (

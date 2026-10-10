@@ -43,6 +43,12 @@ async function loadCatalogs() {
 }
 
 const catalog = await loadCatalogs();
+test('every statistical engine diagnostic has a translated label', () => {
+  const engine=readFileSync(join(src,'lib/statistics-engine.R'),'utf8');
+  const codes=[...engine.matchAll(/mne_diagnostic\("([a-z_]+)"/g)].map(m=>m[1]);
+  assert.ok(codes.includes('dunnett_confidence_integration'));
+  for(const code of codes)assert.ok(catalog['stat.diagnostic.'+code],`untranslated engine diagnostic: ${code}`);
+});
 const uiFiles = walk(src, ['.ts', '.tsx']).filter((f) => !f.includes(join('src', 'i18n')));
 const ui = uiFiles.map((f) => readFileSync(f, 'utf8')).join('\n');
 const goFiles = walk(join(root, 'internal'), ['.go']).filter((f) => !f.endsWith('_test.go'));
