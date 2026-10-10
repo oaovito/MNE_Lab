@@ -3,12 +3,14 @@ package lightscattering
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"encoding/xml"
 	"io"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/oaovito/mne_lab/internal/science/model"
 	"github.com/xuri/excelize/v2"
@@ -51,6 +53,7 @@ func parseMappedWorkbook(name string, data []byte, m *model.ColumnMapping, inspe
 	result := Result{Status: "partial", Parser: WorkbookMappingVersion, Spec: WorkbookMappingSpec, Encoding: "OOXML", Decimal: m.Decimal, Measurements: []model.Measurement{}, Recognized: []string{}, Warnings: []string{"ls.user_mapping_unvalidated"}}
 	preview := &TabularPreview{Schema: 1, Format: "xlsx"}
 	cells, totalRows := 0, 0
+	sourceTextBytes, retainedBytes := 0, 0
 	have := map[string]bool{}
 	for _, sheet := range sheets {
 		selected := sheet == m.Sheet
@@ -80,6 +83,14 @@ func parseMappedWorkbook(name string, data []byte, m *model.ColumnMapping, inspe
 				cells += len(values)
 				if cells > maxWorkbookCells || len(values) > 16384 {
 					return ErrSpreadsheetLimit
+				}
+				// Shared strings can expand far beyond the physical ZIP/XML size.
+				// Charge every logical occurrence, even on excluded sheets.
+				for _, value := range values {
+					if len(value) > maxWorkbookBytes-sourceTextBytes {
+						return ErrSpreadsheetLimit
+					}
+					sourceTextBytes += len(value)
 				}
 				info.Rows = n
 				if len(values) > info.Columns {
@@ -161,6 +172,17 @@ func parseMappedWorkbook(name string, data []byte, m *model.ColumnMapping, inspe
 					measurement.Fields[c.Column-1].Num = &value
 					have[c.Key] = true
 				}
+				// Header labels and raw strings are repeated in persisted records.
+				// Bound their JSON-encoded size before marshaling, then include the
+				// complete record overhead in the retained-payload limit.
+				if !withinMappedPayloadBudget(measurement, maxWorkbookBytes-retainedBytes) {
+					return ErrSpreadsheetLimit
+				}
+				encoded, err := json.Marshal(measurement)
+				if err != nil || len(encoded) > maxWorkbookBytes-retainedBytes {
+					return ErrSpreadsheetLimit
+				}
+				retainedBytes += len(encoded)
 				result.Measurements = append(result.Measurements, measurement)
 			}
 			return rows.Error()
@@ -186,6 +208,55 @@ func parseMappedWorkbook(name string, data []byte, m *model.ColumnMapping, inspe
 		return result, "xlsx", nil
 	}
 	return result, "xlsx", preview
+}
+
+// Match encoding/json's default string escaping without first allocating a
+// potentially huge JSON value (including HTML escaping and U+2028/U+2029).
+func mappedJSONStringBytes(s string) int {
+	n := 2
+	for len(s) > 0 {
+		r, size := utf8.DecodeRuneInString(s)
+		s = s[size:]
+		switch {
+		case r == '"' || r == '\\' || r == '\b' || r == '\f' || r == '\n' || r == '\r' || r == '\t':
+			n += 2
+		case r < 0x20 || r == '<' || r == '>' || r == '&' || r == 0x2028 || r == 0x2029 || (r == utf8.RuneError && size == 1):
+			n += 6
+		default:
+			n += size
+		}
+	}
+	return n
+}
+func withinMappedPayloadBudget(m model.Measurement, remaining int) bool {
+	charge := func(s string) bool {
+		n := mappedJSONStringBytes(s)
+		if n > remaining {
+			return false
+		}
+		remaining -= n
+		return true
+	}
+	for _, s := range []string{m.SampleID, m.SourceSheet, m.SourceRange, m.Parser, m.Spec} {
+		if !charge(s) {
+			return false
+		}
+	}
+	for _, f := range m.Fields {
+		for _, s := range []string{f.Label, f.Text, f.Key, f.Unit} {
+			if !charge(s) {
+				return false
+			}
+		}
+	}
+	for k, q := range m.Params {
+		for _, s := range []string{k, q.Raw, q.Label, q.Unit, q.UnitOrigin} {
+			if !charge(s) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // Require unambiguous physical coordinates before the OOXML library can
