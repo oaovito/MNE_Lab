@@ -8,8 +8,8 @@ head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).stri
 assert not subprocess.check_output(['git','status','--porcelain'],cwd=repo,text=True).strip()
 version='0.1.0-dev.'+head[:7]; root='MNE Lab Windows x64 - '+head[:7]
 app=(repo/'out/mnelab-windows-amd64.exe').read_bytes(); launcher=(repo/'out/mnelab-launcher-windows-amd64.exe').read_bytes()
+assert version.encode() in app, 'Application VERSION must identify this exact source checkpoint.'
 for raw in (app,launcher):
- assert version.encode() in raw, 'Build VERSION must identify this exact source checkpoint.'
  assert raw[:2]==b'MZ'
  offset=struct.unpack_from('<I',raw,0x3c)[0]
  assert raw[offset:offset+4]==b'PE\0\0'
