@@ -13,6 +13,34 @@ mne_json <- function(x) {
   encodeString(as.character(x), quote='"')
 }
 mne_diagnostic <- function(code, statistic=NULL, p=NULL, details=NULL) list(code=code, statistic=statistic, p=p, details=details)
+mne_mixed <- function(d) {
+  if(any(as.character(d$unit)==""))stop("statistics.review_structure")
+  if(nlevels(d$B)<2L || nlevels(d$unit)<3L || any(duplicated(d[c("unit","B")])))stop("statistics.incompatible_design")
+  if(any(vapply(split(as.character(d$A),d$unit),function(x)length(unique(x))!=1L,TRUE)))stop("statistics.unit_changes_group")
+  if(any(table(d$unit)<2L))stop("statistics.incompatible_design")
+  if(!requireNamespace("nlme",quietly=TRUE))stop("statistics.method_unavailable")
+  between<-nlevels(d$A)>1L
+  unitGroups<-vapply(split(as.character(d$A),d$unit),function(x)x[1],"")
+  if((between && any(table(unitGroups)<2L)) || nrow(d)-nlevels(d$unit)-nlevels(d$A)*(nlevels(d$B)-1L)<=0L)stop("statistics.incompatible_design")
+  formula<-if(between)y~A*B else y~B
+  contrasts<-if(between)list(A=contr.sum,B=contr.sum) else list(B=contr.sum)
+  X<-model.matrix(formula,data=d,contrasts.arg=contrasts)
+  if(qr(X)$rank!=ncol(X))stop("statistics.rank_deficient")
+  fitWarnings<-character()
+  fit<-withCallingHandlers(tryCatch(nlme::lme(formula,random=~1|unit,data=d,method="ML",contrasts=contrasts,na.action=na.fail,control=nlme::lmeControl(returnObject=FALSE)),error=function(e)stop("statistics.mixed_not_estimable")),warning=function(w){fitWarnings<<-c(fitWarnings,conditionMessage(w));invokeRestart("muffleWarning")})
+  if(length(fitWarnings) || !is.matrix(fit$apVar) || any(!is.finite(fit$apVar)))stop("statistics.mixed_not_estimable")
+  tryCatch(nlme::intervals(fit,which="var-cov"),error=function(e)stop("statistics.mixed_not_estimable"))
+  randomVariance<-as.numeric(nlme::getVarCov(fit,type="random.effects")[1,1]);residualVariance<-fit$sigma^2
+  # Scalar theta = SD(unit)/SD(residual); lme4 1.1-37 isSingular default.
+  # This numerical boundary guard is explicit, never a scientific unit rule.
+  if(!is.finite(randomVariance) || !is.finite(residualVariance) || randomVariance<=0 || residualVariance<=0 || sqrt(randomVariance/residualVariance)<1e-4)stop("statistics.mixed_not_estimable")
+  tab<-nlme::anova.lme(fit,type="marginal",adjustSigma=TRUE)
+  tab<-tab[rownames(tab)!="(Intercept)",,drop=FALSE]
+  if(any(tab$numDF<=0) || any(tab$denDF<=0) || any(!is.finite(as.matrix(tab))))stop("statistics.mixed_not_estimable")
+  coefficients<-nlme::fixef(fit);se<-sqrt(diag(vcov(fit)))
+  if(any(!is.finite(coefficients)) || any(!is.finite(se)) || any(se<=0))stop("statistics.mixed_not_estimable")
+  list(terms=mne_array(lapply(seq_len(nrow(tab)),function(i)list(source=rownames(tab)[i],df=tab[i,"numDF"],denominatorDF=tab[i,"denDF"],f=tab[i,"F-value"],p=tab[i,"p-value"]))),model=list(family="random_intercept",fixed=if(between)"A*B" else "B",estimation="ML",random="1|unit",residualCovariance="homoscedastic conditional errors",test="marginal Wald F; sum contrasts; adjustSigma=TRUE",levelsA=mne_array(levels(d$A)),levelsB=mne_array(levels(d$B)),randomVariance=randomVariance,residualVariance=residualVariance,logLikelihood=as.numeric(logLik(fit)),boundaryTolerance=1e-4,fixedCoefficients=mne_array(lapply(seq_along(coefficients),function(i)list(name=names(coefficients)[i],estimate=unname(coefficients[i]),se=unname(se[i]))))),residuals=as.numeric(residuals(fit,type="response")))
+}
 mne_engine <- function(input) {
   d <- data.frame(y=as.numeric(input$values), A=factor(input$factorA), B=factor(input$factorB), unit=factor(input$unitId))
   alpha <- as.numeric(input$alpha)
@@ -48,6 +76,7 @@ mne_engine <- function(input) {
   }
   totalSS<-sum((d$y-mean(d$y))^2)
   ssType<-"I"
+  mixedModel<-NULL
   if(method=="one_way" || method=="welch") {
     if(nlevels(d$A)<2L || any(table(d$A)<2L)) stop("statistics.insufficient_group_size")
     fit<-lm(y~A,data=d); residual<-residuals(fit)
@@ -112,7 +141,14 @@ mne_engine <- function(input) {
       }
     }
     ssType<-"repeated_subject_strata"
+  } else if(method=="mixed") {
+    if(input$postHoc!="none")stop("statistics.incompatible_posthoc")
+    if(input$structure!="repeated" || input$correction!="")stop("statistics.incompatible_design")
+    mixed<-mne_mixed(d);terms<-mixed$terms;residual<-mixed$residuals;mixedModel<-mixed$model
+    ssType<-"not_applicable_marginal_Wald_F"
+    diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("mixed_model",details="ML random intercept per explicit unit; categorical B within unit; A between units; sum contrasts; marginal Wald F with nlme inner/outer denominator df; adjustSigma=TRUE; conditional GLS SE; response residuals; relative SD boundary tolerance=1e-4")
   } else stop("statistics.method_unavailable")
+  if(length(residual)!=nrow(d) || any(!is.finite(residual)))stop("statistics.invalid_numeric")
   diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("independence_user_review",details=input$structure)
   if(length(residual)>=3L && length(residual)<=5000L && sd(residual)>0) {
     shapiro<-shapiro.test(residual)
@@ -122,7 +158,9 @@ mne_engine <- function(input) {
   varianceGroup<-if(method=="two_way")cell else d$A
   deviations<-abs(d$y-ave(d$y,varianceGroup,FUN=median))
   bf<-tryCatch(anova(lm(deviations~varianceGroup)),error=function(e)NULL)
-  if(method=="repeated") {
+  if(method=="mixed") {
+    warnings<-c(warnings,"statistics.mixed_covariance_assumption")
+  } else if(method=="repeated") {
     warnings<-c(warnings,"statistics.repeated_variance_uses_sphericity")
   } else if(!is.null(bf) && is.finite(bf[1,"Pr(>F)"])) {
     diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("brown_forsythe",as.numeric(bf[1,"F value"]),as.numeric(bf[1,"Pr(>F)"]))
@@ -213,6 +251,7 @@ mne_engine <- function(input) {
   for(i in seq_along(comparisons))comparisons[[i]]$id<-paste0("comparison-",i)
   if(method=="two_way" && any(vapply(terms,function(t)t$source=="A:B" && !is.null(t$p) && t$p<alpha,TRUE)))warnings<-c(warnings,"statistics.interaction_requires_simple_effects")
   engine<-"webR/0.6.0; R/4.6.0"
+  if(method=="mixed")engine<-paste0(engine,"; nlme/3.1-169; mixed-random-intercept/1")
   if(input$postHoc=="dunnett")engine<-paste0(engine,"; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1")
-  list(engine=engine,calculation="mnelab-statistics/1",method=method,ssType=ssType,terms=mne_array(terms),groups=mne_array(groups),comparisons=mne_array(comparisons),diagnostics=mne_array(diagnostics),residuals=mne_array(as.numeric(residual)),qqTheoretical=mne_array(as.numeric(qq$x)),qqObserved=mne_array(as.numeric(qq$y)),warnings=mne_array(warnings),corrections=if(length(corrections))corrections else NULL)
+  list(engine=engine,calculation="mnelab-statistics/1",method=method,ssType=ssType,terms=mne_array(terms),groups=mne_array(groups),comparisons=mne_array(comparisons),diagnostics=mne_array(diagnostics),residuals=mne_array(as.numeric(residual)),qqTheoretical=mne_array(as.numeric(qq$x)),qqObserved=mne_array(as.numeric(qq$y)),warnings=mne_array(warnings),corrections=if(length(corrections))corrections else NULL,model=mixedModel)
 }

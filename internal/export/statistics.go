@@ -2,6 +2,7 @@ package export
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/go-pdf/fpdf"
@@ -71,6 +72,23 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 		}
 	}
 	d.Tables = []Table{an, groups, observations, posthoc, diagnostics, residuals, effects, corrections}
+	if m := a.Results.Model; m != nil {
+		tests := statisticalTable("anova", "Marginal Wald F tests", "source", "df", "denominator_df", "F", "p")
+		for _, r := range a.Results.Terms {
+			tests.Rows = append(tests.Rows, []Cell{text(r.Source), num(r.DF, -1), optional(r.DenominatorDF), optional(r.F), optional(r.P)})
+		}
+		model := statisticalTable("mixed_model", "Mixed model", "family", "fixed", "estimation", "random", "residual_covariance", "test", "levels_a", "levels_b", "random_variance", "residual_variance", "log_likelihood", "boundary_tolerance")
+		la, _ := json.Marshal(m.LevelsA)
+		lb, _ := json.Marshal(m.LevelsB)
+		model.Rows = append(model.Rows, []Cell{text(m.Family), text(m.Fixed), text(m.Estimation), text(m.Random), text(m.ResidualCovariance), text(m.Test), text(string(la)), text(string(lb)), num(m.RandomVariance, -1), num(m.ResidualVariance, -1), num(m.LogLikelihood, -1), num(m.BoundaryTolerance, -1)})
+		coefficients := statisticalTable("coefficients", "Fixed coefficients (sum contrasts)", "coefficient", "estimate", "conditional_GLS_SE")
+		for _, v := range m.FixedCoefficients {
+			coefficients.Rows = append(coefficients.Rows, []Cell{text(v.Name), num(v.Estimate, -1), num(v.SE, -1)})
+		}
+		// All adapters iterate these tables: no mixed terms are presented as
+		// classical sums of squares, effect sizes or sphericity corrections.
+		d.Tables = []Table{tests, groups, observations, diagnostics, residuals, model, coefficients}
+	}
 	return d
 }
 

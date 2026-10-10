@@ -235,7 +235,7 @@ func TestAnalysisDesignRejectsAmbiguityAndPreservesMissing(t *testing.T) {
 	}
 	d.Observations[1].UnitID = ""
 	d.Observations[0].UnitID = ""
-	for _, method := range []string{"mixed", "dunnett"} {
+	for _, method := range []string{"dunnett"} {
 		d.Method = method
 		if _, err := p.PrepareAnalysis(d); !errors.Is(err, analysis.ErrMethod) {
 			t.Fatal("unavailable method accepted", err)
@@ -445,5 +445,135 @@ func TestAnalysisComparisonBracketsAndCyclePackage(t *testing.T) {
 	}
 	if len(relations.Cycles[cy.ID].Analyses) != 1 || len(relations.Files[s.Observations[0].FileID].Analyses) != 1 {
 		t.Fatal("analysis source dependencies missing")
+	}
+}
+
+func TestMixedExplicitUnitsIncompleteDesignAndSavedContract(t *testing.T) {
+	_, _, p := inspectionProfile(t)
+	d := statisticalFixture(t, p)
+	d.Method, d.Structure = "mixed", "repeated"
+	// Add a third time point; enough residual DF after one missing observation.
+	for i := 0; i < 3; i++ {
+		imp := p.Import(fmt.Sprintf("mixed-time3-%d.txt", i), []byte(fmt.Sprintf("Sample ID: invented-mixed-%d\nEffective Diameter (nm): %d\n", i, i+7)), false)
+		f, _, err := p.File(imp.FileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.Observations = append(d.Observations, analysis.ObservationDefinition{MeasurementID: f.Measurements[0]})
+	}
+	units := []string{}
+	for i := 0; i < 3; i++ {
+		u, e := p.CreateExperimentalUnit(fmt.Sprintf("Mixed physical unit %d", i))
+		if e != nil {
+			t.Fatal(e)
+		}
+		units = append(units, u.ID)
+	}
+	for i := range d.Observations {
+		d.Observations[i].FactorA = "A"
+		d.Observations[i].FactorB = fmt.Sprintf("t%d", i/3)
+		d.Observations[i].UnitID = units[i%3]
+	}
+	d.Observations = d.Observations[:8]
+	s, err := p.PrepareAnalysis(d)
+	if err != nil || s.Design.CompleteRepeated || s.Design.N != 8 || s.Design.Recommended != "mixed" {
+		t.Fatal("incomplete explicit Mixed rejected", err, s.Design)
+	}
+	// Contract values here are deliberately synthetic; independent actual
+	// webR numerical oracles test scientific inference, not this persistence test.
+	r := analysis.Results{Engine: analysis.ExpectedEngine(d), Calculation: analysis.CalculationVersion, Method: "mixed", SSType: "not_applicable_marginal_Wald_F", Residuals: make([]float64, 8), QQObserved: make([]float64, 8), QQTheoretical: make([]float64, 8)}
+	df, f, pval := 3., 2., .2
+	r.Terms = []analysis.Term{{Source: "B", DF: 2, DenominatorDF: &df, F: &f, P: &pval}}
+	r.Model = &analysis.MixedModel{Family: "random_intercept", Fixed: "B", Estimation: "ML", Random: "1|unit", ResidualCovariance: "homoscedastic conditional errors", Test: "marginal Wald F; sum contrasts; adjustSigma=TRUE", LevelsA: s.Design.LevelsA, LevelsB: s.Design.LevelsB, RandomVariance: 1, ResidualVariance: 2, LogLikelihood: -10, BoundaryTolerance: 1e-4, FixedCoefficients: []analysis.FixedCoefficient{{Name: "(Intercept)", Estimate: 1, SE: 1}, {Name: "B1", Estimate: 2, SE: 1}, {Name: "B2", Estimate: 3, SE: 1}}}
+	groups := map[string]int{}
+	for _, o := range s.Observations {
+		k := o.FactorB
+		i, ok := groups[k]
+		if !ok {
+			i = len(r.Groups)
+			groups[k] = i
+			r.Groups = append(r.Groups, analysis.Group{FactorA: o.FactorA, FactorB: k})
+		}
+		r.Groups[i].Values = append(r.Groups[i].Values, o.Quantity.Value)
+		r.Groups[i].N++
+	}
+	saved, e := p.SaveAnalysis(d, s.Receipt, r, "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	restored, e := p.Analysis(saved.ID)
+	if e != nil || !reflect.DeepEqual(restored.Results.Model, r.Model) {
+		t.Fatal("model lost", e)
+	}
+	data := export.StatisticalData(saved)
+	if len(data.Tables) != 7 || data.Tables[0].Columns[2].Key != "denominator_df" || data.Tables[5].ID != "mixed_model" || data.Tables[6].ID != "coefficients" {
+		t.Fatal("mixed export lost model or DF", data.Tables)
+	}
+	outs, _, e := p.analysisOutputs(saved.ID, ExportRequest{Formats: []string{"package", "csv", "json", "pdf", "xlsx"}}, plot.Preset(plot.PresetScreen), false)
+	if e != nil {
+		t.Fatal(e)
+	}
+	csv, modelFile := 0, false
+	for _, o := range outs {
+		if strings.HasSuffix(o.name, ".csv") {
+			csv++
+		}
+		if o.name == "statistics/analysis-definitions/mixed-model.json" {
+			modelFile = strings.Contains(string(o.data), "randomVariance") && strings.Contains(string(o.data), "fixedCoefficients")
+		}
+		if o.name == "statistics/effect-sizes/effects.json" && strings.TrimSpace(string(o.data)) != "[]" {
+			t.Fatal("Mixed exported fake effect sizes")
+		}
+		if strings.HasSuffix(o.name, ".json") && (strings.Contains(string(o.data), p.acct.ID()) || strings.Contains(string(o.data), p.Entry.ID)) {
+			t.Fatal("local scope leaked")
+		}
+	}
+	if csv != 7 || !modelFile {
+		t.Fatal("Mixed exports lost tables/model", csv, modelFile)
+	}
+	g, e := p.SaveGraph(graph.Definition{Kind: graph.KindStatistical, AnalysisID: saved.ID, ErrorBars: "sd", Title: "Synthetic Mixed raw groups"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	fig, e := p.Compute(g)
+	if e != nil || fig.Provenance.Engine != r.Engine || !strings.Contains(strings.Join(fig.Provenance.Transformations, " "), "not fitted mixed-model means") {
+		t.Fatal("Mixed graph provenance lost", e)
+	}
+	for _, mutate := range []func(*analysis.Results){
+		func(v *analysis.Results) { v.Model = nil },
+		func(v *analysis.Results) { v.Terms[0].DenominatorDF = nil },
+		func(v *analysis.Results) { x := 4.; v.Terms[0].DenominatorDF = &x },
+		func(v *analysis.Results) { v.Model.LevelsB = []string{"wrong", "t1", "t2"} },
+		func(v *analysis.Results) { v.Model.FixedCoefficients[1].Name = "(Intercept)" },
+		func(v *analysis.Results) { v.Model.RandomVariance = 1e-12 },
+		func(v *analysis.Results) { v.Terms[0].SS = &f },
+		func(v *analysis.Results) { v.Corrections = map[string]float64{"GG": .5} },
+	} {
+		raw, _ := json.Marshal(r)
+		var bad analysis.Results
+		json.Unmarshal(raw, &bad)
+		mutate(&bad)
+		if validateAnalysisResults(s, bad) == nil {
+			t.Fatal("unsupported model contract accepted", bad)
+		}
+	}
+	d.Method = "repeated"
+	if _, e := p.PrepareAnalysis(d); !errors.Is(e, analysis.ErrDesign) {
+		t.Fatal("classical RM accepted incomplete units", e)
+	}
+	d.Method = "mixed"
+	d.SphericityCorrection = "GG"
+	if _, e := p.PrepareAnalysis(d); !errors.Is(e, analysis.ErrDesign) {
+		t.Fatal("Mixed accepted GG", e)
+	}
+	d.SphericityCorrection = ""
+	d.Structure = "independent"
+	if _, e := p.PrepareAnalysis(d); !errors.Is(e, analysis.ErrDesign) {
+		t.Fatal("Mixed without repeated review accepted", e)
+	}
+	d.Structure = "repeated"
+	d.Observations[0].UnitID = "unknown"
+	if _, e := p.PrepareAnalysis(d); e == nil {
+		t.Fatal("unknown physical unit accepted")
 	}
 }

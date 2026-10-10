@@ -40,8 +40,11 @@ same official repository's source index (MD5 checked); mvtnorm 1.2-4 from its
 CRAN mirror revision recorded in the manifest. Their native runtime loads
 offline through the same read-only WORKERFS image in Node and browser tests.
 Dunnett has independent refined multivariate-t p/CI comparisons and seed
-repeatability tests. Mixed remains preparation; merely bundling `nlme` does
-not validate or enable it.
+repeatability tests. Mixed now has independent ML random-intercept
+coefficient/variance/likelihood/GLS/Wald F/df comparisons against
+Statsmodels/SciPy and explicit boundary/design rejections. Its scientific
+validation is restricted to the documented supported model; merely bundling
+`nlme` supplies no validation for other designs.
 
 Every package's included author/license/component files remain in the image.
 [STATISTICAL_PACKAGES_LICENSES.md](STATISTICAL_PACKAGES_LICENSES.md) records

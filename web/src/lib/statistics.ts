@@ -70,6 +70,7 @@ export type StatisticalResults = {
     source: string;
     ss?: number;
     df: number;
+    denominatorDF?: number;
     ms?: number;
     f?: number;
     p?: number;
@@ -113,6 +114,11 @@ export type StatisticalResults = {
   qqObserved: number[];
   warnings: string[];
   corrections?: Record<string, number>;
+  model?: {
+    family:string;fixed:string;estimation:string;random:string;residualCovariance:string;test:string;
+    levelsA:string[];levelsB:string[];randomVariance:number;residualVariance:number;logLikelihood:number;boundaryTolerance:number;
+    fixedCoefficients:{name:string;estimate:number;se:number}[];
+  };
 };
 export type StatisticalAnalysis = {
   schema: number;
@@ -168,7 +174,7 @@ export async function calculateStatistics(
         (o) => !o.missing && !o.excludeReason && o.quantity,
       );
       const d = snapshot.definition;
-      if (d.postHoc === "dunnett") {
+      if (d.postHoc === "dunnett" || d.method === "mixed") {
         const [metadata, image] = await Promise.all([
           fetch("/statistics-engine/packages.metadata.json", { signal: packageRequests.signal }),
           fetch("/statistics-engine/packages.data.gz", { signal: packageRequests.signal }),
@@ -193,7 +199,7 @@ export async function calculateStatistics(
         postHoc: d.postHoc,
         control: d.control || "",
         structure: d.structure,
-        correction: d.sphericityCorrection || "GG",
+        correction: d.method === "mixed" ? "" : d.sphericityCorrection || "GG",
       });
       await r.objs.globalEnv.bind("mne_input", input);
       await r.evalRVoid(code);

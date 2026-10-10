@@ -397,6 +397,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                         : "one_way",
                   postHoc: "none",
                   control: "",
+                  sphericityCorrection: "GG",
                 });
               }}
             >
@@ -423,11 +424,11 @@ function AnalysisEditor(p: { cycleId: string }) {
               class="input"
               value={def.method}
               onChange={(e) =>
-                change({ method: e.currentTarget.value, postHoc: "none", control: "" })
+                change({ method: e.currentTarget.value, postHoc: "none", control: "", sphericityCorrection: e.currentTarget.value === "mixed" ? "" : "GG" })
               }
             >
               {(def.structure === "repeated"
-                ? ["repeated"]
+                ? ["repeated", "mixed"]
                 : ["one_way", "welch", "two_way"]
               ).map((k) => (
                 <option value={k}>{t("stat.method." + k)}</option>
@@ -486,6 +487,7 @@ function AnalysisEditor(p: { cycleId: string }) {
             </label>
           )}
         </div>
+        {def.method === "mixed" && <Notice kind="info">{t("stat.mixed_scope")}</Notice>}
         <details>
           <summary>{t("stat.units")}</summary>
           <p>{t("stat.units_help")}</p>
@@ -735,7 +737,7 @@ function AnalysisResults(p: {
         <b>{t("stat.derived")}</b>
         <p>
           {t("stat.method." + r.method)} · {t("param." + s.definition.variable)}{" "}
-          ({s.unit || "—"}) · α={s.definition.alpha} · SS: {r.ssType}
+          ({s.unit || "—"}) · α={s.definition.alpha} · {r.ssType}
         </p>
         <small>
           {r.engine} · {r.calculation}
@@ -745,12 +747,12 @@ function AnalysisResults(p: {
         <Notice kind="warning">{warnText(w)}</Notice>
       ))}
       <section class="card pad col gap2">
-        <h3>{t("stat.anova_table")}</h3>
+        <h3>{t(r.model ? "stat.mixed_tests" : "stat.anova_table")}</h3>
         <div style={{ overflowX: "auto" }}>
           <table class="table">
             <thead>
               <tr>
-                {[
+                {(r.model ? ["Source", "df", "denominator df", "F", "p"] : [
                   "Source",
                   "SS",
                   "df",
@@ -760,7 +762,7 @@ function AnalysisResults(p: {
                   "η²",
                   "partial η²",
                   "ω²",
-                ].map((x) => (
+                ]).map((x) => (
                   <th>{x}</th>
                 ))}
               </tr>
@@ -769,11 +771,11 @@ function AnalysisResults(p: {
               {r.terms.map((x) => (
                 <tr>
                   <td>{x.source}</td>
-                  {[x.ss, x.df, x.ms, x.f].map((n) => (
+                  {(r.model ? [x.df, x.denominatorDF, x.f] : [x.ss, x.df, x.ms, x.f]).map((n) => (
                     <td>{num(n)}</td>
                   ))}
                   <td>{pvalue(x.p)}</td>
-                  {[x.etaSquared, x.partialEtaSquared, x.omegaSquared].map(
+                  {!r.model && [x.etaSquared, x.partialEtaSquared, x.omegaSquared].map(
                     (n) => (
                       <td>{num(n)}</td>
                     ),
@@ -784,6 +786,16 @@ function AnalysisResults(p: {
           </table>
         </div>
       </section>
+      {r.model && <section class="card pad col gap2">
+        <h3>{t("stat.mixed_model")}</h3>
+        <p>{t("stat.mixed_scope")}</p>
+        <p>{r.model.estimation} · y ~ {r.model.fixed} · {r.model.random} · {r.model.test}</p>
+        <p>{t("stat.random_variance")}: {num(r.model.randomVariance)} · {t("stat.residual_variance")}: {num(r.model.residualVariance)} · log likelihood: {num(r.model.logLikelihood)}</p>
+        <p>A: {r.model.levelsA.join(" · ")} · B: {r.model.levelsB.join(" · ")}</p>
+        <table class="table"><thead><tr><th>{t("stat.coefficient")}</th><th>{t("stat.estimate")}</th><th>SE</th></tr></thead><tbody>
+          {r.model.fixedCoefficients.map(v=><tr><td>{v.name}</td><td>{num(v.estimate)}</td><td>{num(v.se)}</td></tr>)}
+        </tbody></table>
+      </section>}
       <section class="card pad col gap2">
         <h3>{t("stat.groups")}</h3>
         <table class="table">
