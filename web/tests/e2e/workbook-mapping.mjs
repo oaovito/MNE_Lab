@@ -50,6 +50,8 @@ try {
   const headers={'X-Account-ID':state.account.id,'X-Profile-ID':state.profile.id};
   const recipes=await page.request.get(new URL('/api/import/profiles',page.url()).href,{headers});const saved=(await recipes.json()).find(p=>p.name===name);
   report.check(`${lang}: saved mapping contains recipe without source/receipt`,saved?.schema===3&&saved?.selection?.mapping?.schema===2&&saved?.selection?.mapping?.sheet==='Raw Data'&&saved?.selection?.mapping?.lastRow===lastRow&&saved?.selection?.mapping?.columns?.[0]?.unit==='nm'&&!saved.receipt&&!saved.sha256&&JSON.stringify(before)===JSON.stringify(await api(page,'GET','/api/files')));
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  report.check(`${lang}: saved recipe stays selected after normalization`,await page.getByRole('combobox',{name:l.saved,exact:true}).inputValue()===saved.id);
   const problems=await layoutProblems(page,translationKeys());report.check(`${lang}: mapping controls localized layout`,problems.length===0,problems.join('; '));
   await page.screenshot({path:path.join(out,`workbook-mapping-${lang}-light.png`)});
   await page.getByRole('button',{name:l.cancel,exact:true}).click();
