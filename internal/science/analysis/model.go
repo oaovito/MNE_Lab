@@ -21,7 +21,7 @@ const EngineVersion = "webR/0.6.0; R/4.6.0"
 func ExpectedEngine(d Definition) string {
 	engine := EngineVersion
 	if d.Method == "mixed" {
-		engine += "; nlme/3.1-169; mixed-random-intercept/1"
+		engine += "; nlme/3.1-169; mixed-random-intercept/2"
 	}
 	if d.PostHoc == "dunnett" {
 		engine += "; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1"
@@ -170,24 +170,29 @@ type Diagnostic struct {
 }
 
 type FixedCoefficient struct {
-	Name     string  `json:"name"`
-	Estimate float64 `json:"estimate"`
-	SE       float64 `json:"se"`
+	Name     string   `json:"name"`
+	Estimate float64  `json:"estimate"`
+	SE       float64  `json:"se"`
+	DF       *float64 `json:"df,omitempty"`
+	Lower    *float64 `json:"lower,omitempty"`
+	Upper    *float64 `json:"upper,omitempty"`
 }
 type MixedModel struct {
-	Family             string             `json:"family"`
-	Fixed              string             `json:"fixed"`
-	Estimation         string             `json:"estimation"`
-	Random             string             `json:"random"`
-	ResidualCovariance string             `json:"residualCovariance"`
-	Test               string             `json:"test"`
-	LevelsA            []string           `json:"levelsA"`
-	LevelsB            []string           `json:"levelsB"`
-	RandomVariance     float64            `json:"randomVariance"`
-	ResidualVariance   float64            `json:"residualVariance"`
-	LogLikelihood      float64            `json:"logLikelihood"`
-	BoundaryTolerance  float64            `json:"boundaryTolerance"`
-	FixedCoefficients  []FixedCoefficient `json:"fixedCoefficients"`
+	Family                     string             `json:"family"`
+	Fixed                      string             `json:"fixed"`
+	Estimation                 string             `json:"estimation"`
+	Random                     string             `json:"random"`
+	ResidualCovariance         string             `json:"residualCovariance"`
+	Test                       string             `json:"test"`
+	LevelsA                    []string           `json:"levelsA"`
+	LevelsB                    []string           `json:"levelsB"`
+	RandomVariance             float64            `json:"randomVariance"`
+	ResidualVariance           float64            `json:"residualVariance"`
+	LogLikelihood              float64            `json:"logLikelihood"`
+	BoundaryTolerance          float64            `json:"boundaryTolerance"`
+	CoefficientConfidenceLevel float64            `json:"coefficientConfidenceLevel,omitempty"`
+	CoefficientIntervalMethod  string             `json:"coefficientIntervalMethod,omitempty"`
+	FixedCoefficients          []FixedCoefficient `json:"fixedCoefficients"`
 }
 
 type Results struct {

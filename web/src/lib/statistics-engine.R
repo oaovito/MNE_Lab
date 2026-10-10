@@ -41,7 +41,7 @@ mne_effect_interval <- function(f,df1,df2,n,alpha) {
   interval$upper<-upper;interval$status<-"available"
   list(interval=interval,cdfError=error,tailCoverage=fit$Actual.Coverage)
 }
-mne_mixed <- function(d) {
+mne_mixed <- function(d,alpha) {
   if(any(as.character(d$unit)==""))stop("statistics.review_structure")
   if(nlevels(d$B)<2L || nlevels(d$unit)<3L || any(duplicated(d[c("unit","B")])))stop("statistics.incompatible_design")
   if(any(vapply(split(as.character(d$A),d$unit),function(x)length(unique(x))!=1L,TRUE)))stop("statistics.unit_changes_group")
@@ -65,9 +65,26 @@ mne_mixed <- function(d) {
   tab<-nlme::anova.lme(fit,type="marginal",adjustSigma=TRUE)
   tab<-tab[rownames(tab)!="(Intercept)",,drop=FALSE]
   if(any(tab$numDF<=0) || any(tab$denDF<=0) || any(!is.finite(as.matrix(tab))))stop("statistics.mixed_not_estimable")
+  coefficientCI<-tryCatch(nlme::intervals(fit,which="fixed",level=1-alpha)$fixed,error=function(e)stop("statistics.mixed_not_estimable"))
+  if(any(!is.finite(coefficientCI)) || any(!is.finite(fit$fixDF$X)) || any(fit$fixDF$X<=0))stop("statistics.mixed_not_estimable")
   coefficients<-nlme::fixef(fit);se<-sqrt(diag(vcov(fit)))
   if(any(!is.finite(coefficients)) || any(!is.finite(se)) || any(se<=0))stop("statistics.mixed_not_estimable")
-  list(terms=mne_array(lapply(seq_len(nrow(tab)),function(i)list(source=rownames(tab)[i],df=tab[i,"numDF"],denominatorDF=tab[i,"denDF"],f=tab[i,"F-value"],p=tab[i,"p-value"]))),model=list(family="random_intercept",fixed=if(between)"A*B" else "B",estimation="ML",random="1|unit",residualCovariance="homoscedastic conditional errors",test="marginal Wald F; sum contrasts; adjustSigma=TRUE",levelsA=mne_array(levels(d$A)),levelsB=mne_array(levels(d$B)),randomVariance=randomVariance,residualVariance=residualVariance,logLikelihood=as.numeric(logLik(fit)),boundaryTolerance=1e-4,fixedCoefficients=mne_array(lapply(seq_along(coefficients),function(i)list(name=names(coefficients)[i],estimate=unname(coefficients[i]),se=unname(se[i]))))),residuals=as.numeric(residuals(fit,type="response")))
+  coefficientResults<-mne_array(lapply(seq_along(coefficients),function(i)list(
+    name=names(coefficients)[i],estimate=unname(coefficients[i]),se=unname(se[i]),
+    df=unname(fit$fixDF$X[i]),lower=coefficientCI[i,"lower"],upper=coefficientCI[i,"upper"])))
+  model<-list(family="random_intercept",fixed=if(between)"A*B" else "B",
+    estimation="ML",random="1|unit",residualCovariance="homoscedastic conditional errors",
+    test="marginal Wald F; sum contrasts; adjustSigma=TRUE",
+    levelsA=mne_array(levels(d$A)),levelsB=mne_array(levels(d$B)),
+    randomVariance=randomVariance,residualVariance=residualVariance,
+    logLikelihood=as.numeric(logLik(fit)),boundaryTolerance=1e-4,
+    coefficientConfidenceLevel=1-alpha,
+    coefficientIntervalMethod="nlme::intervals.lme fixed; Student t; conditional GLS; approximate; individual",
+    fixedCoefficients=coefficientResults)
+  terms<-mne_array(lapply(seq_len(nrow(tab)),function(i)list(source=rownames(tab)[i],
+    df=tab[i,"numDF"],denominatorDF=tab[i,"denDF"],f=tab[i,"F-value"],p=tab[i,"p-value"])))
+  list(terms=terms,model=model,residuals=as.numeric(residuals(fit,type="response")))
+
 }
 mne_engine <- function(input) {
   d <- data.frame(y=as.numeric(input$values), A=factor(input$factorA), B=factor(input$factorB), unit=factor(input$unitId))
@@ -173,7 +190,7 @@ mne_engine <- function(input) {
   } else if(method=="mixed") {
     if(input$postHoc!="none")stop("statistics.incompatible_posthoc")
     if(input$structure!="repeated" || input$correction!="")stop("statistics.incompatible_design")
-    mixed<-mne_mixed(d);terms<-mixed$terms;residual<-mixed$residuals;mixedModel<-mixed$model
+    mixed<-mne_mixed(d,alpha);terms<-mixed$terms;residual<-mixed$residuals;mixedModel<-mixed$model
     ssType<-"not_applicable_marginal_Wald_F"
     diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("mixed_model",details="ML random intercept per explicit unit; categorical B within unit; A between units; sum contrasts; marginal Wald F with nlme inner/outer denominator df; adjustSigma=TRUE; conditional GLS SE; response residuals; relative SD boundary tolerance=1e-4")
   } else stop("statistics.method_unavailable")
@@ -290,7 +307,7 @@ mne_engine <- function(input) {
   for(i in seq_along(comparisons))comparisons[[i]]$id<-paste0("comparison-",i)
   if(method=="two_way" && any(vapply(terms,function(t)t$source=="A:B" && !is.null(t$p) && t$p<alpha,TRUE)))warnings<-c(warnings,"statistics.interaction_requires_simple_effects")
   engine<-"webR/0.6.0; R/4.6.0"
-  if(method=="mixed")engine<-paste0(engine,"; nlme/3.1-169; mixed-random-intercept/1")
+  if(method=="mixed")engine<-paste0(engine,"; nlme/3.1-169; mixed-random-intercept/2")
   if(input$postHoc=="dunnett")engine<-paste0(engine,"; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1")
   if(isTRUE(input$effectCI))engine<-paste0(engine,"; MBESS-source/5.0.1; eta2-CI/1")
   list(engine=engine,calculation="mnelab-statistics/1",method=method,ssType=ssType,terms=mne_array(terms),groups=mne_array(groups),comparisons=mne_array(comparisons),diagnostics=mne_array(diagnostics),residuals=mne_array(as.numeric(residual)),qqTheoretical=mne_array(as.numeric(qq$x)),qqObserved=mne_array(as.numeric(qq$y)),warnings=mne_array(warnings),corrections=if(length(corrections))corrections else NULL,model=mixedModel,effectIntervals=effectIntervals)

@@ -17,7 +17,7 @@ type Capability struct {
 
 func Capabilities() []Capability {
 	return []Capability{
-		{"statistical_analysis", "IMPLEMENTED / TESTED (documented scope)", "VALIDATED (documented scope)", []string{"Effect intervals beyond documented population eta squared in fixed one-factor models remain unavailable; Mixed is limited to documented ML random-intercept models; Dunnett to documented one-way independent models"}},
+		{"statistical_analysis", "IMPLEMENTED / TESTED (documented scope)", "VALIDATED (documented scope)", []string{"Effect-size intervals beyond documented population eta squared in fixed one-factor models remain unavailable; Mixed is limited to documented ML random-intercept models; Dunnett to documented one-way independent models"}},
 		{LightScattering, "IMPLEMENTED / CONTINUING", "PARTIAL", []string{"finish documented instrument-field and quantitative-reference validation"}},
 		{Zeta, "IMPLEMENTATION ALLOWED", "PENDING", []string{"official potential/mobility/quality field documentation", "real native exports with corresponding trusted results", "reproducible field/unit/numeric comparisons"}},
 		{NTA, "ARCHITECTURE / PREPARATION ALLOWED", "PENDING", []string{"official NanoSight export/software schema", "real tracking and summary/distribution exports with trusted references", "independent numeric comparisons"}},

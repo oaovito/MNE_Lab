@@ -55,14 +55,16 @@ try {
  report.check('explicit physical units and incomplete design persist',saved.snapshot.design.n===fixture.input.values.length && !saved.snapshot.design.completeRepeated && saved.snapshot.design.experimentalUnits===12 && saved.snapshot.definition.sphericityCorrection===undefined && saved.snapshot.definition.structure==='repeated');
  for(const expected of fixture.expected.terms){const t=saved.results.terms.find(t=>t.source===expected.source);report.check('independent marginal test '+expected.source,t.df===expected.df && t.denominatorDF===expected.denominatorDF && Math.abs(t.f-expected.f)<1e-5*Math.max(1,Math.abs(expected.f)) && Math.abs(t.p-expected.p)<1e-6)}
  for(const k of ['randomVariance','residualVariance','logLikelihood'])report.check('independent model '+k,Math.abs(saved.results.model[k]-fixture.expected.model[k])<(k==='logLikelihood'?1e-6:1e-5*Math.max(1,Math.abs(fixture.expected.model[k]))));
- report.check('Mixed omits classical effects and comparisons',saved.results.comparisons.length===0 && saved.results.terms.every(t=>t.ss===undefined&&t.etaSquared===undefined) && saved.results.engine.endsWith('; mixed-random-intercept/1'));
+ const coefficients=saved.results.model.fixedCoefficients;
+ report.check('Mixed persists approximate individual coefficient CIs and coefficient-specific df',saved.results.model.coefficientConfidenceLevel===.95 && saved.results.model.coefficientIntervalMethod.includes('approximate; individual') && fixture.expected.model.fixedCoefficients.every(e=>{const v=coefficients.find(v=>v.name===e.name);return v.df===e.df&&Math.abs(v.lower-e.lower)<=1e-5*Math.max(1,Math.abs(e.lower))&&Math.abs(v.upper-e.upper)<=1e-5*Math.max(1,Math.abs(e.upper))}));
+ report.check('Mixed omits classical effects and comparisons',saved.results.comparisons.length===0 && saved.results.terms.every(t=>t.ss===undefined&&t.etaSquared===undefined) && saved.results.engine.endsWith('; mixed-random-intercept/2'));
  report.check('R and package assets stay local',external===0);
  report.check('model coefficient and residual plots are displayed',await page.getByRole('heading',{name:'Mixed model and sum-contrast coefficients',exact:true}).count()===1 && await page.getByRole('img',{name:'Residual QQ plot',exact:true}).count()===1);
  await page.getByRole('button',{name:'Create statistical graph',exact:true}).click();
  await page.getByText('Mean error bars',{exact:true}).waitFor();
  const graph=(await request('GET','/api/graphs')).find(g=>g.analysisId===saved.id);
  const figure=await request('POST','/api/graphs/render',{definition:graph,width:900,height:600});
- report.check('shared Graph Engine renders original Mixed observations',JSON.stringify(figure).includes('mixed-random-intercept/1') && graph.kind==='statistical_groups');
+ report.check('shared Graph Engine renders original Mixed observations',JSON.stringify(figure).includes('mixed-random-intercept/2') && graph.kind==='statistical_groups');
  for(const [language,theme,width,height]of [['en','light',1366,768],['en','dark',1024,600],['pt-BR','light',1366,768],['pt-BR','dark',1024,600],['es','light',1366,768],['es','dark',1024,600]]) {
   await api(page,'PUT','/api/profile/settings',{language,theme,onboarding:{tour:true,ls:true,turbo:true},whatsNewSeen:state.version});await page.setViewportSize({width,height});
   await page.goto(new URL('/ls/statistics/'+saved.id,page.url()).href);await page.waitForLoadState('networkidle');await page.locator('.statistics-page table').first().waitFor();

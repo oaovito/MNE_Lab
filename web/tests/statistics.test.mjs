@@ -220,12 +220,14 @@ try {
   const mixed=JSON.parse(fs.readFileSync(new URL("./fixtures/statistics-mixed-golden.json",import.meta.url)));
   for(const c of mixed.cases) await test(`independent Mixed oracle: ${c.name}`,async()=>{
     const actual=await calculate(c.input);
-    assert.equal(actual.engine,"webR/0.6.0; R/4.6.0; nlme/3.1-169; mixed-random-intercept/1");
+    assert.equal(actual.engine,"webR/0.6.0; R/4.6.0; nlme/3.1-169; mixed-random-intercept/2");
     assert.equal(actual.ssType,"not_applicable_marginal_Wald_F");
     assert.equal(actual.model.family,"random_intercept");
     assert.equal(actual.model.estimation,"ML");
     assert.equal(actual.model.random,"1|unit");
     assert.equal(actual.model.boundaryTolerance,1e-4);
+    assert.equal(actual.model.coefficientConfidenceLevel,1-c.input.alpha);
+    assert.match(actual.model.coefficientIntervalMethod,/approximate; individual/);
     assert.deepEqual(actual.model.levelsA,c.expected.model.levelsA);
     assert.deepEqual(actual.model.levelsB,c.expected.model.levelsB);
     for(const k of ['randomVariance','residualVariance'])near(actual.model[k],c.expected.model[k],c.name+'.'+k,1e-5);
@@ -233,7 +235,7 @@ try {
     assert.equal(actual.model.fixedCoefficients.length,c.expected.model.fixedCoefficients.length);
     for(const v of c.expected.model.fixedCoefficients){
       const a=actual.model.fixedCoefficients.find(a=>a.name===v.name);assert.ok(a,v.name);
-      for(const k of ['estimate','se'])near(a[k],v[k],c.name+'.'+v.name+'.'+k,1e-5);
+      assert.equal(a.df,v.df);for(const k of ['estimate','se','lower','upper'])near(a[k],v[k],c.name+'.'+v.name+'.'+k,1e-5);
     }
     assert.equal(actual.terms.length,c.expected.terms.length);
     for(const t of c.expected.terms){

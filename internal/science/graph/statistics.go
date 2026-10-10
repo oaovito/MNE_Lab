@@ -77,6 +77,9 @@ func StatisticalGroups(def Definition, saved analysis.StatisticalAnalysis) (Resu
 			"mixed model "+m.Estimation+"; y~"+m.Fixed+"; "+m.Random+"; "+m.ResidualCovariance+"; "+m.Test,
 			"random variance "+number(m.RandomVariance)+"; residual variance "+number(m.ResidualVariance)+"; log likelihood "+number(m.LogLikelihood)+"; relative SD boundary tolerance "+number(m.BoundaryTolerance))
 	}
+	if m := saved.Results.Model; m != nil && m.CoefficientConfidenceLevel > 0 {
+		r.Provenance.Transformations = append(r.Provenance.Transformations, "fixed coefficient intervals "+m.CoefficientIntervalMethod+"; nominal level "+number(m.CoefficientConfidenceLevel))
+	}
 	if s.Definition.Control != "" {
 		r.Provenance.Transformations = append(r.Provenance.Transformations, "explicit control "+s.Definition.Control)
 		for _, diagnostic := range saved.Results.Diagnostics {
