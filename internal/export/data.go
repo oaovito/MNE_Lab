@@ -212,9 +212,18 @@ func MeasurementData(title string, ids []string, in graph.Input, points PointLab
 		Column{Key: "measured_at", Label: T("col.measured_at")},
 		Column{Key: "source_file", Label: T("col.source_file")},
 		Column{Key: "measurement_index", Label: T("col.measurement_index")})
+	mapped := map[string]bool{}
+	for _, m := range ms {
+		for k, q := range m.Params {
+			mapped[k] = mapped[k] || q.UnitOrigin == "user_mapping"
+		}
+	}
 	var paramCols []Column
 	for _, k := range paramKeys {
 		paramCols = append(paramCols, Column{Key: k, Label: T("param." + k), Unit: units[k]})
+		if mapped[k] {
+			paramCols = append(paramCols, mappingColumns(k)...)
+		}
 		if mixed[k] {
 			paramCols = append(paramCols, Column{Key: k + "_unit", Label: T("param."+k) + " · " + T("col.unit")})
 		}
@@ -243,6 +252,9 @@ func MeasurementData(title string, ids []string, in graph.Input, points PointLab
 				row = append(row, num(q.Value, Decimals(q.Raw)))
 			} else {
 				row = append(row, text(""))
+			}
+			if mapped[k] {
+				row = append(row, mappingCells(q)...)
 			}
 			if mixed[k] {
 				row = append(row, text(q.Unit))
@@ -323,6 +335,7 @@ func ParameterData(title, param string, in graph.Input, cy graph.CycleInput, T T
 	}
 	values := map[string]float64{}
 	unit, unitSeen := "", false
+	mapped := false
 	for _, a := range cy.Assignments {
 		if a.Point < 0 || a.Point >= len(cy.Points) || (a.Status != "auto" && a.Status != "confirmed") {
 			continue
@@ -333,6 +346,7 @@ func ParameterData(title, param string, in graph.Input, cy graph.CycleInput, T T
 					return DataSet{}, graph.ErrMixedUnits
 				}
 				values[m.ID] = q.Value
+				mapped = mapped || q.UnitOrigin == "user_mapping"
 				unit, unitSeen = q.Unit, true
 			}
 		}
@@ -352,6 +366,10 @@ func ParameterData(title, param string, in graph.Input, cy graph.CycleInput, T T
 		{Key: "mean", Label: T("col.mean"), Unit: unit},
 		{Key: "sd", Label: T("col.sd"), Unit: unit},
 	}}
+	if mapped {
+		data.Columns = append(data.Columns, mappingColumns(param)...)
+		ds.Notes = append(ds.Notes, "ls.user_mapping_unvalidated")
+	}
 	st := Table{ID: "statistics", Name: T("sheet.statistics"), Columns: []Column{
 		{Key: "cycle_point", Label: T("col.cycle_point")},
 		{Key: "cycle_offset", Label: T("col.cycle_offset")},
@@ -397,6 +415,9 @@ func ParameterData(title, param string, in graph.Input, cy graph.CycleInput, T T
 			row := append(append([]Cell{}, pointCells...), text(m.SampleID), rep, text(FormatTime(m.MeasuredAt)),
 				num(q.Value, Decimals(q.Raw)), text(T("cycle.status."+status[id])), text(in.Files[m.FileID].Name),
 				num(float64(s.N), 0), opt(s.Mean), opt(s.SD))
+			if mapped {
+				row = append(row, mappingCells(q)...)
+			}
 			data.Rows = append(data.Rows, row)
 			if !used[id] {
 				used[id] = true
@@ -427,4 +448,23 @@ func (ds *DataSet) AddCommonMeta(T Translator, app string, schema int, extra ...
 		{"schema", T("meta.schema"), strconv.Itoa(schema)},
 		{"engine", T("meta.engine"), ds.Engine},
 	}, append(extra, ds.Meta...)...)
+}
+
+// These columns are conditional so historical export layouts remain unchanged.
+func mappingColumns(key string) []Column {
+	out := []Column{}
+	for _, suffix := range []string{"raw", "unit_origin", "source_column", "source_label", "source_line"} {
+		out = append(out, Column{Key: key + "_" + suffix, Label: key + " · " + suffix})
+	}
+	return out
+}
+func mappingCells(q model.Quantity) []Cell {
+	col, line := text(""), text("")
+	if q.SourceColumn > 0 {
+		col = num(float64(q.SourceColumn), 0)
+	}
+	if q.Line > 0 {
+		line = num(float64(q.Line), 0)
+	}
+	return []Cell{text(q.Raw), text(q.UnitOrigin), col, text(q.Label), line}
 }

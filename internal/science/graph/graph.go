@@ -121,14 +121,15 @@ type Series struct {
 
 // Source is one input of a graph.
 type Source struct {
-	MeasurementID string `json:"measurementId"`
-	FileID        string `json:"fileId"`
-	FileName      string `json:"fileName"`
-	SHA256        string `json:"sha256"`
-	Parser        string `json:"parser"`
-	Spec          string `json:"spec"`
-	SampleID      string `json:"sampleId,omitempty"`
-	MeasuredAt    string `json:"measuredAt,omitempty"`
+	Parameters    map[string]model.Quantity `json:"parameters,omitempty"`
+	MeasurementID string                    `json:"measurementId"`
+	FileID        string                    `json:"fileId"`
+	FileName      string                    `json:"fileName"`
+	SHA256        string                    `json:"sha256"`
+	Parser        string                    `json:"parser"`
+	Spec          string                    `json:"spec"`
+	SampleID      string                    `json:"sampleId,omitempty"`
+	MeasuredAt    string                    `json:"measuredAt,omitempty"`
 	// MeasuredTimestamp preserves raw text and explicit zone/date semantics.
 	MeasuredTimestamp *model.Timestamp       `json:"measuredTimestamp,omitempty"`
 	Lines             string                 `json:"lines,omitempty"`
@@ -178,8 +179,16 @@ func (in Input) Source(m model.Measurement) Source {
 	f := in.Files[m.FileID]
 	s := Source{MeasurementID: m.ID, FileID: m.FileID, FileName: f.Name, SHA256: f.SHA256, Parser: m.Parser, Spec: m.Spec, SampleID: m.SampleID}
 	s.SourceSheet, s.SourceRange = m.SourceSheet, m.SourceRange
+	for k, q := range m.Params {
+		if q.UnitOrigin != "" {
+			if s.Parameters == nil {
+				s.Parameters = map[string]model.Quantity{}
+			}
+			s.Parameters[k] = q
+		}
+	}
 	if f.ImportSelection != nil {
-		s.ImportSelection = &model.ImportSelection{Sheets: append([]model.SheetSelection(nil), f.ImportSelection.Sheets...)}
+		s.ImportSelection = f.ImportSelection.Clone()
 	}
 	if m.MeasuredAt != nil {
 		ts := *m.MeasuredAt
@@ -258,6 +267,10 @@ func meta(m model.Measurement) map[string]string {
 	for _, k := range []string{model.EffectiveDiameter, model.Polydispersity, model.CountRate, model.AverageCountRate, model.BaselineIndex} {
 		if q, ok := m.Params[k]; ok {
 			out[k] = q.Raw
+			if q.UnitOrigin != "" {
+				out[k+".unitOrigin"] = q.UnitOrigin
+				out[k+".sourceColumn"] = fmt.Sprint(q.SourceColumn)
+			}
 			if q.Unit != "" {
 				out[k+".unit"] = q.Unit
 			}
@@ -412,6 +425,7 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 	}
 	values := map[string]float64{}
 	unit, haveUnit := "", false
+	mapped := false
 	for _, a := range cy.Assignments {
 		if a.Point < 0 || a.Point >= len(cy.Points) || (a.Status != "auto" && a.Status != "confirmed") {
 			continue
@@ -430,9 +444,13 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 			return res, ErrMixedUnits
 		}
 		values[m.ID] = q.Value
+		mapped = mapped || q.UnitOrigin == "user_mapping"
 	}
 	if len(values) == 0 {
 		return res, ErrNoParameter
+	}
+	if mapped {
+		res.Warnings = append(res.Warnings, "ls.user_mapping_unvalidated")
 	}
 	res.Y.Unit = unit
 	series := cycle.Series(cy.Points, cy.Assignments, values)

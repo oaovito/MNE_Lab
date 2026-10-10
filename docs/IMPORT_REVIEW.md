@@ -40,7 +40,7 @@ selections; it does not map scientific columns or supply missing units.
 
 The legacy `/api/files` endpoint remains available for existing programmatic
 clients; the desktop chooser uses the inspect/confirm sequence. Native XLS,
-scientific ODS import, manual scientific column mapping and richer import recipes remain pending.
+scientific ODS import, workbook column mapping and richer import recipes remain pending.
 Scientific interpretation remains provisional.
 
 ## Literal ODS review
@@ -80,3 +80,58 @@ Part 2 §3.3 (MIME package part), Part 3 §§6.1.2–6.1.5 (text), §19.389 (dec
 values), §19.679.3 and §19.681 (cell/row repetitions). Independently generated
 invented fixtures were checked against the official schemas. No real ODS
 instrument export has been used as a scientific reference.
+
+## Explicit delimited DLS mapping (PARTIAL / UNVALIDATED)
+
+CSV/TSV can be mapped explicitly to the five existing DLS scalar fields:
+Effective Diameter, Polydispersity, Current Count Rate, Average Count Rate and
+Baseline Index. The UI never assigns these from an unknown header. The user
+selects one-based columns, a header record, first/last data records, delimiter
+(comma/semicolon/tab), decimal separator (dot/comma), optional sample column,
+and units. A unit string is a declaration, without recognition or conversion.
+An empty unit remains unknown even when a header happens to contain `(nm)`.
+A conflicting header is retained literally; it is never rewritten to match a
+user choice. This workflow does not establish instrument compatibility or
+scientific validity. ZETA/NTA fields and distributions cannot be mapped here.
+
+`ImportSelection.mapping` has schema 1 and module `lightscattering`. Mapping
+recipes cannot also select workbook sheets. Record indices count CSV records
+returned by the delimited reader (blank physical lines do not count); quoted
+multiline records count once. Quantity provenance uses the actual physical line
+and one-based source column. Explicit last-record selection never truncates the
+validation of the remaining source. File/line/column/cell limits match the
+bounded text reader: 32 MiB input, 100,000 physical lines/records, 1,024 columns,
+1,000,000 cells. Confirmation reparses the entire original independently of the
+20-row/20-column literal preview and 10-measurement scientific preview.
+
+Mapped values preserve decoded raw cell text, exact header, physical line,
+source column, assigned unit and `unitOrigin: user_mapping`. CSV quoting remains
+in the immutable original. Numeric parsing trims surrounding whitespace only;
+accepts decimal numbers/exponents in the chosen syntax; rejects grouping,
+formulas, invalid/nonfinite/overflow/underflow values. Empty and ragged missing
+cells stay absent, including selected rows without quantities, rather than
+becoming zero or disappearing. A mapping with no quantities cannot be confirmed.
+There are no inferred times, distributions, replicate identities or physical
+experimental units. Current and average count rate stay separate, with no scale
+conversion. Any invalid mapped number rejects the complete parse atomically.
+
+The reader identity is `dls-column-reader/1.0.0`, with contract
+`dls-user-column-mapping/1-unvalidated`. Imported sources remain `partial` and
+`USER_DECLARED / PARTIAL / UNVALIDATED`; this is distinct from the native
+NanoBrook parser and its provisional contract. Review receipts bind every
+canonical choice, original SHA, name, reader/spec, account/profile and expiry.
+Editing a choice requires fresh inspection. Duplicate detection includes the
+recipe, including its transactional check. Encrypted saved-profile schema 2
+stores only a reviewed CSV/TSV recipe; schema 1 XLSX selections remain compatible.
+Neither saved recipe contains source bytes, original hash or a cached receipt.
+Applying a saved recipe to any file requires a new review.
+
+Graph/cycle source snapshots copy recipes and assigned quantities independently;
+analysis snapshots retain the declaration and warn about unvalidated sources.
+Measurement/cycle/analysis exports preserve raw values, unit origin and source
+columns/labels/lines. These extra flat columns appear only for mapped data;
+existing native-only export layouts stay compatible. Structured provenance
+retains original SHA and recipe. Tests of these mechanics validate software
+behavior, not the scientific meaning chosen by a user. Workbook mapping, ODS
+scientific import, additional adapters and instrument-reference comparisons
+remain pending. No historical quantity is relabelled or migrated.

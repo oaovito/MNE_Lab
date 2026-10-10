@@ -16,6 +16,10 @@ type Quantity struct {
 	Value float64 `json:"value"`
 	Raw   string  `json:"raw"`
 	Unit  string  `json:"unit,omitempty"`
+	// UnitOrigin is explicit for manual assignments; empty preserves legacy data.
+	UnitOrigin string `json:"unitOrigin,omitempty"`
+	// SourceColumn is the one-based delimited column; no source unit is inferred.
+	SourceColumn int `json:"sourceColumn,omitempty"`
 	// Label is the exact label used in the source file.
 	Label string `json:"label,omitempty"`
 	// Line is the 1-based line in the source file.
@@ -158,8 +162,43 @@ func (m *Measurement) Param(key string) (Quantity, bool) {
 
 // ImportSelection records an explicit, reproducible subset of a workbook.
 type ImportSelection struct {
-	Sheets []SheetSelection `json:"sheets"`
+	Sheets  []SheetSelection `json:"sheets"`
+	Mapping *ColumnMapping   `json:"mapping,omitempty"`
 }
+
+// ColumnMapping is a user declaration, not an instrument schema or validation.
+// Record indices count CSV records, whereas Quantity.Line counts physical lines.
+type ColumnMapping struct {
+	Schema       int            `json:"schema"`
+	Module       string         `json:"module"`
+	Delimiter    string         `json:"delimiter"`
+	Decimal      string         `json:"decimal"`
+	HeaderRecord int            `json:"headerRecord"`
+	FirstRecord  int            `json:"firstRecord"`
+	LastRecord   int            `json:"lastRecord"`
+	SampleColumn int            `json:"sampleColumn,omitempty"`
+	Columns      []MappedColumn `json:"columns"`
+}
+type MappedColumn struct {
+	Column int    `json:"column"`
+	Key    string `json:"key"`
+	Unit   string `json:"unit"`
+}
+
+// Clone keeps graph/analysis snapshots independent of editable import recipes.
+func (s *ImportSelection) Clone() *ImportSelection {
+	if s == nil {
+		return nil
+	}
+	out := &ImportSelection{Sheets: append([]SheetSelection(nil), s.Sheets...)}
+	if s.Mapping != nil {
+		m := *s.Mapping
+		m.Columns = append([]MappedColumn(nil), m.Columns...)
+		out.Mapping = &m
+	}
+	return out
+}
+
 type SheetSelection struct {
 	Name  string `json:"name"`
 	Range string `json:"range,omitempty"`

@@ -246,7 +246,7 @@ func (p *Profile) ConfirmImportSelection(name string, data []byte, receipt strin
 	if err != nil {
 		return ImportResult{}, err
 	}
-	parser, spec := ingest.Identity(name, data)
+	parser, spec := ingest.IdentitySelection(name, data, selection)
 	if !sameImportSelection(claim.Selection, selection) || len(data) == 0 || len(data) > lightscattering.MaxFileSize || name != claim.Name || secure.HashHex(data) != claim.SHA256 || claim.Parser != parser || claim.Spec != spec {
 		return ImportResult{}, ErrImportChanged
 	}

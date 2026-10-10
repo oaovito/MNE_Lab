@@ -30,6 +30,14 @@ func Identity(name string, data []byte) (string, string) {
 	return lightscattering.Version, lightscattering.Parse(nil).Spec
 }
 
+// IdentitySelection binds manual recipes to their own reader and provisional contract.
+func IdentitySelection(name string, data []byte, selection *model.ImportSelection) (string, string) {
+	if selection != nil && selection.Mapping != nil && !dts.IsCompound(data) && !strings.EqualFold(filepath.Ext(name), ".dts") {
+		return lightscattering.MappingVersion, lightscattering.MappingSpec
+	}
+	return Identity(name, data)
+}
+
 type Result struct {
 	lightscattering.Result
 	Module     string            `json:"module"`
@@ -47,7 +55,7 @@ func Inspect(name string, data []byte, selection *model.ImportSelection) (Result
 	if format == "ods" {
 		return Result{Result: r}, format, table // literal container, no scientific adapter assigned
 	}
-	return Result{Result: r, Module: module.LightScattering}, format, table
+	return mappedResult(r, selection), format, table
 }
 
 func Parse(name string, data []byte, selection *model.ImportSelection) (Result, string) {
@@ -56,7 +64,7 @@ func Parse(name string, data []byte, selection *model.ImportSelection) (Result, 
 		if format == "ods" {
 			return Result{Result: r}, format
 		}
-		return Result{Result: r, Module: module.LightScattering}, format
+		return mappedResult(r, selection), format
 	}
 	out := Result{Result: lightscattering.Result{Status: "failed", Parser: dts.Version, Spec: DTSSpec, Measurements: []model.Measurement{}, Recognized: []string{}}}
 	if selection != nil {
@@ -91,4 +99,12 @@ func Parse(name string, data []byte, selection *model.ImportSelection) (Result, 
 		format = "compound"
 	}
 	return out, format
+}
+
+func mappedResult(r lightscattering.Result, selection *model.ImportSelection) Result {
+	out := Result{Result: r, Module: module.LightScattering}
+	if selection != nil && selection.Mapping != nil && r.Status != "failed" {
+		out.SourceInfo = &model.SourceInfo{Vendor: "USER_DECLARED", Container: "Delimited text", Support: "PARTIAL", ScientificValidation: "UNVALIDATED"}
+	}
+	return out
 }
