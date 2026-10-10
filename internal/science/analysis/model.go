@@ -19,13 +19,17 @@ const CalculationVersion = "mnelab-statistics/1"
 const EngineVersion = "webR/0.6.0; R/4.6.0"
 
 func ExpectedEngine(d Definition) string {
+	engine := EngineVersion
 	if d.Method == "mixed" {
-		return EngineVersion + "; nlme/3.1-169; mixed-random-intercept/1"
+		engine += "; nlme/3.1-169; mixed-random-intercept/1"
 	}
 	if d.PostHoc == "dunnett" {
-		return EngineVersion + "; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1"
+		engine += "; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1"
 	}
-	return EngineVersion
+	if d.EffectCI {
+		engine += "; MBESS-source/5.0.1; eta2-CI/1"
+	}
+	return engine
 }
 
 var (
@@ -70,6 +74,7 @@ type Definition struct {
 	Method               string                  `json:"method"`
 	Alpha                float64                 `json:"alpha"`
 	PostHoc              string                  `json:"postHoc"`
+	EffectCI             bool                    `json:"effectCI,omitempty"`
 	Control              string                  `json:"control,omitempty"`
 	SphericityCorrection string                  `json:"sphericityCorrection,omitempty"`
 	Observations         []ObservationDefinition `json:"observations"`
@@ -186,20 +191,32 @@ type MixedModel struct {
 }
 
 type Results struct {
-	Engine        string             `json:"engine"`
-	Calculation   string             `json:"calculation"`
-	Method        string             `json:"method"`
-	SSType        string             `json:"ssType,omitempty"`
-	Terms         []Term             `json:"terms"`
-	Groups        []Group            `json:"groups"`
-	Comparisons   []Comparison       `json:"comparisons"`
-	Diagnostics   []Diagnostic       `json:"diagnostics"`
-	Residuals     []float64          `json:"residuals"`
-	QQTheoretical []float64          `json:"qqTheoretical"`
-	QQObserved    []float64          `json:"qqObserved"`
-	Warnings      []string           `json:"warnings"`
-	Corrections   map[string]float64 `json:"corrections,omitempty"`
-	Model         *MixedModel        `json:"model,omitempty"`
+	Engine          string             `json:"engine"`
+	Calculation     string             `json:"calculation"`
+	Method          string             `json:"method"`
+	SSType          string             `json:"ssType,omitempty"`
+	Terms           []Term             `json:"terms"`
+	Groups          []Group            `json:"groups"`
+	Comparisons     []Comparison       `json:"comparisons"`
+	Diagnostics     []Diagnostic       `json:"diagnostics"`
+	Residuals       []float64          `json:"residuals"`
+	QQTheoretical   []float64          `json:"qqTheoretical"`
+	QQObserved      []float64          `json:"qqObserved"`
+	Warnings        []string           `json:"warnings"`
+	Corrections     map[string]float64 `json:"corrections,omitempty"`
+	Model           *MixedModel        `json:"model,omitempty"`
+	EffectIntervals []EffectInterval   `json:"effectIntervals,omitempty"`
+}
+
+type EffectInterval struct {
+	Source          string   `json:"source"`
+	Effect          string   `json:"effect"`
+	ConfidenceLevel float64  `json:"confidenceLevel"`
+	Method          string   `json:"method"`
+	Status          string   `json:"status"`
+	Lower           *float64 `json:"lower,omitempty"`
+	Upper           *float64 `json:"upper,omitempty"`
+	LowerAtBoundary bool     `json:"lowerAtBoundary,omitempty"`
 }
 
 // StatisticalAnalysis preserves the definition, source snapshot and results.
@@ -240,6 +257,9 @@ func (d Definition) Validate() error {
 		}
 	default:
 		return ErrMethod
+	}
+	if d.EffectCI && d.Method != "one_way" {
+		return ErrDesign
 	}
 	if d.PostHoc != "none" && d.PostHoc != "tukey" && d.PostHoc != "dunnett" {
 		return ErrMethod

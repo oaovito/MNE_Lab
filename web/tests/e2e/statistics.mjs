@@ -11,10 +11,11 @@ import {
 } from "./lib.mjs";
 const [dir, outRoot] = process.argv.slice(2);
 const dunnett = process.env.MNELAB_E2E_POSTHOC === "dunnett";
+const effectCI=process.env.MNELAB_E2E_EFFECT_CI==="1";
 const observations = dunnett ? 9 : 6;
 const expectedF = dunnett ? 27 : 13.5;
 const expectedP = dunnett ? .001 : 0.021311641128756727;
-const out = path.join(outRoot, dunnett ? "statistics-dunnett" : "statistics");
+const out = path.join(outRoot, effectCI ? "statistics-effect-ci" : dunnett ? "statistics-dunnett" : "statistics");
 fs.mkdirSync(out, { recursive: true });
 const report = new Report("statistical-analysis");
 const browser = await launchBrowser();
@@ -120,6 +121,7 @@ try {
   if (dunnett) {
     await page.getByRole("combobox",{name:"Control group",exact:true}).selectOption("A");
   }
+  if(effectCI)await page.getByRole("checkbox",{name:"Population eta squared CI",exact:true}).check();
   await page
     .getByRole("button", { name: "Review design and sources", exact: true })
     .click();
@@ -176,6 +178,12 @@ try {
     saved.snapshot.definition.control==='A' && saved.results.engine.endsWith('; Dunnett/1') &&
     saved.results.comparisons.length===2 && saved.results.comparisons[0].leftA==='A' && saved.results.comparisons[0].rightA==='B' &&
     saved.results.diagnostics.some(d=>d.code==='dunnett_integration'&&d.statistic<=1e-5));
+
+  if(effectCI) {
+    const ci=saved.results.effectIntervals?.[0];
+    report.check('optional population eta CI preserves estimator, level and limits',saved.snapshot.definition.effectCI===true && ci?.effect==='population_eta_squared' && ci.confidenceLevel===.95 && ci.status==='available' && Math.abs(ci.lower-.017419935275215046)<1e-6 && Math.abs(ci.upper-.8833409901892689)<1e-6 && saved.results.engine.endsWith('; MBESS-source/5.0.1; eta2-CI/1'));
+    report.check('population eta CI is displayed separately from group and simultaneous intervals',await page.getByRole('heading',{name:'Population eta squared CI',exact:true}).count()===1);
+  }
   report.check(
     "saved result preserves quantities and full-precision calculation",
     saved.snapshot.design.n === observations &&

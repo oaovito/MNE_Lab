@@ -55,3 +55,14 @@ the version-specific record. Matching package source archives do not by
 themselves reconstruct the exact Emscripten toolchain, patches or full webR
 runtime. The Corresponding Source and complete distribution licensing gates
 above continue to apply; no public binary release is announced.
+
+## MBESS source subset for optional population eta intervals
+
+The product evaluates the two unmodified MBESS 5.0.1 functions `ci.pvaf` and
+`conf.limits.ncf`; it does not install the complete MBESS package. The exact
+source/doc bytes and immutable revision, hashes, authorship and upstream
+GPL-2 | GPL-3 license are retained in `web/src/lib/vendor/mbess` and copied to
+the embedded runtime with their notice/manifest. CRLF is normalized only at
+evaluation. The wrapper bounds upstream CDF work and marks unavailable
+intervals explicitly. Existing full GPL-2 text accompanies these sources;
+general applicable Corresponding Source/distribution gates remain above.

@@ -13,6 +13,34 @@ mne_json <- function(x) {
   encodeString(as.character(x), quote='"')
 }
 mne_diagnostic <- function(code, statistic=NULL, p=NULL, details=NULL) list(code=code, statistic=statistic, p=p, details=details)
+# Restricted source-subset MBESS 5.0.1 estimator; upstream bytes/attribution
+# are in vendor/mbess. The wrapper bounds work and reports numerical failures.
+mne_effect_interval <- function(f,df1,df2,n,alpha) {
+  interval<-list(source="A",effect="population_eta_squared",confidenceLevel=1-alpha,method="MBESS 5.0.1 ci.pvaf / conf.limits.ncf",status="not_estimable")
+  if(!is.finite(f) || f<=0 || !exists("ci.pvaf",mode="function") || !exists("conf.limits.ncf",mode="function"))return(list(interval=interval))
+  helpers<-new.env(parent=globalenv())
+  helpers$ci.pvaf<-ci.pvaf;environment(helpers$ci.pvaf)<-helpers
+  helpers$conf.limits.ncf<-conf.limits.ncf;environment(helpers$conf.limits.ncf)<-helpers
+  evaluations<-0L
+  helpers$pf<-function(...) {
+    evaluations<<-evaluations+1L
+    if(evaluations>10000L)stop("statistics.effect_ci_not_estimable")
+    stats::pf(...)
+  }
+  ciWarnings<-character()
+  fit<-withCallingHandlers(tryCatch(helpers$ci.pvaf(F.value=f,df.1=df1,df.2=df2,N=n,conf.level=1-alpha,tol=1e-9),error=function(e)NULL),warning=function(w){ciWarnings<<-c(ciWarnings,conditionMessage(w));invokeRestart("muffleWarning")})
+  if(is.null(fit) || length(ciWarnings))return(list(interval=interval))
+  lower<-fit$Lower.Limit.Proportion.of.Variance.Accounted.for
+  upper<-fit$Upper.Limit.Proportion.of.Variance.Accounted.for
+  if(length(lower)!=1L || !is.finite(lower) || lower<0 || lower>=1)return(list(interval=interval))
+  interval$lower<-lower;interval$lowerAtBoundary<-lower==0
+  if(length(upper)!=1L || !is.finite(upper) || upper<lower || upper>=1)return(list(interval=interval))
+  error<-abs(stats::pf(f,df1,df2,ncp=n*upper/(1-upper))-alpha/2)
+  if(lower>0)error<-max(error,abs(stats::pf(f,df1,df2,ncp=n*lower/(1-lower))-(1-alpha/2)))
+  if(!is.finite(error) || error>2e-9)return(list(interval=interval))
+  interval$upper<-upper;interval$status<-"available"
+  list(interval=interval,cdfError=error,tailCoverage=fit$Actual.Coverage)
+}
 mne_mixed <- function(d) {
   if(any(as.character(d$unit)==""))stop("statistics.review_structure")
   if(nlevels(d$B)<2L || nlevels(d$unit)<3L || any(duplicated(d[c("unit","B")])))stop("statistics.incompatible_design")
@@ -77,6 +105,7 @@ mne_engine <- function(input) {
   totalSS<-sum((d$y-mean(d$y))^2)
   ssType<-"I"
   mixedModel<-NULL
+  effectIntervals<-NULL
   if(method=="one_way" || method=="welch") {
     if(nlevels(d$A)<2L || any(table(d$A)<2L)) stop("statistics.insufficient_group_size")
     fit<-lm(y~A,data=d); residual<-residuals(fit)
@@ -149,6 +178,16 @@ mne_engine <- function(input) {
     diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("mixed_model",details="ML random intercept per explicit unit; categorical B within unit; A between units; sum contrasts; marginal Wald F with nlme inner/outer denominator df; adjustSigma=TRUE; conditional GLS SE; response residuals; relative SD boundary tolerance=1e-4")
   } else stop("statistics.method_unavailable")
   if(length(residual)!=nrow(d) || any(!is.finite(residual)))stop("statistics.invalid_numeric")
+  if(isTRUE(input$effectCI)) {
+    if(method!="one_way")stop("statistics.incompatible_design")
+    effect<-mne_effect_interval(terms[[1]]$f,terms[[1]]$df,terms[[2]]$df,nrow(d),alpha)
+    effectIntervals<-mne_array(list(effect$interval))
+    if(effect$interval$status!="available")warnings<-c(warnings,"statistics.effect_ci_not_estimable")
+    else {
+      diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("effect_ci_precision",statistic=effect$cdfError,details="MBESS 5.0.1 source functions; fixed one-factor population eta squared; noncentral F; equal tails; tol=1e-9; direct CDF residual target=2e-9; maximum 10000 upstream pf calls; source lower NA becomes zero; no upper limit fabricated")
+      diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("effect_ci_tail_coverage",statistic=effect$tailCoverage,details="MBESS Actual.Coverage reports the noncentral-F endpoint tail-probability sum, not an empirical coverage validation; lower boundary zero can make this conservative relative to nominal confidence level")
+    }
+  }
   diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("independence_user_review",details=input$structure)
   if(length(residual)>=3L && length(residual)<=5000L && sd(residual)>0) {
     shapiro<-shapiro.test(residual)
@@ -253,5 +292,6 @@ mne_engine <- function(input) {
   engine<-"webR/0.6.0; R/4.6.0"
   if(method=="mixed")engine<-paste0(engine,"; nlme/3.1-169; mixed-random-intercept/1")
   if(input$postHoc=="dunnett")engine<-paste0(engine,"; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1")
-  list(engine=engine,calculation="mnelab-statistics/1",method=method,ssType=ssType,terms=mne_array(terms),groups=mne_array(groups),comparisons=mne_array(comparisons),diagnostics=mne_array(diagnostics),residuals=mne_array(as.numeric(residual)),qqTheoretical=mne_array(as.numeric(qq$x)),qqObserved=mne_array(as.numeric(qq$y)),warnings=mne_array(warnings),corrections=if(length(corrections))corrections else NULL,model=mixedModel)
+  if(isTRUE(input$effectCI))engine<-paste0(engine,"; MBESS-source/5.0.1; eta2-CI/1")
+  list(engine=engine,calculation="mnelab-statistics/1",method=method,ssType=ssType,terms=mne_array(terms),groups=mne_array(groups),comparisons=mne_array(comparisons),diagnostics=mne_array(diagnostics),residuals=mne_array(as.numeric(residual)),qqTheoretical=mne_array(as.numeric(qq$x)),qqObserved=mne_array(as.numeric(qq$y)),warnings=mne_array(warnings),corrections=if(length(corrections))corrections else NULL,model=mixedModel,effectIntervals=effectIntervals)
 }

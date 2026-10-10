@@ -1,5 +1,7 @@
 import { WebR, ChannelType } from "webr";
 import code from "./statistics-engine.R";
+import mbessNCF from "./vendor/mbess/conf.limits.ncf.R";
+import mbessPVAF from "./vendor/mbess/ci.pvaf.R";
 
 export type AnalysisDefinition = {
   schema: number;
@@ -14,6 +16,7 @@ export type AnalysisDefinition = {
   method: string;
   alpha: number;
   postHoc: string;
+  effectCI?: boolean;
   control?: string;
   sphericityCorrection?: string;
   observations: {
@@ -114,6 +117,7 @@ export type StatisticalResults = {
   qqObserved: number[];
   warnings: string[];
   corrections?: Record<string, number>;
+  effectIntervals?: {source:string;effect:string;confidenceLevel:number;method:string;status:string;lower?:number;upper?:number;lowerAtBoundary?:boolean}[];
   model?: {
     family:string;fixed:string;estimation:string;random:string;residualCovariance:string;test:string;
     levelsA:string[];levelsB:string[];randomVariance:number;residualVariance:number;logLikelihood:number;boundaryTolerance:number;
@@ -197,11 +201,13 @@ export async function calculateStatistics(
         alpha: d.alpha,
         method: d.method,
         postHoc: d.postHoc,
+        effectCI: !!d.effectCI,
         control: d.control || "",
         structure: d.structure,
         correction: d.method === "mixed" ? "" : d.sphericityCorrection || "GG",
       });
       await r.objs.globalEnv.bind("mne_input", input);
+      if(d.effectCI) await r.evalRVoid((mbessNCF+"\n"+mbessPVAF).replaceAll("\r\n","\n"));
       await r.evalRVoid(code);
       const result = await r.evalRString("mne_json(mne_engine(mne_input))");
       if (signal?.aborted || closed) throw new Error("statistics.canceled");

@@ -60,6 +60,11 @@ func (p *Profile) analysisOutputs(id string, req ExportRequest, spec plot.Spec, 
 				return nil, "", e
 			}
 		case "pdf":
+			if len(a.Results.EffectIntervals) > 0 {
+				if e := addJSON("statistics/effect-sizes/intervals.json", "statistics", a.Results.EffectIntervals); e != nil {
+					return nil, "", e
+				}
+			}
 			if a.Results.Model != nil {
 				if e := addJSON("statistics/analysis-definitions/mixed-model.json", "statistics", a.Results.Model); e != nil {
 					return nil, "", e
