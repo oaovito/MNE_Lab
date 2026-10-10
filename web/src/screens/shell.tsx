@@ -131,6 +131,7 @@ function AvatarMenu() {
   const [open, setOpen] = useState(false);
   const items: MenuEntry[] = [
     { label: t('menu.mystuff'), icon: 'archive', run: () => openPanel('mystuff') },
+    { label: t('signature.title'), icon: 'shieldOk', run: () => openPanel('verify-signature') },
     { label: t('menu.settings'), icon: 'settings', run: () => openPanel('settings') },
     { label: t('menu.help'), icon: 'book', run: () => openPanel('help') },
     { label: t('menu.whatsnew'), icon: 'gift', badge: hasNews() ? t('ui.new') : undefined, run: () => openPanel('whatsnew') },

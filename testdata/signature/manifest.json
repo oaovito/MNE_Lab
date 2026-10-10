@@ -1,0 +1,20 @@
+{
+  "generator": "OpenSSL 3.5.7 independent development oracle",
+  "invented": true,
+  "private_key_retained": false,
+  "scientific_validation": false,
+  "files": {
+    "invented.crt": {
+      "size": 1188,
+      "sha256": "f88aa5ef179b4fe80241dca327ed613e705b4ba4bce2bec596044482cbecbc84"
+    },
+    "invented.p7s": {
+      "size": 1499,
+      "sha256": "2ea340322c22656f5e29d2b5a40fc5f63940140a6ae90c8d56afb9fe3f6886ce"
+    },
+    "invented.csv": {
+      "size": 28,
+      "sha256": "2c7576b7653fd37ab1af56aff87101f41656980af2917538ab6203a521345c6d"
+    }
+  }
+}

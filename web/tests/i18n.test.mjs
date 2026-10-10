@@ -98,6 +98,12 @@ test('dynamic key families are complete', () => {
   assert.ok(features.length > 30 && guides.length >= 2);
   const formats = list(/^\s*"([a-z]+)":\s*\{ID:/gm, readFileSync(join(root, 'internal/export/formats.go'), 'utf8'));
   const modes = ['usb_cloud', 'usb_only', 'cloud_only'];
+  for (const status of ['SignatureValid', 'SignatureValidTrustUnknown', 'InvalidSignature', 'FileModified', 'CertificateExpired', 'CertificateNotYetValid', 'UnableToVerify']) {
+    assert.ok(catalog['signature.state.' + status], 'missing signature state ' + status);
+  }
+  for (const value of ['valid', 'invalid', 'matches', 'modified', 'unknown', 'verified', 'untrusted', 'expired', 'not_yet_valid']) {
+    assert.ok(catalog['signature.value.' + value], 'missing signature value ' + value);
+  }
   const units = arr('UNITS', readFileSync(join(src, 'lib/library.ts'), 'utf8'));
   const params = arr('PARAMS', readFileSync(join(src, 'lib/library.ts'), 'utf8'));
   const weightings = arr('WEIGHTINGS', readFileSync(join(src, 'lib/library.ts'), 'utf8'));

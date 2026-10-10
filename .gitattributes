@@ -3,3 +3,7 @@
 web/src/lib/vendor/mbess/*.R -text whitespace=-blank-at-eol,cr-at-eol
 web/src/lib/vendor/mbess/*.Rd -text whitespace=-blank-at-eol,cr-at-eol
 web/src/lib/vendor/mbess/DESCRIPTION -text whitespace=-blank-at-eol,cr-at-eol
+
+# Preserve independently generated signature fixture bytes on every platform.
+testdata/signature/invented.* -text
+testdata/signature/invented.csv whitespace=cr-at-eol
