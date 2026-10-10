@@ -79,7 +79,11 @@ func SignExport(content []byte, certificate *x509.Certificate, signer crypto.Sig
 	if err != nil || !supportedPublicKey(cert.PublicKey) || cert.KeyUsage != 0 && cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
 		return nil, ErrCredential
 	}
-	public, err := x509.MarshalPKIXPublicKey(signer.Public())
+	key := signer.Public()
+	if !supportedPublicKey(key) {
+		return nil, ErrCredential
+	}
+	public, err := x509.MarshalPKIXPublicKey(key)
 	if err != nil || !bytes.Equal(public, cert.RawSubjectPublicKeyInfo) {
 		return nil, ErrCredential
 	}
