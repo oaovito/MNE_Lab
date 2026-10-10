@@ -61,7 +61,7 @@ export function importFiles() {
   const input = document.createElement('input');
   input.type = 'file';
   input.multiple = true;
-  input.accept = '.txt,.csv,.tsv,.xlsx,.dat,.asc,.dls,.dts,text/plain,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  input.accept = '.txt,.csv,.tsv,.xlsx,.ods,.dat,.asc,.dls,.dts,text/plain,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.oasis.opendocument.spreadsheet';
   input.onchange = () => importFileList([...(input.files || [])]);
   input.click();
 }
@@ -127,6 +127,7 @@ export function ImportDialog() {
 function ImportItem(p: { row: ImportRow }) {
   const r = p.row;
   const preview = r.preview;
+  const literalODS = preview?.format === 'ods' && !!preview.tabular;
   const res: ImportResult | undefined = r.result || (preview ? { name: r.name, status: preview.result.status, measurements: preview.measurements, recognized: preview.result.recognized, warnings: preview.result.warnings, error: preview.result.error, needsDate: preview.needsDate } : undefined);
   const icon = !res ? null : res.status === 'parsed' ? 'ok' : res.status === 'partial' ? 'warning' : res.status === 'duplicate' ? 'copy' : 'alert';
   const tone = !res ? '' : res.status === 'parsed' ? 'success' : res.status === 'failed' ? 'danger' : 'warning';
@@ -142,7 +143,7 @@ function ImportItem(p: { row: ImportRow }) {
             {res?.recognized?.length ? ' · ' + res.recognized.map((k) => { for (const prefix of ['param.short.', 'param.', 'col.']) { const text = t(prefix + k); if (text !== prefix + k) return text; } return k; }).join(', ') : ''}
           </span>
         </div>
-        {res && <Badge kind={tone as any}>{t(r.state === 'ready' || r.state === 'editing' ? 'imp.preview' : 'imp.status.' + res.status)}</Badge>}
+        {res && <Badge kind={(literalODS ? 'warning' : tone) as any}>{t(literalODS ? 'imp.readonly' : r.state === 'ready' || r.state === 'editing' ? 'imp.preview' : 'imp.status.' + res.status)}</Badge>}
         {(res?.status === 'duplicate' || (r.state === 'ready' && preview?.existing)) && (
           <>
             <Button size="sm" kind="ghost" onClick={() => navigate('/ls/files?file=' + (res?.existing || preview?.existing))}>
@@ -155,6 +156,7 @@ function ImportItem(p: { row: ImportRow }) {
         )}
       </div>
       {preview?.result.sourceInfo && <Notice kind="warning">{t('dts.partial')} · {preview.result.sourceInfo.support} / {preview.result.sourceInfo.scientificValidation}</Notice>}
+      {literalODS && <Notice kind="warning">{t('imp.ods_readonly')}</Notice>}
       {!!preview?.result.sheets?.length && !r.result?.fileId && <div class="col gap2" style={{ marginTop: 10 }}>
         <b class="xs">{t('imp.sheets')}</b>
         {preview.result.sheets.map((sheet) => {
@@ -182,7 +184,7 @@ function ImportItem(p: { row: ImportRow }) {
         {preview.tabular.tables?.map(table => <div class="col gap2">
           <b>{table.sheet || preview.tabular!.format.toUpperCase()}{table.range ? ' · '+table.range : ''} · {t('imp.sheet_size',{rows:table.rowCount,cols:table.columnCount})}</b>
           <div style={{overflow:'auto',maxHeight:280}}><table><thead><tr><th>{t('imp.source_row')}</th>{table.columns?.map(c=><th>{c.label}</th>)}</tr></thead><tbody>
-            {table.rows?.map(row=><tr><th>{row.line}{row.lastLine!==row.line?'–'+row.lastLine:''}</th>{table.columns?.map(col=>{const cell=row.cells.find(c=>c.column===col.index);return <td style={{whiteSpace:'pre-wrap',minWidth:70,maxWidth:240,overflowWrap:'anywhere'}} title={cell?.address || (cell?`${cell.line}:${cell.byteColumn || col.index}`:'')}>{cell?.value ?? ''}</td>;})}</tr>)}
+            {table.rows?.map(row=><tr><th>{row.line}{row.lastLine!==row.line?'–'+row.lastLine:''}</th>{table.columns?.map(col=>{const cell=row.cells.find(c=>c.column===col.index);return <td style={{whiteSpace:'pre-wrap',minWidth:70,maxWidth:240,overflowWrap:'anywhere'}} title={cell?.address || (cell?`${cell.line}:${cell.byteColumn || col.index}`:'')}>{cell?.value ?? ''}{cell?.sourceValue !== undefined && <span class="col faint" style={{marginTop:4}}>{t('imp.declared_value')}: {cell.sourceValue}{cell.valueType ? ' · '+cell.valueType : ''}</span>}</td>;})}</tr>)}
           </tbody></table></div>
         </div>)}
         {preview.tabular.truncated && <p>{t('imp.truncated')}</p>}
@@ -201,7 +203,7 @@ function ImportItem(p: { row: ImportRow }) {
         </div>)}
         {preview.previewTruncated && <p>{t('imp.truncated')}</p>}
       </details>}
-      {res?.error && <div class="xs" style={{ color: 'var(--danger)', marginTop: 6, marginLeft: 30 }}>{errText(res.error)}</div>}
+      {res?.error && !(literalODS && res.error === 'ls.no_recognized_data') && <div class="xs" style={{ color: 'var(--danger)', marginTop: 6, marginLeft: 30 }}>{errText(res.error)}</div>}
       {r.result?.error && preview && <Button size="sm" onClick={() => inspectOne(r)}>{t('imp.inspect_again')}</Button>}
       {res?.needsDate && (
         <div class="xs" style={{ color: 'var(--warning)', marginTop: 6, marginLeft: 30 }}>
@@ -1039,7 +1041,7 @@ function DateConfirm(p: { m: MeasurementSummary; onClose: () => void }) {
 }
 
 function OriginalViewer(p: { file: SourceFile }) {
-  const workbook = p.file.format === 'xlsx';
+  const workbook = p.file.format === 'xlsx' || p.file.format === 'ods';
   const compound = p.file.format === 'dts' || p.file.format === 'compound';
   const text = useAsync(() => workbook || compound ? Promise.resolve('') : get<string>(`/api/files/${p.file.id}/original`, { text: true }), [p.file.id, workbook,compound]);
   const lines = useMemo(() => (text.data || '').split(/\r?\n/), [text.data]);

@@ -52,11 +52,13 @@ type PreviewRow struct {
 }
 
 type PreviewCell struct {
-	Column     int    `json:"column"`
-	Line       int    `json:"line"`
-	ByteColumn int    `json:"byteColumn,omitempty"` // CSV position in the decoded source
-	Address    string `json:"address,omitempty"`    // original XLSX cell address
-	Value      string `json:"value"`
+	Column      int     `json:"column"`
+	Line        int     `json:"line"`
+	ByteColumn  int     `json:"byteColumn,omitempty"` // CSV position in the decoded source
+	Address     string  `json:"address,omitempty"`    // original workbook cell address
+	Value       string  `json:"value"`
+	SourceValue *string `json:"sourceValue,omitempty"` // declared ODF value, without locale formatting or numeric conversion
+	ValueType   string  `json:"valueType,omitempty"`   // source office:value-type, never a scientific field/unit
 }
 
 func (p *TabularPreview) value(s string) string {
@@ -125,6 +127,12 @@ func InspectFileSelection(name string, data []byte, selection *model.ImportSelec
 		return spreadsheetFailure(err), "", nil
 	}
 	ext := strings.ToLower(filepath.Ext(name))
+	if ext == ".ods" || IsODSPackage(data) {
+		if normalized != nil {
+			return odsFailure(ErrImportSelection), "ods", nil
+		}
+		return inspectODS(data)
+	}
 	if len(data) <= MaxFileSize && ext != ".xls" && ext != ".ods" && ext != ".xlsm" && !bytes.HasPrefix(data, []byte{0xd0, 0xcf, 0x11, 0xe0}) && (ext == ".xlsx" || bytes.HasPrefix(data, []byte("PK\x03\x04"))) {
 		preview := &TabularPreview{Schema: 1, Format: "xlsx"}
 		result := parseXLSXSelectionPreview(data, normalized, preview)

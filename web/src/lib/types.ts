@@ -193,7 +193,7 @@ export type SheetSelection = { name: string; range?: string };
 export type ImportSelection = { sheets: SheetSelection[] };
 export type ImportProfile = { id: string; schema: number; name: string; format: string; selection?: ImportSelection; parser: string; spec: string; createdAt: string };
 export type ImportInspection = {
-  tabular?: { schema: number; format: string; delimiter?: string; truncated: boolean; error?: string; tables?: { sheet?: string; range?: string; rowCount: number; columnCount: number; columns?: { index: number; label: string }[]; rows?: { line: number; lastLine: number; cells: { column: number; line: number; byteColumn?: number; address?: string; value: string }[] }[] }[] };
+  tabular?: { schema: number; format: string; delimiter?: string; truncated: boolean; error?: string; tables?: { sheet?: string; range?: string; rowCount: number; columnCount: number; columns?: { index: number; label: string }[]; rows?: { line: number; lastLine: number; cells: { column: number; line: number; byteColumn?: number; address?: string; value: string; sourceValue?: string; valueType?: string }[] }[] }[] };
   selection?: ImportSelection;
   name: string; sha256: string; format: string; module?: string;
   measurements: number; previewTruncated: boolean; needsDate: boolean;

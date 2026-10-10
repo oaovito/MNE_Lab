@@ -78,6 +78,43 @@ func TestLiteralUnknownTableIsReadOnlyAndCannotBeConfirmed(t *testing.T) {
 	}
 }
 
+func TestODSLiteralInspectionIsScopedReadOnlyAndCannotBeConfirmed(t *testing.T) {
+	_, c, p := inspectionProfile(t)
+	before := profileFingerprint(t, p)
+	data, err := os.ReadFile("../../testdata/ods-preview/invented.ods")
+	if err != nil {
+		t.Fatal(err)
+	}
+	headers := map[string]string{"X-File-Name": "invented.ods", "X-Account-ID": p.acct.ID(), "X-Profile-ID": p.Entry.ID}
+	code, body := c.do("POST", "/api/import/inspect", data, headers)
+	var review ImportInspection
+	if code != 200 || json.Unmarshal(body, &review) != nil || review.Tabular == nil || review.Format != "ods" || review.Module != "" || review.Result.Module != "" || review.Result.Parser != "ods-literal-reader/1.0.0" || review.Result.Spec != "" || review.Receipt != "" || review.Measurements != 0 || review.Result.Status != "failed" {
+		t.Fatalf("literal ODS inspection gained scientific/import authority: status %d", code)
+	}
+	cell := review.Tabular.Tables[0].Rows[1].Cells[0]
+	if cell.Value != "1,2300" || cell.SourceValue == nil || *cell.SourceValue != "1.2300" || cell.Address != "A2" {
+		t.Fatal("HTTP preview changed declared precision or source address")
+	}
+	headers["X-Import-Receipt"] = "forged"
+	code, _ = c.do("POST", "/api/import/confirm", data, headers)
+	if code < 400 {
+		t.Fatal("literal ODS confirmed with forged receipt")
+	}
+	wrong := map[string]string{"X-File-Name": "invented.ods", "X-Account-ID": p.acct.ID(), "X-Profile-ID": "other"}
+	code, _ = c.do("POST", "/api/import/inspect", data, wrong)
+	if code < 400 {
+		t.Fatal("ODS preview crossed profile scope")
+	}
+	if !reflect.DeepEqual(before, profileFingerprint(t, p)) {
+		t.Fatal("ODS inspection/rejected import changed profile or queue")
+	}
+	// Existing programmatic import can archive unsupported originals. It must
+	// retain a failed scientific status, without inventing measurements.
+	if result := p.Import("invented.ods", data, false); result.Status != "failed" || result.Measurements != 0 {
+		t.Fatal("legacy archive manufactured ODS scientific data")
+	}
+}
+
 func TestImportInspectionHasNoPersistentEffects(t *testing.T) {
 	_, c, p := inspectionProfile(t)
 	before := profileFingerprint(t, p)
