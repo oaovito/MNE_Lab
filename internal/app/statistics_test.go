@@ -485,6 +485,15 @@ func TestMixedExplicitUnitsIncompleteDesignAndSavedContract(t *testing.T) {
 	df, f, pval := 3., 2., .2
 	r.Terms = []analysis.Term{{Source: "B", DF: 2, DenominatorDF: &df, F: &f, P: &pval}}
 	r.Model = &analysis.MixedModel{Family: "random_intercept", Fixed: "B", Estimation: "ML", Random: "1|unit", ResidualCovariance: "homoscedastic conditional errors", Test: "marginal Wald F; sum contrasts; adjustSigma=TRUE", LevelsA: s.Design.LevelsA, LevelsB: s.Design.LevelsB, RandomVariance: 1, ResidualVariance: 2, LogLikelihood: -10, BoundaryTolerance: 1e-4, FixedCoefficients: []analysis.FixedCoefficient{{Name: "(Intercept)", Estimate: 1, SE: 1}, {Name: "B1", Estimate: 2, SE: 1}, {Name: "B2", Estimate: 3, SE: 1}}}
+	r.Model.CoefficientConfidenceLevel = 1 - d.Alpha
+	r.Model.CoefficientIntervalMethod = "nlme::intervals.lme fixed; Student t; conditional GLS; approximate; individual"
+	for i := range r.Model.FixedCoefficients {
+		v := &r.Model.FixedCoefficients[i]
+		low, up, df := v.Estimate-1, v.Estimate+1, 3.
+		v.Lower = &low
+		v.Upper = &up
+		v.DF = &df
+	}
 	groups := map[string]int{}
 	for _, o := range s.Observations {
 		k := o.FactorB
@@ -508,6 +517,29 @@ func TestMixedExplicitUnitsIncompleteDesignAndSavedContract(t *testing.T) {
 	data := export.StatisticalData(saved)
 	if len(data.Tables) != 7 || data.Tables[0].Columns[2].Key != "denominator_df" || data.Tables[5].ID != "mixed_model" || data.Tables[6].ID != "coefficients" {
 		t.Fatal("mixed export lost model or DF", data.Tables)
+	}
+	if len(data.Tables[6].Columns) != 6 || data.Tables[6].Columns[3].Key != "coefficient_df" {
+		t.Fatal("coefficient CI export fields lost")
+	}
+	rawLegacy, _ := json.Marshal(saved)
+	var legacy analysis.StatisticalAnalysis
+	json.Unmarshal(rawLegacy, &legacy)
+	legacy.Results.Engine = "webR/0.6.0; R/4.6.0; nlme/3.1-169; mixed-random-intercept/1"
+	legacy.Results.Model.CoefficientConfidenceLevel = 0
+	legacy.Results.Model.CoefficientIntervalMethod = ""
+	for i := range legacy.Results.Model.FixedCoefficients {
+		v := &legacy.Results.Model.FixedCoefficients[i]
+		v.DF = nil
+		v.Lower = nil
+		v.Upper = nil
+	}
+	historical := export.StatisticalData(legacy)
+	if len(historical.Tables[6].Columns) != 3 {
+		t.Fatal("historical coefficient CIs manufactured")
+	}
+	oldGraph, e := graph.StatisticalGroups(graph.Definition{Kind: graph.KindStatistical, AnalysisID: legacy.ID, ErrorBars: "sd"}, legacy)
+	if e != nil || strings.Contains(strings.Join(oldGraph.Provenance.Transformations, " "), "fixed coefficient intervals") {
+		t.Fatal("historical graph interval provenance fabricated", e)
 	}
 	outs, _, e := p.analysisOutputs(saved.ID, ExportRequest{Formats: []string{"package", "csv", "json", "pdf", "xlsx"}}, plot.Preset(plot.PresetScreen), false)
 	if e != nil {
@@ -541,6 +573,10 @@ func TestMixedExplicitUnitsIncompleteDesignAndSavedContract(t *testing.T) {
 	}
 	for _, mutate := range []func(*analysis.Results){
 		func(v *analysis.Results) { v.Model = nil },
+		func(v *analysis.Results) { v.Model.FixedCoefficients[0].DF = nil },
+		func(v *analysis.Results) { v.Model.FixedCoefficients[0].Upper = nil },
+		func(v *analysis.Results) { v.Model.CoefficientConfidenceLevel = .9 },
+
 		func(v *analysis.Results) { v.Terms[0].DenominatorDF = nil },
 		func(v *analysis.Results) { x := 4.; v.Terms[0].DenominatorDF = &x },
 		func(v *analysis.Results) { v.Model.LevelsB = []string{"wrong", "t1", "t2"} },

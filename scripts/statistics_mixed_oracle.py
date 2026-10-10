@@ -44,6 +44,11 @@ for name,ng,nu,nt,missing,original in [
         else:
             rname=':'.join(part[2]+str(levels[part[2]].index(part.split('[S.')[1][:-1])+1) for part in k.split(':'))
         coefficients.append(dict(name=rname,estimate=float(fit.fe_params.iloc[i]),se=float(np.sqrt(cov[i,i]))))
+    outer=len(d.unit.unique())-ng;inner=n-len(d.unit.unique())-ng*(nt-1)
+    for v in coefficients:
+        df=max(outer,inner) if v['name']=='(Intercept)' else outer if v['name'].startswith('A') and ':'not in v['name'] else inner
+        critical=stats.t.ppf(1-.05/2,df)
+        v.update(df=df,lower=float(v['estimate']-critical*v['se']),upper=float(v['estimate']+critical*v['se']))
     covp=np.zeros((len(fit.params),len(fit.params)));covp[:p,:p]=cov*n/(n-p)
     terms=[]
     for source,key in [('A','C(A, Sum)'),('B','C(B, Sum)'),('A:B','C(A, Sum):C(B, Sum)')]:

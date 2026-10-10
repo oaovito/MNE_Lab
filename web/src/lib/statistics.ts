@@ -120,8 +120,8 @@ export type StatisticalResults = {
   effectIntervals?: {source:string;effect:string;confidenceLevel:number;method:string;status:string;lower?:number;upper?:number;lowerAtBoundary?:boolean}[];
   model?: {
     family:string;fixed:string;estimation:string;random:string;residualCovariance:string;test:string;
-    levelsA:string[];levelsB:string[];randomVariance:number;residualVariance:number;logLikelihood:number;boundaryTolerance:number;
-    fixedCoefficients:{name:string;estimate:number;se:number}[];
+    levelsA:string[];levelsB:string[];randomVariance:number;residualVariance:number;logLikelihood:number;boundaryTolerance:number;coefficientConfidenceLevel?:number;coefficientIntervalMethod?:string;
+    fixedCoefficients:{name:string;estimate:number;se:number;df?:number;lower?:number;upper?:number}[];
   };
 };
 export type StatisticalAnalysis = {

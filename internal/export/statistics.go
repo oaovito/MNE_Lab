@@ -82,8 +82,19 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 		lb, _ := json.Marshal(m.LevelsB)
 		model.Rows = append(model.Rows, []Cell{text(m.Family), text(m.Fixed), text(m.Estimation), text(m.Random), text(m.ResidualCovariance), text(m.Test), text(string(la)), text(string(lb)), num(m.RandomVariance, -1), num(m.ResidualVariance, -1), num(m.LogLikelihood, -1), num(m.BoundaryTolerance, -1)})
 		coefficients := statisticalTable("coefficients", "Fixed coefficients (sum contrasts)", "coefficient", "estimate", "conditional_GLS_SE")
+		if m.CoefficientConfidenceLevel > 0 {
+			model.Columns = append(model.Columns, Column{Key: "coefficient_confidence_level", Label: "coefficient_confidence_level"}, Column{Key: "coefficient_interval_method", Label: "coefficient_interval_method"})
+			model.Rows[0] = append(model.Rows[0], num(m.CoefficientConfidenceLevel, -1), text(m.CoefficientIntervalMethod))
+			for _, key := range []string{"coefficient_df", "approximate_individual_CI_lower", "approximate_individual_CI_upper"} {
+				coefficients.Columns = append(coefficients.Columns, Column{Key: key, Label: key})
+			}
+		}
 		for _, v := range m.FixedCoefficients {
-			coefficients.Rows = append(coefficients.Rows, []Cell{text(v.Name), num(v.Estimate, -1), num(v.SE, -1)})
+			row := []Cell{text(v.Name), num(v.Estimate, -1), num(v.SE, -1)}
+			if m.CoefficientConfidenceLevel > 0 {
+				row = append(row, optional(v.DF), optional(v.Lower), optional(v.Upper))
+			}
+			coefficients.Rows = append(coefficients.Rows, row)
 		}
 		// All adapters iterate these tables: no mixed terms are presented as
 		// classical sums of squares, effect sizes or sphericity corrections.

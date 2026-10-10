@@ -277,3 +277,29 @@ remain pending. Historical analyses without the option are unchanged;
 the option, source estimator identity, interval status and precision are bound
 to the reviewed definition, persisted and exported. Shared graphs keep the
 interval provenance while continuing to display raw group summaries.
+
+### Mixed fixed-coefficient intervals
+
+Mixed engine `mixed-random-intercept/2` adds individual **approximate**
+fixed-coefficient intervals from `nlme::intervals(fit, which="fixed",
+level=1-alpha)`. Bundled nlme 3.1-169 uses coefficient-specific `fixDF$X`
+Student-t quantiles with conditional GLS `varFix`, without the additional
+ML `n/(n-p)` scaling used by marginal Wald F tests. Fixed coefficients retain
+sum contrasts, estimate, SE, df, lower/upper limits and nominal confidence
+level/method in the saved model, tabular/JSON/PDF packages and graph provenance.
+
+The pinned `getFixDF` source assigns between-unit A coefficients outer df,
+B/interactions inner df, and the intercept the maximum available stratum df
+for the restricted supported designs. Five independently fitted Statsmodels
+ML/GLS fixtures plus SciPy Student-t quantiles compare all 80 endpoints to
+relative `1e-5` with a unit absolute floor, and df exactly. The actual bundled
+`intervals.lme` implementation supplies product results. Non-finite intervals
+or non-positive df stop calculation. Missing observations remain omitted;
+this model does not correct informative missingness.
+
+These are individual coefficient intervals, not simultaneous post-hoc
+comparisons, effect-size intervals, variance-component intervals or an
+empirical coverage guarantee. Historical engine `/1` analyses remain immutable
+and readable/exportable with their original coefficient/SE fields; absent
+intervals are not manufactured on read. Graphs continue to show original
+group summaries and their selected descriptive error bars.

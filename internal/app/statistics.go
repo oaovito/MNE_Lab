@@ -384,7 +384,21 @@ func validateAnalysisResults(snapshot analysis.Snapshot, result analysis.Results
 				wantCoefficients[fmt.Sprintf("A%d:B%d", a, b)] = true
 			}
 		}
+		if m.CoefficientConfidenceLevel != 1-snapshot.Definition.Alpha || m.CoefficientIntervalMethod != "nlme::intervals.lme fixed; Student t; conditional GLS; approximate; individual" {
+			return analysis.ErrDefinition
+		}
 		for _, v := range m.FixedCoefficients {
+			outer := snapshot.Design.ExperimentalUnits - len(m.LevelsA)
+			inner := snapshot.Design.N - snapshot.Design.ExperimentalUnits - len(m.LevelsA)*(len(m.LevelsB)-1)
+			df := inner
+			if v.Name == "(Intercept)" {
+				df = max(inner, outer)
+			} else if strings.HasPrefix(v.Name, "A") && !strings.Contains(v.Name, ":") {
+				df = outer
+			}
+			if v.DF == nil || *v.DF != float64(df) || v.Lower == nil || v.Upper == nil || !(*v.Lower < v.Estimate && *v.Upper > v.Estimate) {
+				return analysis.ErrDefinition
+			}
 			if !wantCoefficients[v.Name] || !(v.SE > 0) {
 				return analysis.ErrDefinition
 			}

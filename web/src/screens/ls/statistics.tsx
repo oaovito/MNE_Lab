@@ -804,8 +804,9 @@ function AnalysisResults(p: {
         <p>{r.model.estimation} · y ~ {r.model.fixed} · {r.model.random} · {r.model.test}</p>
         <p>{t("stat.random_variance")}: {num(r.model.randomVariance)} · {t("stat.residual_variance")}: {num(r.model.residualVariance)} · log likelihood: {num(r.model.logLikelihood)}</p>
         <p>A: {r.model.levelsA.join(" · ")} · B: {r.model.levelsB.join(" · ")}</p>
-        <table class="table"><thead><tr><th>{t("stat.coefficient")}</th><th>{t("stat.estimate")}</th><th>SE</th></tr></thead><tbody>
-          {r.model.fixedCoefficients.map(v=><tr><td>{v.name}</td><td>{num(v.estimate)}</td><td>{num(v.se)}</td></tr>)}
+        {!!r.model.coefficientConfidenceLevel && <p>{t("stat.mixed_coefficient_ci_scope")} · {100*r.model.coefficientConfidenceLevel}%</p>}
+        <table class="table"><thead><tr><th>{t("stat.coefficient")}</th><th>{t("stat.estimate")}</th><th>SE</th>{!!r.model.coefficientConfidenceLevel && <><th>df</th><th>CI</th></>}</tr></thead><tbody>
+          {r.model.fixedCoefficients.map(v=><tr><td>{v.name}</td><td>{num(v.estimate)}</td><td>{num(v.se)}</td>{!!r.model!.coefficientConfidenceLevel && <><td>{num(v.df)}</td><td>{num(v.lower)} … {num(v.upper)}</td></>}</tr>)}
         </tbody></table>
       </section>}
       <section class="card pad col gap2">
