@@ -85,7 +85,7 @@ genuine native export or validate the manufacturer's measurement algorithms.
 | LS-F11 | No scientific image parser | No genuine PS image export; project figures do not prove export operation | No obtained authoritative PNG/JPEG export statement | UNCONFIRMED as PS export; generic presentation classification only |
 | LS-F12 | Compatible labeled text reader only; arbitrary generic-column TXT adapter pending | Private labeled reports yes, but creator/build distinction unverified; invented layouts yes | No obtained native-TXT export enumeration for PS2.3/4.0 | Mechanical extraction partial; no native-exporter authenticity claim |
 | LS-F13 | CSV/TSV scalar reader1.0.0; inspection/confirmation recipe and provenance implemented/tested | No verified genuine DLS CSV/TSV reference in this round; no genuine PS schema fixture; invented synthetic regressions yes | Generic transport syntax is separate from vendor capability | USER_DECLARED / PARTIAL / UNVALIDATED; distribution/time mapping pending |
-| LS-F14 | Bounded XLSX review, selection and scalar mapping implemented/tested | Private Zeta compiled workbook is not a DLS native fixture; invented DLS workbook yes | Generic carrier support; no evidence of actual native PS XLSX extension | PARTIAL/UNVALIDATED DLS interpretation; explicit producer-origin field still pending |
+| LS-F14 | Bounded XLSX review, selection and scalar mapping implemented/tested | Private Zeta compiled workbook is not a DLS native fixture; invented DLS workbook yes | Generic carrier support; no evidence of actual native PS XLSX extension | PARTIAL/UNVALIDATED DLS interpretation; producer-origin declaration implemented separately, never authenticated |
 | LS-F15 | Unsupported scientific import; original archival path does not decode BIFF | Genuine relevant fixture no / malformed rejection tests only | PS2.3 supports distribution XLS, but does not specify BIFF version/schema | Reader/paired-reference blocker; no support claim from opening a CFB container |
 | LS-F16 | ODS1.3 literal preview1.0.0, no confirmation/science receipt; unsupported original backend archival | Genuine instrument ODS no; independent invented ODS fixture yes | OASIS generic standard; no native PS ODS evidence | PARTIAL container interoperability; scientific mapping pending |
 | LS-F17 | PARTIAL CFB/envelope; safe original/library/provenance; no scientific observations | Private genuine file yes; wholly invented CFB/envelope fixtures yes | MS-CFB standard + independent stream comparisons; vendor science schema missing | Container extraction CONFIRMED; scientific semantics UNVALIDATED; not NanoBrook evidence |
@@ -94,7 +94,8 @@ genuine native export or validate the manufacturer's measurement algorithms.
 Native and generic inputs remain different concepts. A compatible table can be
 useful without being an authenticated instrument export. Current parser/spec,
 recipe, source-coordinate and unit-origin provenance distinguish processing;
-`SourceFile.Origin` currently records import/sync/package transport, not the
-producer. A separate evidence/user-declared producer-origin contract remains
-implementation work. Graph generation, signature verification and successful
+`SourceFile.Origin` records import/sync/package transport. The separate
+`producerOrigin` declaration defaults to unknown and can explicitly distinguish
+instrument/software export from a user-created table without claiming native
+authenticity; see [FILE_PRODUCER_ORIGIN.md](FILE_PRODUCER_ORIGIN.md). Graph generation, signature verification and successful
 container extraction never change scientific validation status.

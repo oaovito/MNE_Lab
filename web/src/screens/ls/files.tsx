@@ -9,7 +9,7 @@ import { measurementName, PARAMS, useFiles, useRelations, warnText } from '../..
 import { navigate, useRoute } from '../../lib/route';
 import { app, openPanel, run, toast } from '../../lib/state';
 import { createStore, useStore } from '../../lib/store';
-import type { FileView, ImportInspection, ImportResult, ImportSelection, ColumnMapping, SheetSelection, ImportProfile, Measurement, MeasurementSummary, SourceFile } from '../../lib/types';
+import type { FileView, ImportInspection, ImportResult, ImportSelection, ColumnMapping, SheetSelection, ImportProfile, Measurement, MeasurementSummary, ProducerOrigin, SourceFile } from '../../lib/types';
 import { Icon } from '../../ui/icons';
 import { Badge, Button, Check, confirmDialog, Empty, Field, Input, Menu as MenuLazy, Modal, Notice, Seg, Select, Skeleton, Spinner, Tabs, useAsync } from '../../ui/kit';
 
@@ -742,6 +742,7 @@ function FileDetail(p: { file: FileView; trash: boolean; rel?: { files: Record<s
               </div>
             )}
             <OrgEditor file={f} disabled={p.trash} />
+            <ProducerOriginEditor key={f.id} file={f} disabled={p.trash} />
             <div class="col gap2">
               <span class="section-title">{t('files.provenance')}</span>
               <dl class="kv">
@@ -815,6 +816,30 @@ function FileDetail(p: { file: FileView; trash: boolean; rel?: { files: Record<s
   );
 }
 
+
+function ProducerOriginEditor(p: {file:SourceFile;disabled:boolean}) {
+  const saved = p.file.producerOrigin;
+  const [kind,setKind] = useState<ProducerOrigin['kind']>(saved?.kind || 'unknown');
+  const [values,setValues] = useState({vendor:saved?.vendor || '',instrument:saved?.instrument || '',software:saved?.software || '',softwareVersion:saved?.softwareVersion || '',evidence:saved?.evidence || ''});
+  const [busy,setBusy] = useState(false);
+  // Bind the declaration to the Profile in which this editor opened.
+  const [scope] = useState(()=>({account:app.get().s?.account?.id || '',profile:app.get().s?.profile?.id || ''}));
+  const dirty = kind !== (saved?.kind || 'unknown') || Object.entries(values).some(([key,value])=>value !== (saved?.[key as keyof typeof values] || ''));
+  const save = async () => {
+    setBusy(true);
+    const result = await run(()=>api('PUT',`/api/files/${p.file.id}/producer-origin`,{kind,...values},{headers:{'X-Account-ID':scope.account,'X-Profile-ID':scope.profile}}));
+    setBusy(false);
+    if(result !== undefined) toast('success',t('ui.saved'));
+  };
+  return <div class="col gap2" data-producer-origin>
+    <span class="section-title">{t('producer.title')}</span>
+    <Notice kind="warning">{t('producer.warning')}</Notice>
+    <Field label={t('producer.kind')}><Select label={t('producer.kind')} value={kind} onValue={(value)=>{setKind(value);if(value==='unknown')setValues({vendor:'',instrument:'',software:'',softwareVersion:'',evidence:''});}} disabled={p.disabled || busy} options={(['unknown','instrument_export','user_created_table'] as const).map(value=>({value,label:t('producer.'+value)}))}/></Field>
+    {kind !== 'unknown' && Object.entries(values).map(([key,value])=><Field label={t('producer.'+key)}><Input aria-label={t('producer.'+key)} value={value} maxLength={key==='evidence'?2000:160} onValue={(next)=>setValues({...values,[key]:next})} disabled={p.disabled || busy}/></Field>)}
+    {saved?.declaredAt && <span class="xs faint">{t('producer.declared_at')}: {fmtDate(saved.declaredAt,true)} · {t('producer.user_declared')}</span>}
+    <Button size="sm" disabled={p.disabled || busy || !dirty} busy={busy} onClick={save}>{t('producer.save')}</Button>
+  </div>;
+}
 
 export function UsedBy(p: { graphs: string[]; cycles: string[] }) {
   const graphs = useAsync(() => get<{ id: string; title: string; kind: string }[] | null>('/api/graphs'), [p.graphs.join()]);

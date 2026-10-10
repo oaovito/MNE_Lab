@@ -64,6 +64,7 @@ MNELAB_E2E_EFFECT_CI=1 run tests/e2e/statistics.mjs "$work/portable" "$out"
 run tests/e2e/statistics-mixed.mjs "$work/portable" "$out"
 run tests/e2e/dts.mjs "$work/portable" "$out"
 run tests/e2e/signature.mjs "$work/portable" "$out"
+run tests/e2e/producer-origin.mjs "$work/portable" "$out"
 
 start temporary temporary
 ready temporary

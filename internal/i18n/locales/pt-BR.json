@@ -140,5 +140,21 @@
  "series.stat_mean_ci": "Média e intervalo de confiança",
  "series.stat_mean_only": "Média; erro não estimável",
  "dts.no_scientific_results": "Não há resultados científicos suportados. Exporte o original ou a metadata da fonte em JSON.",
- "ls.invalid_delimited_table": "Tabela delimitada da fonte malformada."
+ "ls.invalid_delimited_table": "Tabela delimitada da fonte malformada.",
+ "producer.title": "Origem de criação do arquivo",
+ "producer.warning": "Esta é sua declaração. Ela não comprova o fabricante, o formato nativo ou os resultados científicos. Desconhecido permanece desconhecido.",
+ "producer.kind": "Como este arquivo foi criado?",
+ "producer.unknown": "Desconhecido",
+ "producer.instrument_export": "Exportação do instrumento/software (declarada)",
+ "producer.user_created_table": "Tabela criada pelo usuário (declarada)",
+ "producer.vendor": "Fabricante (se conhecido)",
+ "producer.instrument": "Instrumento/modelo (se conhecido)",
+ "producer.software": "Software que criou o arquivo (se conhecido)",
+ "producer.softwareVersion": "Versão/build do software (se conhecida)",
+ "producer.evidence": "Nota de fonte/referência (opcional)",
+ "producer.declared_at": "Declarado em",
+ "producer.user_declared": "Declaração do usuário; não verificada",
+ "producer.save": "Salvar declaração de origem",
+ "col.producer_origin": "Origem de criação (declaração)",
+ "err.ls.invalid_producer_origin": "Revise a declaração de origem. Desconhecido deve ficar sem detalhes de criação; respeite os limites dos campos e não use caracteres de controle."
 }

@@ -114,7 +114,9 @@ export type StateView = {
 // ---- LIGHTSCATTERING ----
 
 export type SourceInfo = {vendor:string;container:string;support:string;scientificValidation:string;details?:unknown};
+export type ProducerOrigin = {kind:'unknown'|'instrument_export'|'user_created_table';declaration:'unknown'|'user_declared';vendor?:string;instrument?:string;software?:string;softwareVersion?:string;evidence?:string;declaredAt?:string};
 export type SourceFile = {
+  producerOrigin?: ProducerOrigin;
   sourceInfo?: SourceInfo;
   importSelection?: ImportSelection;
   id: string;

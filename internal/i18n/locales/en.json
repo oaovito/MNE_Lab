@@ -140,5 +140,21 @@
  "series.stat_mean_ci": "Mean and confidence interval",
  "series.stat_mean_only": "Mean; error not estimable",
  "dts.no_scientific_results": "No supported scientific results are available. Export the original or JSON source metadata.",
- "ls.invalid_delimited_table": "Malformed delimited source table."
+ "ls.invalid_delimited_table": "Malformed delimited source table.",
+ "producer.title": "File producer origin",
+ "producer.warning": "This is your declaration. It does not verify the manufacturer, native format or scientific results. Unknown stays unknown.",
+ "producer.kind": "How was this file created?",
+ "producer.unknown": "Unknown",
+ "producer.instrument_export": "Instrument/software export (declared)",
+ "producer.user_created_table": "User-created table (declared)",
+ "producer.vendor": "Manufacturer (if known)",
+ "producer.instrument": "Instrument/model (if known)",
+ "producer.software": "Producing software (if known)",
+ "producer.softwareVersion": "Software version/build (if known)",
+ "producer.evidence": "Source/reference note (optional)",
+ "producer.declared_at": "Declared at",
+ "producer.user_declared": "User declaration; unverified",
+ "producer.save": "Save origin declaration",
+ "col.producer_origin": "Producer origin (declaration)",
+ "err.ls.invalid_producer_origin": "Check the origin declaration. Unknown must have no producer details; each field must fit its limit and contain no control characters."
 }

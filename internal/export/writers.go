@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/oaovito/mne_lab/internal/science/model"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -137,6 +138,8 @@ func plainText(ds DataSet, dec string) []byte {
 		b.WriteString("\r\n" + p + "\r\n" + strings.Repeat("-", len([]rune(p))) + "\r\n")
 		for _, s := range ds.Provenance {
 			fmt.Fprintf(&b, "%s  sha256:%s  %s  %s  lines %s\r\n", s.FileName, s.SHA256, s.Parser, s.Spec, s.Lines)
+			origin, _ := json.Marshal(model.CloneProducerOrigin(s.ProducerOrigin))
+			fmt.Fprintf(&b, "  producerOrigin:%s\r\n", origin)
 			if s.MeasuredTimestamp != nil {
 				raw, _ := json.Marshal(s.MeasuredTimestamp)
 				fmt.Fprintf(&b, "  timestamp:%s\r\n", raw)
@@ -305,7 +308,7 @@ func workbook(ds DataSet) ([]byte, error) {
 			ds.tr("col.timestamp_raw", "Original date text"), ds.tr("col.timezone_known", "Time zone known"),
 			ds.tr("col.date_ambiguous", "Date order ambiguous"), ds.tr("col.date_confirmed", "Date confirmed"),
 			ds.tr("col.date_source", "Date source"), ds.tr("col.source_sheet", "Source sheet"),
-			ds.tr("col.distribution_method", "Distribution method"), ds.tr("col.distribution_format", "Distribution representation"), ds.tr("col.source_range", "Source range")}
+			ds.tr("col.distribution_method", "Distribution method"), ds.tr("col.distribution_format", "Distribution representation"), ds.tr("col.source_range", "Source range"), ds.tr("col.producer_origin", "Producer origin (declaration)")}
 		for i, c := range cols {
 			cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 			f.SetCellValue(prov, cell, c)
@@ -314,7 +317,9 @@ func workbook(ds DataSet) ([]byte, error) {
 		f.SetCellStyle(prov, "A1", end, head)
 		for i, s := range ds.Provenance {
 			vals := []any{s.FileName, s.SHA256, s.Parser, s.Spec, s.MeasurementID, s.SampleID, s.MeasuredAt, s.Lines,
-				"", "", "", "", "", s.SourceSheet, s.Method, s.Format, s.SourceRange}
+				"", "", "", "", "", s.SourceSheet, s.Method, s.Format, s.SourceRange, ""}
+			origin, _ := json.Marshal(model.CloneProducerOrigin(s.ProducerOrigin))
+			vals[17] = string(origin)
 			if ts := s.MeasuredTimestamp; ts != nil {
 				vals[8], vals[9], vals[10], vals[11], vals[12] = ts.Raw, ts.TZKnown, ts.Ambiguous, ts.Confirmed, ts.Source
 			}
@@ -325,7 +330,7 @@ func workbook(ds DataSet) ([]byte, error) {
 		}
 		f.SetColWidth(prov, "A", "A", 32)
 		f.SetColWidth(prov, "B", "B", 66)
-		f.SetColWidth(prov, "C", "Q", 22)
+		f.SetColWidth(prov, "C", "R", 22)
 	}
 	f.SetActiveSheet(0)
 	var b bytes.Buffer

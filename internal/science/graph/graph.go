@@ -121,15 +121,16 @@ type Series struct {
 
 // Source is one input of a graph.
 type Source struct {
-	Parameters    map[string]model.Quantity `json:"parameters,omitempty"`
-	MeasurementID string                    `json:"measurementId"`
-	FileID        string                    `json:"fileId"`
-	FileName      string                    `json:"fileName"`
-	SHA256        string                    `json:"sha256"`
-	Parser        string                    `json:"parser"`
-	Spec          string                    `json:"spec"`
-	SampleID      string                    `json:"sampleId,omitempty"`
-	MeasuredAt    string                    `json:"measuredAt,omitempty"`
+	ProducerOrigin *model.ProducerOrigin     `json:"producerOrigin"`
+	Parameters     map[string]model.Quantity `json:"parameters,omitempty"`
+	MeasurementID  string                    `json:"measurementId"`
+	FileID         string                    `json:"fileId"`
+	FileName       string                    `json:"fileName"`
+	SHA256         string                    `json:"sha256"`
+	Parser         string                    `json:"parser"`
+	Spec           string                    `json:"spec"`
+	SampleID       string                    `json:"sampleId,omitempty"`
+	MeasuredAt     string                    `json:"measuredAt,omitempty"`
 	// MeasuredTimestamp preserves raw text and explicit zone/date semantics.
 	MeasuredTimestamp *model.Timestamp       `json:"measuredTimestamp,omitempty"`
 	Lines             string                 `json:"lines,omitempty"`
@@ -178,6 +179,7 @@ type Input struct {
 func (in Input) Source(m model.Measurement) Source {
 	f := in.Files[m.FileID]
 	s := Source{MeasurementID: m.ID, FileID: m.FileID, FileName: f.Name, SHA256: f.SHA256, Parser: m.Parser, Spec: m.Spec, SampleID: m.SampleID}
+	s.ProducerOrigin = model.CloneProducerOrigin(f.ProducerOrigin)
 	s.SourceSheet, s.SourceRange = m.SourceSheet, m.SourceRange
 	for k, q := range m.Params {
 		if q.UnitOrigin != "" {

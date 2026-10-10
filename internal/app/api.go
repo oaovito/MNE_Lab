@@ -661,6 +661,21 @@ func (s *Server) routes() {
 		defer a.hub.Publish("library", nil)
 		return p.UpdateFile(pathID(r), in)
 	})
+	s.handle("PUT /api/files/{id}/producer-origin", func(w http.ResponseWriter, r *http.Request) (any, error) {
+		p, err := importProfileScope(r)
+		if err != nil {
+			return nil, err
+		}
+		in, err := decodeProducerDeclaration(r.Body)
+		if err != nil {
+			return nil, err
+		}
+		file, err := p.DeclareProducerOrigin(pathID(r), in)
+		if err == nil {
+			a.hub.Publish("library", nil)
+		}
+		return file, err
+	})
 	s.handle("POST /api/files/{id}/trash", trashRoute(a, func(p *Profile, id string, t bool) error { return p.TrashFile(id, t) }))
 	s.handle("DELETE /api/files/{id}", func(w http.ResponseWriter, r *http.Request) (any, error) {
 		p, err := prof()

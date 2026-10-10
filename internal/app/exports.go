@@ -389,6 +389,7 @@ func (p *Profile) produceItem(it ExportItem, req ExportRequest, spec plot.Spec, 
 					"sourceSHA256": f.SHA256, "size": f.Size, "module": f.Module,
 					"parser": f.Parser, "spec": f.Spec, "importedAt": f.ImportedAt,
 					"sourceInfo": f.SourceInfo, "warnings": f.Warnings,
+					"producerOrigin": model.CloneProducerOrigin(f.ProducerOrigin),
 					"normalizedMeasurements": 0,
 				}, "", "  ")
 				if err != nil {
@@ -804,12 +805,7 @@ func (p *Profile) researchPackage(cy CycleDoc, in graph.Input, ci graph.CycleInp
 	// Provenance.
 	var sources []graph.Source
 	for _, m := range ms {
-		f := in.Files[m.FileID]
-		s := graph.Source{MeasurementID: m.ID, FileID: m.FileID, FileName: f.Name, SHA256: f.SHA256, Parser: m.Parser, Spec: m.Spec, SampleID: m.SampleID, MeasuredAt: export.FormatTime(m.MeasuredAt)}
-		if m.Dist != nil {
-			s.Lines = fmt.Sprintf("%d-%d", m.Dist.FirstLine, m.Dist.LastLine)
-		}
-		sources = append(sources, s)
+		sources = append(sources, in.Source(m))
 	}
 	if err := addJSON(export.DirProvenance+"/provenance.json", "provenance", map[string]any{
 		"software": version.String(), "schema": version.Schema, "graphEngine": graph.EngineVersion, "scientificSpec": reference.LightScatteringSpecID,

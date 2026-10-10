@@ -104,9 +104,9 @@ export function PasswordInput(p: { value: string; onValue: (v: string) => void; 
   );
 }
 
-export function Select<T extends string>(p: { value: T; onValue: (v: T) => void; options: { value: T; label: string; disabled?: boolean }[]; size?: 'sm'; id?: string; label?: string }) {
+export function Select<T extends string>(p: { value: T; onValue: (v: T) => void; options: { value: T; label: string; disabled?: boolean }[]; size?: 'sm'; id?: string; label?: string; disabled?: boolean }) {
   return (
-    <select id={p.id} aria-label={p.label} class={`select ${p.size || ''}`} value={p.value} onChange={(e) => p.onValue((e.target as HTMLSelectElement).value as T)}>
+    <select id={p.id} aria-label={p.label} disabled={p.disabled} class={`select ${p.size || ''}`} value={p.value} onChange={(e) => p.onValue((e.target as HTMLSelectElement).value as T)}>
       {p.options.map((o) => (
         <option value={o.value} disabled={o.disabled}>
           {o.label}
