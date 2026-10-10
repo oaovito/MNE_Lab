@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"io"
 	"math/big"
 	"os"
 	"os/exec"
@@ -55,6 +56,13 @@ func testEC(t *testing.T) *ecdsa.PrivateKey {
 		t.Fatal(err)
 	}
 	return key
+}
+
+type unavailableSigner struct{}
+
+func (unavailableSigner) Public() crypto.PublicKey { return (*rsa.PublicKey)(nil) }
+func (unavailableSigner) Sign(io.Reader, []byte, crypto.SignerOpts) ([]byte, error) {
+	return nil, errors.New("provider unavailable")
 }
 
 func TestDetachedCMSStates(t *testing.T) {
@@ -148,6 +156,7 @@ func TestCMSChainAndCredentialRejection(t *testing.T) {
 		{"nil certificate", nil, leafKey, nil},
 		{"nil key", leaf, nil, nil},
 		{"typed nil key", leaf, (*ecdsa.PrivateKey)(nil), nil},
+		{"provider with nil public key", leaf, unavailableSigner{}, nil},
 		{"wrong key", leaf, rootKey, nil},
 		{"nil parent", leaf, leafKey, []*x509.Certificate{nil}},
 		{"wrong parent", leaf, leafKey, []*x509.Certificate{testIdentity(t, testEC(t), nil, nil)}},
