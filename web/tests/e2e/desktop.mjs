@@ -66,7 +66,9 @@ const onboarding = async (patch) => {
 };
 const menu = async (name) => {
   await click('button.avatar-btn');
-  await page.getByRole('menuitem', { name, exact: true }).click({ timeout: 3000 });
+  // Match the label itself: an optional localized "New" badge also becomes
+  // part of a menu item's accessible name.
+  await page.getByRole('menuitem').filter({ has: page.getByText(name, { exact: true }) }).click({ timeout: 3000 });
   await sleep(400);
 };
 
