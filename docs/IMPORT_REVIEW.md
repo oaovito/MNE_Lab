@@ -164,10 +164,14 @@ sheets. Formulas/macros, merged cells, external relationships and ambiguous,
 duplicate or conflicting physical coordinates are rejected. Rows/cells without
 explicit coordinates are outside this supported subset. Limits are 32 MiB
 input, 64 MiB expanded package, 4,096 ZIP entries, 256 sheets, 100,000 physical
-rows across sheets, 16,384 columns and one million cells. The bounded literal
+rows across sheets, 16,384 columns and one million cells. Logical cell text
+(including shared-string expansion on excluded sheets) and the complete JSON
+records are each limited to 64 MiB. Repeated labels and JSON escaping are
+charged before allocating a potentially oversized encoded record. Parser /1.0.0
+receipts require a fresh /1.0.1 review; historical imports remain unchanged. The bounded literal
 and scientific previews never supply the confirmed observations.
 
-The reader is `dls-workbook-column-reader/1.0.0`, with specification
+The reader is `dls-workbook-column-reader/1.0.1`, with specification
 `dls-user-workbook-mapping/1-unvalidated`. Saved-profile schema **3** contains
 only the reviewed XLSX recipe. Existing schema 1 native workbook selections,
 schema 2 saved CSV/TSV recipes and their parser identities remain unchanged.

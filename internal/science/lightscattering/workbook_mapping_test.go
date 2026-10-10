@@ -149,3 +149,24 @@ func FuzzManualWorkbookMapping(f *testing.F) {
 		}
 	})
 }
+
+func TestWorkbookMappingBoundsExpandedTextAndStoredLabels(t *testing.T) {
+	for _, label := range []string{strings.Repeat("L", 2<<20), strings.Repeat("&lt;", 320<<10)} {
+		changed := rewriteWorkbook(t, inventedWorkbook(t), "xl/worksheets/sheet1.xml", "unknown size (um)", label)
+		r, _, p := InspectFileSelection("invented.xlsx", changed, workbookRecipe())
+		if r.Error != ErrSpreadsheetLimit.Error() || len(r.Measurements) != 0 || p != nil {
+			t.Fatal("repeated/JSON-escaped source labels exceeded mapped byte budget without rejection")
+		}
+	}
+	// The logical expansion on an excluded sheet must still be bounded.
+	data := rewriteWorkbook(t, inventedWorkbook(t), "xl/sharedStrings.xml", "Synthetic\nsample", strings.Repeat("S", 8<<20))
+	var refs strings.Builder
+	for _, col := range []string{"B", "C", "D", "E", "F", "G", "H", "I", "J"} {
+		refs.WriteString(`<c r="` + col + `1" t="s"><v>0</v></c>`)
+	}
+	data = rewriteWorkbook(t, data, "xl/worksheets/sheet2.xml", "</row>", refs.String()+"</row>")
+	r, _, p := InspectFileSelection("invented.xlsx", data, workbookRecipe())
+	if r.Error != ErrSpreadsheetLimit.Error() || len(r.Measurements) != 0 || p != nil {
+		t.Fatal("excluded shared-string expansion accepted")
+	}
+}

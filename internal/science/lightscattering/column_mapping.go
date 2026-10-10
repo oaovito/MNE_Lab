@@ -18,7 +18,7 @@ import (
 )
 
 const MappingVersion = "dls-column-reader/1.0.0"
-const WorkbookMappingVersion = "dls-workbook-column-reader/1.0.0"
+const WorkbookMappingVersion = "dls-workbook-column-reader/1.0.1"
 const WorkbookMappingSpec = "dls-user-workbook-mapping/1-unvalidated"
 
 // MappingIdentity keeps existing CSV recipes/receipts version-bound.

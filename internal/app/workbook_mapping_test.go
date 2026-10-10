@@ -2,6 +2,8 @@ package app
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"os"
 	"reflect"
@@ -22,6 +24,22 @@ func TestWorkbookMappingReceiptBindsPhysicalSelectionAndPreservesOriginal(t *tes
 	review, e := p.InspectImportSelection("invented.xlsx", data, s)
 	if e != nil || review.Receipt == "" || review.Measurements != 26 || len(review.Result.Measurements) != 10 || review.Result.Parser != lightscattering.WorkbookMappingVersion || review.Result.SourceInfo.Container != "OOXML workbook" || review.Result.SourceInfo.ScientificValidation != "UNVALIDATED" {
 		t.Fatal("review", e, review)
+	}
+	old, err := p.reviewClaim(review.Receipt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old.Parser = "dls-workbook-column-reader/1.0.0"
+	payload, err := json.Marshal(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldReceipt := base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(p.importMAC(payload))
+	if _, err := p.ConfirmImportSelection("invented.xlsx", data, oldReceipt, false, s); !errors.Is(err, ErrImportChanged) {
+		t.Fatal("obsolete reader receipt accepted", err)
+	}
+	if _, err := p.SaveImportProfile("Old reader", oldReceipt); !errors.Is(err, ErrImportChanged) {
+		t.Fatal("obsolete reader profile saved", err)
 	}
 	for name, edit := range map[string]func(*model.ColumnMapping){"sheet": func(m *model.ColumnMapping) { m.Sheet = "Other" }, "header": func(m *model.ColumnMapping) { m.HeaderRow = 1 }, "first": func(m *model.ColumnMapping) { m.FirstRow = 4 }, "last": func(m *model.ColumnMapping) { m.LastRow = 27 }, "column": func(m *model.ColumnMapping) { m.Columns[0].Column = 3 }, "unit": func(m *model.ColumnMapping) { m.Columns[0].Unit = "um" }, "decimal": func(m *model.ColumnMapping) { m.Decimal = "comma" }, "sample": func(m *model.ColumnMapping) { m.SampleColumn = 0 }} {
 		t.Run(name, func(t *testing.T) {

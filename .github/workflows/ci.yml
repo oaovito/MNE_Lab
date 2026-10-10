@@ -35,12 +35,13 @@ jobs:
       - name: Interface — type check
         working-directory: web
         run: npm run typecheck
-      - name: Interface — tests (translations, coverage of every text)
-        working-directory: web
-        run: npm test
       - name: Interface — build
         working-directory: web
         run: npm run build
+
+      - name: Interface — tests (translations, coverage of every text)
+        working-directory: web
+        run: npm test
 
       - name: Core — format
         run: test -z "$(gofmt -l cmd internal web)"
