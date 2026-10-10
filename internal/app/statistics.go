@@ -427,6 +427,58 @@ func validateAnalysisResults(snapshot analysis.Snapshot, result analysis.Results
 	} else if result.Model != nil {
 		return analysis.ErrDefinition
 	}
+	if !snapshot.Definition.EffectCI {
+		if len(result.EffectIntervals) != 0 {
+			return analysis.ErrDefinition
+		}
+	} else {
+		if len(result.EffectIntervals) != 1 {
+			return analysis.ErrDefinition
+		}
+		ci := result.EffectIntervals[0]
+		if ci.Source != "A" || ci.Effect != "population_eta_squared" || ci.ConfidenceLevel != 1-snapshot.Definition.Alpha || ci.Method != "MBESS 5.0.1 ci.pvaf / conf.limits.ncf" {
+			return analysis.ErrDefinition
+		}
+		if ci.Lower != nil && !(*ci.Lower >= 0 && *ci.Lower < 1) || ci.Upper != nil && !(*ci.Upper >= 0 && *ci.Upper < 1) {
+			return analysis.ErrNumeric
+		}
+		if ci.LowerAtBoundary != (ci.Lower != nil && *ci.Lower == 0) {
+			return analysis.ErrDefinition
+		}
+		switch ci.Status {
+		case "available":
+			if ci.Lower == nil || ci.Upper == nil || *ci.Lower > *ci.Upper {
+				return analysis.ErrDefinition
+			}
+			precision, coverage := false, false
+			for _, v := range result.Diagnostics {
+				if v.Code == "effect_ci_precision" && v.Statistic != nil && *v.Statistic >= 0 && *v.Statistic <= 2e-9 {
+					precision = true
+				}
+				if v.Code == "effect_ci_tail_coverage" && v.Statistic != nil && *v.Statistic >= ci.ConfidenceLevel-2e-9 && *v.Statistic <= 1 {
+					coverage = true
+				}
+			}
+			if !precision || !coverage {
+				return analysis.ErrDefinition
+			}
+		case "not_estimable":
+			if ci.Upper != nil {
+				return analysis.ErrDefinition
+			}
+			found := false
+			for _, v := range result.Warnings {
+				if v == "statistics.effect_ci_not_estimable" {
+					found = true
+				}
+			}
+			if !found {
+				return analysis.ErrDefinition
+			}
+		default:
+			return analysis.ErrDefinition
+		}
+	}
 	// Group values must be the reviewed source quantities, in source order.
 	// This binds the result contract to data without claiming an attestation
 	// of browser calculations; independent numerical tests validate the engine.

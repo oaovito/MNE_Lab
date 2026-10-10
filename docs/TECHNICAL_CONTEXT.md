@@ -438,7 +438,7 @@ statistical tables, diagnostics, snapshots and graph annotations.
 See [STATISTICAL_ANALYSIS.md](STATISTICAL_ANALYSIS.md) for numerical oracles,
 source/experimental-unit review, supported designs and limits. ML random
 intercepts for explicit repeated units add marginal Wald F tests with both
-degrees of freedom, model variances and coefficients. Effect-size confidence intervals, global export signatures and clean
+degrees of freedom, model variances and coefficients. Effect-size confidence intervals for other designs/effect sizes, global export signatures and clean
 Windows installation validation remain pending. Runtime acquisition is local
 to the build; users need no R/Python/Excel. ZETA/NTA variables are rejected
 until their own scientific definitions and exports are validated.
@@ -455,7 +455,7 @@ file or drawing a graph does not establish scientific validity.
 | Tukey / conditional simple effects / Mauchly / GG / HF | Yes | Independent numeric fixtures, explicit pair identities | Yes, within documented scope | Broader instrument/design fixtures remain useful; R quantile precision is documented |
 | Dunnett: two-sided single-step, classical independent One-Way, explicit control | Yes | Independent refined SciPy multivariate-t p/CI fixtures; seeded repeatability; scoped persistence and offline worker | Yes, documented designs and numerical tolerances only | Other designs, one-sided tests and more than eight treatments remain unsupported |
 | Mixed: ML Gaussian random intercept, categorical repeated B, optional between A | Yes | Five independent Statsmodels/SciPy synthetic designs; exact df; boundary/design rejections; scoped model persistence; local worker | Yes, restricted documented scope and tolerances | Random slopes, alternative residual covariance, REML choice and mixed post-hoc unsupported |
-| Effect-size confidence intervals | No | Private MBESS 5.0.1 fixed-effect variance CI preparation: six cases, independent SciPy endpoint inversion | No | Product integration and actual engine/UI/export tests; boundary/non-estimable handling; other effect sizes/designs require separate documented estimators and oracles |
+| Population eta squared CI: optional fixed-effect independent One-Way | Yes, source subset MBESS 5.0.1 | Seven independent SciPy endpoint fixtures, boundary/non-estimable handling, source integrity, persistence/export and local worker | Yes, available intervals within the documented scope/tolerances | Partial eta/omega and Two-Way/Welch/RM/Mixed effect intervals require separate estimators and reliable oracles |
 | LIGHTSCATTERING / NanoBrook DLS | Yes, continuing | Synthetic and private export corpus | PARTIAL; parser rules remain provisional | Finish instrument field/method documentation cross-check and quantitative reference comparisons |
 | ZETA | Implementation allowed; scientific parser pending | Private workbook structure reviewed | PENDING / UNVALIDATED | Official potential/mobility/quality documentation; raw instrument exports with matching reference results; units, timestamps, settings and methodology provenance; independent parser/numerical comparisons |
 | NTA | Architecture/preparation allowed | No real NTA result fixture | PENDING / UNVALIDATED | Official NanoSight export/software schema and settings documentation; real tracking/summary/distribution exports with corresponding trusted results; independent field/unit/numerical comparisons |

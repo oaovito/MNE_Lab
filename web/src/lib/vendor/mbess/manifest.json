@@ -1,0 +1,34 @@
+{
+  "package": "MBESS",
+  "version": "5.0.1",
+  "revision": "60919e2feb9d743b6f137441c934dc79bc5f88f7",
+  "source_url": "https://github.com/cran/MBESS/tree/60919e2feb9d743b6f137441c934dc79bc5f88f7",
+  "license": "GPL-2 | GPL-3",
+  "files": [
+    {
+      "path": "ci.pvaf.R",
+      "size": 2524,
+      "sha256": "229703db2971df3f18ea7aa00055d07045c7e84b9e2607358c74e110cfe59af3"
+    },
+    {
+      "path": "conf.limits.ncf.R",
+      "size": 5792,
+      "sha256": "6796af06e828211890439467dd8f41939cc91fe79262f980274ef27aecb10648"
+    },
+    {
+      "path": "ci.pvaf.Rd",
+      "size": 3801,
+      "sha256": "18202bc366272d2c246cccb66164fccb25fca7023bdf670f6d0cbbeaa06964aa"
+    },
+    {
+      "path": "conf.limits.ncf.Rd",
+      "size": 2575,
+      "sha256": "527e703d51f7929988ee3068c03502d03a6669439076563422fdf92008e28535"
+    },
+    {
+      "path": "DESCRIPTION",
+      "size": 1854,
+      "sha256": "9b3f2b2cbcffbadf36790430a5eeee9d2e59a52b115ed5b7ae7f7d566a9995be"
+    }
+  ]
+}

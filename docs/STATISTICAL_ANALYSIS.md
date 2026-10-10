@@ -69,8 +69,8 @@ This deliberately restricted numerical guard is not a scientific unit rule.
 and [anova.lme](https://stat.ethz.ch/R-manual/R-devel/library/nlme/html/anova.lme.html)
 document the model and test conventions; the bundled source version is 3.1-169.
 Random slopes, heteroscedastic/serial residual structures, REML selection,
-mixed/Welch/RM post-hoc procedures and effect-size confidence intervals remain
-pending. No simpler model or unadjusted pairwise t-test substitutes for them.
+mixed/Welch/RM post-hoc procedures and effect intervals for other designs
+remain pending. No simpler model or unadjusted pairwise t-test substitutes for them.
 
 ## Review and persistence
 
@@ -143,7 +143,8 @@ precision, without inventing a numerical bound.
 
 Smart Export accepts statistical analyses. XLSX includes named sheets for
 ANOVA, group summaries, observations, post-hoc, diagnostics, residuals,
-effects and corrections for classical analyses. Mixed instead includes seven
+effects and corrections for classical analyses. Optional population eta
+intervals add a ninth table and an effect-sizes/intervals.json package file. Mixed instead includes seven
 tables: marginal tests with denominator df, raw groups, observations,
 diagnostics, residuals, model metadata and sum-contrast coefficients. Delimited formats produce a separate file per table
 to avoid dropping secondary results. JSON preserves the full analysis and
@@ -238,3 +239,41 @@ Unknown units, duplicate unit/time, unit group changes, absent factorial
 cells, constant outcomes, near-boundary variance and post-hoc requests are
 rejected. These tests establish only this documented scope; they do not
 validate arbitrary mixed models or ZETA/NTA scientific quantities.
+
+### Optional population eta squared intervals
+
+Classical independent one-factor fixed-effect ANOVA offers an optional,
+equal-tail interval for the **population** proportion of variance explained
+by group status, using the unmodified MBESS 5.0.1 `ci.pvaf` and
+`conf.limits.ncf` source functions. The source/doc subset and its exact hashes,
+authorship, license and immutable CRAN mirror revision are in
+`web/src/lib/vendor/mbess/`. This subset depends only on bundled R `stats`;
+the full MBESS package and its other dependencies are not installed.
+The build checks every pinned source/document byte before replacing assets.
+
+The documented noncentral-F parameter limits are transformed as
+`lambda/(lambda+N)` (Fleishman 1980; Steiger 2004; Kelley 2007, as cited by
+MBESS). The nominal confidence level is `1-alpha`. Upstream sets a
+non-estimable lower limit to zero; no upper limit is invented when upstream
+cannot estimate one. Numerical warnings or more than 10,000 upstream `pf`
+calls yield an explicit non-estimable interval while retaining ANOVA.
+Available intervals must satisfy a direct noncentral-F endpoint CDF residual
+of at most `2e-9` (upstream iterative tolerance `1e-9`). MBESS's reported
+endpoint tail coverage is preserved as a diagnostic; it is not an empirical
+coverage study and can be conservative when the lower bound is zero.
+
+`scripts/statistics_effect_ci_oracle.py` generates seven invented one-factor
+designs, including unequal group sizes, alpha=.01, a zero lower bound and a
+non-estimable upper bound. Independent SciPy 1.17.0 noncentral-F CDF and Brent
+root inversion check endpoints to absolute `1e-6`. The raw inverse used by
+Statsmodels `confint_noncentrality` did not meet this endpoint/CDF precision
+in the development probes; that discrepancy is recorded rather than raising
+the tolerance. Actual product functions, repeatability, source tampering,
+Dunnett combination and worker isolation are tested.
+
+This is not a CI for partial eta squared or omega squared, and not a CI for
+Two-Way, Welch, RM or Mixed effects. Their estimators/reference comparisons
+remain pending. Historical analyses without the option are unchanged;
+the option, source estimator identity, interval status and precision are bound
+to the reviewed definition, persisted and exported. Shared graphs keep the
+interval provenance while continuing to display raw group summaries.

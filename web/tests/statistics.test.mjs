@@ -264,6 +264,43 @@ try {
     ['independent structure',{...base,structure:'independent'},'incompatible_design'],
     ['sphericity correction',{...base,correction:'GG'},'incompatible_design'],
   ]) await test(`Mixed rejection: ${name}`,async()=>await assert.rejects(calculate(input),new RegExp(`statistics.${error}`)));
+  // Unmodified upstream source subset, not a reimplementation of the CI.
+  for(const name of ['conf.limits.ncf.R','ci.pvaf.R'])await r.evalRVoid(fs.readFileSync(new URL('../src/lib/vendor/mbess/'+name,import.meta.url),'utf8').replaceAll('\r\n','\n'));
+  const effect=JSON.parse(fs.readFileSync(new URL('./fixtures/statistics-effect-ci-golden.json',import.meta.url)));
+  for(const c of effect.cases)await test(`independent population eta CI: ${c.name}`,async()=>{
+    const actual=await calculate(c.input),ci=actual.effectIntervals[0];
+    assert.equal(actual.engine,'webR/0.6.0; R/4.6.0; MBESS-source/5.0.1; eta2-CI/1');
+    near(actual.terms[0].f,c.expected.f,c.name+'.F');
+    assert.equal(ci.effect,'population_eta_squared');assert.equal(ci.source,'A');
+    assert.equal(ci.status,c.expected.status);assert.equal(ci.confidenceLevel,c.expected.confidenceLevel);
+    assert.equal(ci.lowerAtBoundary,c.expected.lowerAtBoundary);
+    near(ci.lower,c.expected.lower,c.name+'.lower',1e-6);
+    if(c.expected.upper===null){assert.equal(ci.upper,undefined);assert.ok(actual.warnings.includes('statistics.effect_ci_not_estimable'))}
+    else{
+      near(ci.upper,c.expected.upper,c.name+'.upper',1e-6);
+      assert.ok(actual.diagnostics.find(d=>d.code==='effect_ci_precision').statistic<=2e-9);
+      const coverage=actual.diagnostics.find(d=>d.code==='effect_ci_tail_coverage');
+      near(coverage.statistic,c.expected.lowerAtBoundary?1-c.input.alpha/2:1-c.input.alpha,c.name+'.tail_coverage');
+    }
+    assert.deepEqual(await calculate(c.input),actual);
+  });
+  await test('CI wrapper bounds numerical work and leaves base engine isolated',async()=>{
+    const extreme=JSON.parse(await r.evalRString('mne_json(mne_effect_interval(1e100,2,27,30,.05))'));
+    assert.equal(extreme.interval.status,'not_estimable');
+    const zero=await calculate({...golden.cases[0].input,values:[1,2,3,1,2,3],effectCI:true});
+    // lm's equal means can leave a 1e-30 rounding residual; do not force
+    // the scientific F value to zero in the implementation.
+    near(zero.terms[0].f,0,'equal-mean F rounding',1e-12);assert.equal(zero.effectIntervals[0].status,'not_estimable');
+    const exactZero=JSON.parse(await r.evalRString('mne_json(mne_effect_interval(0,1,4,6,.05))'));assert.equal(exactZero.interval.status,'not_estimable');assert.equal(zero.effectIntervals[0].upper,undefined);
+    const base=await calculate(golden.cases[0].input);assert.equal(base.engine,'webR/0.6.0; R/4.6.0');assert.equal(base.effectIntervals,null);
+    await assert.rejects(calculate({...golden.cases.find(c=>c.input.method==='welch').input,effectCI:true}),/statistics.incompatible_design/);
+  });
+  await test('CI and Dunnett keep separate simultaneous/individual coverage identities',async()=>{
+    const c=advanced.cases[0],actual=await calculate({...c.input,effectCI:true});
+    assert.equal(actual.engine,'webR/0.6.0; R/4.6.0; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1; MBESS-source/5.0.1; eta2-CI/1');
+    assert.equal(actual.effectIntervals[0].status,'available');assert.equal(actual.comparisons.length,c.expected.length);
+    for(const v of c.expected){const a=actual.comparisons.find(a=>a.rightA===v.rightA);near(a.lower,v.lower,'Dunnett lower with effect CI',1e-4);near(a.adjustedP,v.adjustedP,'Dunnett p with effect CI',3e-5)}
+  });
 } finally {
   r.close();
 }

@@ -398,6 +398,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                   postHoc: "none",
                   control: "",
                   sphericityCorrection: "GG",
+                  effectCI: false,
                 });
               }}
             >
@@ -424,7 +425,7 @@ function AnalysisEditor(p: { cycleId: string }) {
               class="input"
               value={def.method}
               onChange={(e) =>
-                change({ method: e.currentTarget.value, postHoc: "none", control: "", sphericityCorrection: e.currentTarget.value === "mixed" ? "" : "GG" })
+                change({ method: e.currentTarget.value, effectCI: false, postHoc: "none", control: "", sphericityCorrection: e.currentTarget.value === "mixed" ? "" : "GG" })
               }
             >
               {(def.structure === "repeated"
@@ -487,6 +488,10 @@ function AnalysisEditor(p: { cycleId: string }) {
             </label>
           )}
         </div>
+        {def.method === "one_way" && <label class="col gap1">
+          <span class="row gap2"><input type="checkbox" aria-label={t("stat.effect_ci")} checked={!!def.effectCI} onChange={e=>change({effectCI:e.currentTarget.checked})}/>{t("stat.effect_ci")}</span>
+          <small>{t("stat.effect_ci_scope")}</small>
+        </label>}
         {def.method === "mixed" && <Notice kind="info">{t("stat.mixed_scope")}</Notice>}
         <details>
           <summary>{t("stat.units")}</summary>
@@ -737,7 +742,7 @@ function AnalysisResults(p: {
         <b>{t("stat.derived")}</b>
         <p>
           {t("stat.method." + r.method)} · {t("param." + s.definition.variable)}{" "}
-          ({s.unit || "—"}) · α={s.definition.alpha} · {r.ssType}
+          ({s.unit || "—"}) · α={s.definition.alpha} · {r.model ? t("stat.mixed_tests") : r.ssType}
         </p>
         <small>
           {r.engine} · {r.calculation}
@@ -752,7 +757,7 @@ function AnalysisResults(p: {
           <table class="table">
             <thead>
               <tr>
-                {(r.model ? ["Source", "df", "denominator df", "F", "p"] : [
+                {(r.model ? [t("stat.source"), "df", t("stat.denominator_df"), "F", "p"] : [
                   "Source",
                   "SS",
                   "df",
@@ -786,6 +791,13 @@ function AnalysisResults(p: {
           </table>
         </div>
       </section>
+      {!!r.effectIntervals?.length && <section class="card pad col gap2">
+        <h3>{t("stat.effect_ci")}</h3><p>{t("stat.effect_ci_scope")}</p>
+        <table class="table"><thead><tr><th>{t("stat.source")}</th><th>{t("stat.confidence_level")}</th><th>CI</th><th>{t("stat.status")}</th></tr></thead><tbody>
+          {r.effectIntervals.map(ci=><tr><td>{ci.source} · η²</td><td>{100*ci.confidenceLevel}%</td><td>{num(ci.lower)} … {num(ci.upper)}</td><td>{t("stat.effect_ci."+ci.status)}</td></tr>)}
+        </tbody></table>
+        <small>{r.effectIntervals[0].method}</small>
+      </section>}
       {r.model && <section class="card pad col gap2">
         <h3>{t("stat.mixed_model")}</h3>
         <p>{t("stat.mixed_scope")}</p>

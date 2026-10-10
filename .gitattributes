@@ -1,0 +1,5 @@
+# Preserve pinned upstream bytes across Linux/Windows checkouts; their existing
+# whitespace belongs to the source checksum, not MNE Lab's formatting style.
+web/src/lib/vendor/mbess/*.R -text whitespace=-blank-at-eol,cr-at-eol
+web/src/lib/vendor/mbess/*.Rd -text whitespace=-blank-at-eol,cr-at-eol
+web/src/lib/vendor/mbess/DESCRIPTION -text whitespace=-blank-at-eol,cr-at-eol

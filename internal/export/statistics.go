@@ -89,6 +89,13 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 		// classical sums of squares, effect sizes or sphericity corrections.
 		d.Tables = []Table{tests, groups, observations, diagnostics, residuals, model, coefficients}
 	}
+	if len(a.Results.EffectIntervals) > 0 {
+		ci := statisticalTable("effect_intervals", "Population eta squared intervals", "source", "effect", "nominal_confidence_level", "method", "status", "lower", "upper", "lower_at_boundary")
+		for _, v := range a.Results.EffectIntervals {
+			ci.Rows = append(ci.Rows, []Cell{text(v.Source), text(v.Effect), num(v.ConfidenceLevel, -1), text(v.Method), text(v.Status), optional(v.Lower), optional(v.Upper), text(fmt.Sprint(v.LowerAtBoundary))})
+		}
+		d.Tables = append(d.Tables, ci)
+	}
 	return d
 }
 

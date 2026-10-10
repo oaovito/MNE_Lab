@@ -577,3 +577,77 @@ func TestMixedExplicitUnitsIncompleteDesignAndSavedContract(t *testing.T) {
 		t.Fatal("unknown physical unit accepted")
 	}
 }
+
+func TestEffectIntervalsScopedPersistenceExportsAndRejections(t *testing.T) {
+	_, _, p := inspectionProfile(t)
+	d := statisticalFixture(t, p)
+	d.EffectCI = true
+	s, e := p.PrepareAnalysis(d)
+	if e != nil {
+		t.Fatal(e)
+	}
+	r := statisticalContract(s)
+	r.Engine = analysis.ExpectedEngine(d)
+	low, up, precision, coverage := .017419935275215046, .8833409901892689, 1e-10, .95
+	r.EffectIntervals = []analysis.EffectInterval{{Source: "A", Effect: "population_eta_squared", ConfidenceLevel: 1 - d.Alpha, Method: "MBESS 5.0.1 ci.pvaf / conf.limits.ncf", Status: "available", Lower: &low, Upper: &up}}
+	r.Diagnostics = []analysis.Diagnostic{{Code: "effect_ci_precision", Statistic: &precision}, {Code: "effect_ci_tail_coverage", Statistic: &coverage}}
+	saved, e := p.SaveAnalysis(d, s.Receipt, r, "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	restored, e := p.Analysis(saved.ID)
+	if e != nil || !reflect.DeepEqual(restored.Results.EffectIntervals, r.EffectIntervals) {
+		t.Fatal("effect interval lost", e)
+	}
+	outs, _, e := p.analysisOutputs(saved.ID, ExportRequest{Formats: []string{"package", "csv", "xlsx", "pdf", "json"}}, plot.Preset(plot.PresetScreen), false)
+	if e != nil {
+		t.Fatal(e)
+	}
+	csv, ciFile := 0, false
+	for _, o := range outs {
+		if strings.HasSuffix(o.name, ".csv") {
+			csv++
+		}
+		if o.name == "statistics/effect-sizes/intervals.json" {
+			ciFile = strings.Contains(string(o.data), "population_eta_squared")
+		}
+	}
+	if csv != 9 || !ciFile {
+		t.Fatal("effect interval dropped from exports", csv, ciFile)
+	}
+	for _, change := range []func(*analysis.Results){
+		func(v *analysis.Results) { v.EffectIntervals = nil },
+		func(v *analysis.Results) { v.EffectIntervals[0].Effect = "partial_eta_squared" },
+		func(v *analysis.Results) { v.EffectIntervals[0].Upper = nil },
+		func(v *analysis.Results) { v.EffectIntervals[0].ConfidenceLevel = .9 },
+		func(v *analysis.Results) { v.EffectIntervals[0].LowerAtBoundary = true },
+		func(v *analysis.Results) { v.Diagnostics = nil },
+		func(v *analysis.Results) { v.EffectIntervals[0].Status = "not_estimable" },
+	} {
+		raw, _ := json.Marshal(r)
+		var bad analysis.Results
+		json.Unmarshal(raw, &bad)
+		change(&bad)
+		if validateAnalysisResults(s, bad) == nil {
+			t.Fatal("invalid effect interval contract accepted")
+		}
+	}
+	// An unavailable upper bound is honest and leaves the supported ANOVA intact.
+	unavailable := r
+	unavailable.EffectIntervals = []analysis.EffectInterval{{Source: "A", Effect: "population_eta_squared", ConfidenceLevel: 1 - d.Alpha, Method: "MBESS 5.0.1 ci.pvaf / conf.limits.ncf", Status: "not_estimable"}}
+	unavailable.Diagnostics = nil
+	unavailable.Warnings = []string{"statistics.effect_ci_not_estimable"}
+	if validateAnalysisResults(s, unavailable) != nil {
+		t.Fatal("honest unavailable CI rejected")
+	}
+	changed := d
+	changed.EffectCI = false
+	if _, e := p.SaveAnalysis(changed, s.Receipt, r, ""); !errors.Is(e, analysis.ErrSource) {
+		t.Fatal("CI option outside reviewed receipt accepted", e)
+	}
+	changed.Method = "welch"
+	changed.EffectCI = true
+	if _, e := p.PrepareAnalysis(changed); !errors.Is(e, analysis.ErrDesign) {
+		t.Fatal("CI silently applied to Welch", e)
+	}
+}
