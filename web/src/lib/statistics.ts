@@ -139,9 +139,11 @@ export async function calculateStatistics(
     channelType: ChannelType.PostMessage,
   });
   let closed = false;
+  const packageRequests = new AbortController();
   const close = () => {
     if (!closed) {
       closed = true;
+      packageRequests.abort();
       r.close();
     }
   };
@@ -166,6 +168,21 @@ export async function calculateStatistics(
         (o) => !o.missing && !o.excludeReason && o.quantity,
       );
       const d = snapshot.definition;
+      if (d.postHoc === "dunnett") {
+        const [metadata, image] = await Promise.all([
+          fetch("/statistics-engine/packages.metadata.json", { signal: packageRequests.signal }),
+          fetch("/statistics-engine/packages.data.gz", { signal: packageRequests.signal }),
+        ]);
+        if (!metadata.ok || !image.ok) throw new Error("statistics.method_unavailable");
+        await r.FS.mkdir("/mne-packages");
+        // FS.mount takes raw image bytes. Compression is handled here, not
+        // by WORKERFS; otherwise offsets would address compressed contents.
+        const bytes = await new Response(image.body!.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+        await r.FS.mount("WORKERFS", {
+          packages: [{ metadata: {...await metadata.json(), gzip:false}, blob: new Uint8Array(bytes) }],
+        }, "/mne-packages");
+        await r.evalRVoid('.libPaths(c("/mne-packages", .libPaths()))');
+      }
       const input = await new r.RList({
         values: rows.map((o) => o.quantity!.value),
         factorA: rows.map((o) => o.factorA),
@@ -174,6 +191,7 @@ export async function calculateStatistics(
         alpha: d.alpha,
         method: d.method,
         postHoc: d.postHoc,
+        control: d.control || "",
         structure: d.structure,
         correction: d.sphericityCorrection || "GG",
       });

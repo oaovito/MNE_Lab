@@ -170,8 +170,49 @@ mne_engine <- function(input) {
         comparisons<-c(comparisons,add_tukey(sub,paste0("A=",level),families,fixedA=level))
       }
     } else stop("statistics.incompatible_posthoc")
+  } else if(input$postHoc=="dunnett") {
+    if(method!="one_way") stop("statistics.incompatible_posthoc")
+    if(alpha>=0.5) stop("statistics.invalid_definition")
+    control<-as.character(input$control)
+    if(length(control)!=1L || !control %in% levels(d$A)) stop("statistics.control_required")
+    if(nlevels(d$A)>9L) stop("statistics.dunnett_family_limit")
+    if(!requireNamespace("multcomp",quietly=TRUE) || !requireNamespace("mvtnorm",quietly=TRUE)) stop("statistics.method_unavailable")
+    # The control is explicit. Contrast identities are separate from labels:
+    # every treatment-minus-control coefficient is a simultaneous contrast.
+    sub<-d;sub$A<-relevel(sub$A,ref=control)
+    model<-lm(y~A,data=sub,contrasts=list(A=contr.treatment))
+    treatments<-levels(sub$A)[-1L]
+    K<-diag(length(coef(model)))[-1L,,drop=FALSE]
+    test<-multcomp::glht(model,linfct=K)
+    # Genz-Bretz integration is randomized. Fix its seed and bound the work;
+    # reject inaccurate integration instead of returning an unqualified p.
+    set.seed(1701)
+    result<-summary(test,test=multcomp::adjusted("single-step",maxpts=100000,abseps=1e-5,releps=0))$test
+    error<-attr(result$pvalues,"error")
+    if(length(error)!=1L || !is.finite(error) || error>1e-5) stop("statistics.integration_not_converged")
+    set.seed(1701)
+    ciWarnings<-character()
+    # mvtnorm 1.2-4 does not return the estim.prec attribute expected by
+    # multcomp's quantile wrapper. Use its mature qmvt result directly, check
+    # completion, then independently evaluate the achieved family coverage.
+    correlation<-cov2cor(vcov(test))
+    algorithm<-mvtnorm::GenzBretz(maxpts=100000,abseps=1e-5,releps=0)
+    qroot<-withCallingHandlers(mvtnorm::qmvt(1-alpha,df=test$df,corr=correlation,tail="both.tails",algorithm=algorithm,ptol=1e-3,maxiter=100,seed=1701),warning=function(w){ciWarnings<<-c(ciWarnings,conditionMessage(w));invokeRestart("muffleWarning")})
+    if(length(treatments)>1L && !identical(attr(qroot,"message"),"Normal Completion"))stop("statistics.integration_not_converged")
+    critical<-qroot$quantile
+    set.seed(1701)
+    coverage<-mvtnorm::pmvt(lower=rep(-critical,length(treatments)),upper=rep(critical,length(treatments)),df=test$df,corr=correlation,algorithm=algorithm)
+    ciError<-abs(as.numeric(coverage)-(1-alpha));coverageError<-attr(coverage,"error")
+    ci<-confint(test,level=1-alpha,calpha=as.numeric(critical))$confint
+    if(length(ciWarnings) || any(!is.finite(ci)) || !is.finite(ciError) || ciError>3e-5 || length(coverageError)!=1L || !is.finite(coverageError) || coverageError>1e-5) stop("statistics.integration_not_converged")
+    comparisons<-lapply(seq_along(treatments),function(i)list(leftA=control,leftB="",rightA=treatments[i],rightB="",contrast=paste0(treatments[i],"-",control),difference=unname(coef(test)[i]),lower=ci[i,"lwr"],upper=ci[i,"upr"],adjustedP=unname(result$pvalues[i]),correction="Dunnett two-sided single-step (multivariate t)"))
+    diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("dunnett_integration",statistic=error,details="multcomp 1.4-30 / mvtnorm 1.2-4; two-sided single-step; Genz-Bretz; seed=1701; maxpts=100000; absolute integration target=1e-5; explicit control; simultaneous confidence intervals")
+    diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("dunnett_quantile",statistic=ciError,details="absolute achieved family coverage difference from 1-alpha; qmvt ptol=1e-3; maxiter=100; direct pmvt coverage check target=3e-5; a single treatment uses the exact Student-t quantile")
+    diagnostics[[length(diagnostics)+1L]]<-mne_diagnostic("dunnett_confidence_integration",statistic=coverageError,details="reported Genz-Bretz error in direct simultaneous-CI coverage check; maxpts=100000; abseps=1e-5; seed=1701")
   }
   for(i in seq_along(comparisons))comparisons[[i]]$id<-paste0("comparison-",i)
   if(method=="two_way" && any(vapply(terms,function(t)t$source=="A:B" && !is.null(t$p) && t$p<alpha,TRUE)))warnings<-c(warnings,"statistics.interaction_requires_simple_effects")
-  list(engine="webR/0.6.0; R/4.6.0",calculation="mnelab-statistics/1",method=method,ssType=ssType,terms=mne_array(terms),groups=mne_array(groups),comparisons=mne_array(comparisons),diagnostics=mne_array(diagnostics),residuals=mne_array(as.numeric(residual)),qqTheoretical=mne_array(as.numeric(qq$x)),qqObserved=mne_array(as.numeric(qq$y)),warnings=mne_array(warnings),corrections=if(length(corrections))corrections else NULL)
+  engine<-"webR/0.6.0; R/4.6.0"
+  if(input$postHoc=="dunnett")engine<-paste0(engine,"; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1")
+  list(engine=engine,calculation="mnelab-statistics/1",method=method,ssType=ssType,terms=mne_array(terms),groups=mne_array(groups),comparisons=mne_array(comparisons),diagnostics=mne_array(diagnostics),residuals=mne_array(as.numeric(residual)),qqTheoretical=mne_array(as.numeric(qq$x)),qqObserved=mne_array(as.numeric(qq$y)),warnings=mne_array(warnings),corrections=if(length(corrections))corrections else NULL)
 }

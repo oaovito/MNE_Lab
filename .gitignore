@@ -3,6 +3,7 @@
 /build/
 /out/
 /web/node_modules/
+/web/.statistics-package-cache/
 /web/dist/*
 !/web/dist/.gitkeep
 *.exe

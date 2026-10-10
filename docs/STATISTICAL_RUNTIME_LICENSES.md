@@ -33,6 +33,22 @@ announce a binary release or change the license of the existing repository.
 
 R's `stats` library supplies numerical methods. SciPy, statsmodels and
 Pingouin are independent development references only and do not ship in the
-application. Additional packages such as `nlme`/`multcomp`/`mvtnorm` must have
-their source, licenses, runtime compatibility and independent numerical
-validation recorded before Mixed Effects or Dunnett can be enabled.
+application. The build now pins eleven additional packages in
+`scripts/statistics-packages.json`, with native length/SHA-256 checks and source
+versions/URLs/SHA-256. Sources of matching versions were acquired: ten from the
+same official repository's source index (MD5 checked); mvtnorm 1.2-4 from its
+CRAN mirror revision recorded in the manifest. Their native runtime loads
+offline through the same read-only WORKERFS image in Node and browser tests.
+Dunnett has independent refined multivariate-t p/CI comparisons and seed
+repeatability tests. Mixed remains preparation; merely bundling `nlme` does
+not validate or enable it.
+
+Every package's included author/license/component files remain in the image.
+[STATISTICAL_PACKAGES_LICENSES.md](STATISTICAL_PACKAGES_LICENSES.md) records
+package versions and includes the pinned R runtime's full GPL-2 text. The
+build copies it alongside the upstream webR/GPL-3 license. These packages
+use GPL-family licensing with package/component exceptions; the manifest is
+the version-specific record. Matching package source archives do not by
+themselves reconstruct the exact Emscripten toolchain, patches or full webR
+runtime. The Corresponding Source and complete distribution licensing gates
+above continue to apply; no public binary release is announced.

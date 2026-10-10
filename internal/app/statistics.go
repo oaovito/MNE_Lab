@@ -205,6 +205,14 @@ func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
 	}
 	sort.Strings(d.LevelsA)
 	sort.Strings(d.LevelsB)
+	if def.PostHoc == "dunnett" {
+		if a[def.Control] == 0 {
+			return d, analysis.ErrControl
+		}
+		if len(a) > 9 {
+			return d, analysis.ErrFamily
+		}
+	}
 	d.ExperimentalUnits = len(units)
 	if len(cells) > 1000 {
 		return d, analysis.ErrDefinition
@@ -318,7 +326,7 @@ func (p *Profile) PrepareAnalysis(def analysis.Definition) (analysis.Snapshot, e
 }
 
 func validateAnalysisResults(snapshot analysis.Snapshot, result analysis.Results) error {
-	if result.Engine != analysis.EngineVersion || result.Calculation != analysis.CalculationVersion || result.Method != snapshot.Definition.Method || len(result.Terms) < 2 || len(result.Terms) > 40 || len(result.Groups) > 1000 || len(result.Comparisons) > 10000 || len(result.Residuals) != snapshot.Design.N || len(result.QQObserved) != len(result.Residuals) || len(result.QQTheoretical) != len(result.Residuals) {
+	if result.Engine != analysis.ExpectedEngine(snapshot.Definition) || result.Calculation != analysis.CalculationVersion || result.Method != snapshot.Definition.Method || len(result.Terms) < 2 || len(result.Terms) > 40 || len(result.Groups) > 1000 || len(result.Comparisons) > 10000 || len(result.Residuals) != snapshot.Design.N || len(result.QQObserved) != len(result.Residuals) || len(result.QQTheoretical) != len(result.Residuals) {
 		return analysis.ErrDefinition
 	}
 	// Group values must be the reviewed source quantities, in source order.
@@ -368,6 +376,31 @@ func validateAnalysisResults(snapshot analysis.Snapshot, result analysis.Results
 			return analysis.ErrDefinition
 		}
 		comparisonIDs[comparison.ID] = true
+	}
+	if snapshot.Definition.PostHoc == "dunnett" {
+		if len(result.Comparisons) != len(snapshot.Design.LevelsA)-1 {
+			return analysis.ErrDefinition
+		}
+		treatments := map[string]bool{}
+		for _, c := range result.Comparisons {
+			if c.LeftA != snapshot.Definition.Control || c.LeftB != "" || c.RightB != "" || treatments[c.RightA] || c.Lower == nil || c.Upper == nil || *c.Lower > c.Difference || *c.Upper < c.Difference || c.Correction != "Dunnett two-sided single-step (multivariate t)" {
+				return analysis.ErrDefinition
+			}
+			treatments[c.RightA] = true
+		}
+		precision := map[string]bool{}
+		for _, diagnostic := range result.Diagnostics {
+			limit := 1e-5
+			if diagnostic.Code == "dunnett_quantile" {
+				limit = 3e-5
+			}
+			if diagnostic.Statistic != nil && *diagnostic.Statistic >= 0 && *diagnostic.Statistic <= limit {
+				precision[diagnostic.Code] = true
+			}
+		}
+		if !precision["dunnett_integration"] || !precision["dunnett_quantile"] || !precision["dunnett_confidence_integration"] {
+			return analysis.ErrDefinition
+		}
 	}
 	if _, err := json.Marshal(result); err != nil {
 		return analysis.ErrNumeric

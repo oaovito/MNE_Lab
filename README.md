@@ -6,11 +6,9 @@ pendrive e foi feito para computadores modestos.
 
 ## Por que o MNE Lab
 
-- **Leve de verdade.** Um único executável nativo de cerca de 17 MB, sem motor
-  de navegador embutido: a janela usa o navegador Chromium que já está no
-  computador (Microsoft Edge no Windows). A interface do computador tem
-  cerca de 450 KB de script (cerca de 135 KB compactado), e o modo Turbo
-  corta efeitos para máquinas mais antigas.
+- **Execução local.** Um executável nativo inclui o runtime estatístico offline.
+  A janela usa o navegador Chromium instalado no computador (Microsoft Edge
+  no Windows). O modo Turbo corta efeitos para máquinas mais antigas.
 - **Privado por arquitetura.** Não existe servidor central nem telemetria. As
   contas e os dados ficam no pendrive e na nuvem da própria pessoa. Cada perfil
   é cifrado com a sua própria chave, e a frase secreta nunca sai do computador.

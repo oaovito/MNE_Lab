@@ -68,6 +68,14 @@ func StatisticalGroups(def Definition, saved analysis.StatisticalAnalysis) (Resu
 	if saved.SourceChanged {
 		r.Warnings = append(r.Warnings, "statistics.source_changed_saved_graph")
 	}
+	if s.Definition.Control != "" {
+		r.Provenance.Transformations = append(r.Provenance.Transformations, "explicit control "+s.Definition.Control)
+		for _, diagnostic := range saved.Results.Diagnostics {
+			if strings.HasPrefix(diagnostic.Code, "dunnett_") && diagnostic.Statistic != nil {
+				r.Provenance.Transformations = append(r.Provenance.Transformations, diagnostic.Code+" "+number(*diagnostic.Statistic)+"; "+diagnostic.Details)
+			}
+		}
+	}
 	for i, g := range saved.Results.Groups {
 		x := float64(i + 1)
 		label := strings.TrimSpace(g.FactorA + " · " + g.FactorB)
