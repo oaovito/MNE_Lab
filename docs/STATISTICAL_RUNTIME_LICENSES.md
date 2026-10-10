@@ -66,3 +66,24 @@ the embedded runtime with their notice/manifest. CRLF is normalized only at
 evaluation. The wrapper bounds upstream CDF work and marks unavailable
 intervals explicitly. Existing full GPL-2 text accompanies these sources;
 general applicable Corresponding Source/distribution gates remain above.
+
+## Source acquisition checkpoint
+
+The acquired upstream webR 0.6.0 checkout is pinned to
+`f116a5e60e220182d09ac015837c88c454c663c5`, matching the official npm
+package's `gitHead`; its npm integrity matches this project's lockfile.
+Its recorded flang build-script submodule is
+`25541509519240557c6c7bc695f3c9615366c219`. The complete tracked source,
+patches and build scripts for those two commits were archived with per-member
+hash verification. This preparation does not change runtime assets.
+
+The recipes identify R 4.6.0 and Emscripten 5.0.7. The top-level Docker base
+uses `flang-wasm:main`, and flang's LLVM source clone uses a mutable `wasm`
+branch. Those references do not identify the exact release-time compiler/image.
+The R release-source/checksum endpoints returned HTTP CONNECT 403 in the current
+environment; required CRAN domain additions were saved for environment review.
+Remaining gates include complete release/component source archives and verified
+checksums, exact compiler/image inputs, patches, build/install machinery,
+reconstruction or a fully documented compliant source distribution, and the
+project's distribution licensing decision. A pinned subset of source or a
+successful runtime test does not satisfy the complete Corresponding Source gate.

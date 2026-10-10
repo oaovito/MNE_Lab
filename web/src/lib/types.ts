@@ -190,7 +190,7 @@ export type ImportResult = {
 };
 
 export type SheetSelection = { name: string; range?: string };
-export type ColumnMapping = { schema: number; module: 'lightscattering'; delimiter: 'comma' | 'semicolon' | 'tab'; decimal: 'dot' | 'comma'; headerRecord: number; firstRecord: number; lastRecord: number; sampleColumn?: number; columns: { column: number; key: string; unit: string }[] };
+export type ColumnMapping = { schema: number; module: 'lightscattering'; sheet?: string; headerRow?: number; firstRow?: number; lastRow?: number; delimiter: '' | 'comma' | 'semicolon' | 'tab'; decimal: 'dot' | 'comma'; headerRecord: number; firstRecord: number; lastRecord: number; sampleColumn?: number; columns: { column: number; key: string; unit: string }[] };
 export type ImportSelection = { sheets: SheetSelection[]; mapping?: ColumnMapping };
 export type ImportProfile = { id: string; schema: number; name: string; format: string; selection?: ImportSelection; parser: string; spec: string; createdAt: string };
 export type ImportInspection = {

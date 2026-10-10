@@ -127,6 +127,10 @@ func InspectFileSelection(name string, data []byte, selection *model.ImportSelec
 		return spreadsheetFailure(err), "", nil
 	}
 	if normalized != nil && normalized.Mapping != nil {
+		if normalized.Mapping.Schema == 2 {
+			r, format, preview := parseMappedWorkbook(name, data, normalized.Mapping, true)
+			return r, format, preview
+		}
 		return parseMappedDelimited(name, data, normalized.Mapping, true)
 	}
 	ext := strings.ToLower(filepath.Ext(name))

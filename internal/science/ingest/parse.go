@@ -33,7 +33,7 @@ func Identity(name string, data []byte) (string, string) {
 // IdentitySelection binds manual recipes to their own reader and provisional contract.
 func IdentitySelection(name string, data []byte, selection *model.ImportSelection) (string, string) {
 	if selection != nil && selection.Mapping != nil && !dts.IsCompound(data) && !strings.EqualFold(filepath.Ext(name), ".dts") {
-		return lightscattering.MappingVersion, lightscattering.MappingSpec
+		return lightscattering.MappingIdentity(selection.Mapping)
 	}
 	return Identity(name, data)
 }
@@ -104,7 +104,11 @@ func Parse(name string, data []byte, selection *model.ImportSelection) (Result, 
 func mappedResult(r lightscattering.Result, selection *model.ImportSelection) Result {
 	out := Result{Result: r, Module: module.LightScattering}
 	if selection != nil && selection.Mapping != nil && r.Status != "failed" {
-		out.SourceInfo = &model.SourceInfo{Vendor: "USER_DECLARED", Container: "Delimited text", Support: "PARTIAL", ScientificValidation: "UNVALIDATED"}
+		container := "Delimited text"
+		if selection.Mapping.Schema == 2 {
+			container = "OOXML workbook"
+		}
+		out.SourceInfo = &model.SourceInfo{Vendor: "USER_DECLARED", Container: container, Support: "PARTIAL", ScientificValidation: "UNVALIDATED"}
 	}
 	return out
 }

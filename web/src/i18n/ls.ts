@@ -1,6 +1,12 @@
 // LIGHTSCATTERING: files, graphs, cycles and presentation.
 // Each entry: [English, Português (Brasil), Español].
 export const ls: Record<string, readonly [string, string, string]> = {
+  "imp.mapping_workbook_rows": ["Choose one sheet and physical worksheet rows. Numeric OOXML cells use a dot decimal; the chosen decimal applies to text cells. Display formatting, units and dates are not interpreted.", "Escolha uma aba e as linhas físicas da planilha. Células numéricas OOXML usam ponto decimal; o decimal escolhido vale para células de texto. Formatação, unidades e datas não são interpretadas.", "Elija una hoja y las filas físicas. Las celdas numéricas OOXML usan punto decimal; el decimal elegido se aplica a celdas de texto. No se interpretan formato, unidades ni fechas."],
+  "imp.mapping_sheet": ["Worksheet for mapping", "Aba para mapeamento", "Hoja para asignación"],
+  "imp.mapping_header_row": ["Header row", "Linha do cabeçalho", "Fila del encabezado"],
+  "imp.mapping_first_row": ["First data row", "Primeira linha de dados", "Primera fila de datos"],
+  "imp.mapping_last_row": ["Last data row", "Última linha de dados", "Última fila de datos"],
+
   "imp.mapping_record": ["Record", "Registro", "Registro"],
   "imp.mapping_title": ["Map DLS columns manually", "Mapear colunas DLS manualmente", "Asignar columnas DLS manualmente"],
   "imp.mapping_enable": ["Configure DLS mapping", "Configurar mapeamento DLS", "Configurar asignación DLS"],

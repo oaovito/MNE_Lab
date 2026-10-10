@@ -50,6 +50,7 @@ for lang in en pt-BR es; do
   run tests/e2e/phone.mjs "$work/portable" "$out" "$lang"
 done
 run tests/e2e/mapping.mjs "$work/portable" "$out"
+run tests/e2e/workbook-mapping.mjs "$work/portable" "$out"
 run tests/e2e/profiles.mjs "$work/portable" "$out"
 run tests/e2e/selection.mjs "$work/portable" "$out"
 run tests/e2e/inspection.mjs "$work/portable" "$out"
