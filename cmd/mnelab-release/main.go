@@ -65,16 +65,37 @@ func keygen(args []string) error {
 	if *out == "" {
 		return errors.New("-out is required")
 	}
-	if _, err := os.Stat(*out); err == nil {
-		return errors.New("refusing to overwrite an existing key")
-	}
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(*out, []byte(base64.StdEncoding.EncodeToString(priv.Seed())+"\n"), 0o600); err != nil {
+	// Exclusive creation checks the path atomically, including dangling
+	// symlinks. Stat followed by WriteFile could overwrite a concurrent key
+	// or follow an existing link into an unintended destination.
+	file, err := os.OpenFile(*out, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("refusing to overwrite an existing key: %w", err)
+		}
 		return err
 	}
+	complete := false
+	defer func() {
+		if !complete {
+			file.Close()
+			os.Remove(*out)
+		}
+	}()
+	if _, err := file.WriteString(base64.StdEncoding.EncodeToString(priv.Seed()) + "\n"); err != nil {
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	complete = true
 	fmt.Println(base64.StdEncoding.EncodeToString(pub))
 	return nil
 }
