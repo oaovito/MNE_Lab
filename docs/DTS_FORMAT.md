@@ -50,7 +50,9 @@ report containing source checksum, parser/spec, raw structural metadata,
 coverage and warnings. It does not present an empty table as scientific data.
 CSV/TSV/TXT/XLSX scientific exports are blocked when no supported quantities
 exist. Metadata-only files produce no graph, cycle or ANOVA observations.
-Global Sign Export/Verify remains a separate unimplemented feature.
+Global detached CMS signing/verification is a separate PARTIAL feature; see
+[CMS_SIGNATURES.md](CMS_SIGNATURES.md). It does not validate the scientific
+contents of DTS records or implement Smart Export/PDF signing.
 
 | Capability | Implementation | Scientific validation |
 |---|---|---|

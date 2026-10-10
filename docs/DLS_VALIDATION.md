@@ -38,6 +38,18 @@ error handling; they contain invented data.
 
 ## Remaining scientific evidence
 
+External format discovery is recorded in
+[LIGHTSCATTERING_WEB_RESEARCH.md](LIGHTSCATTERING_WEB_RESEARCH.md),
+[LIGHTSCATTERING_FORMAT_MATRIX.md](LIGHTSCATTERING_FORMAT_MATRIX.md) and
+[LIGHTSCATTERING_SOURCE_REGISTRY.md](LIGHTSCATTERING_SOURCE_REGISTRY.md).
+Five official Brookhaven documents were consulted, including Particle Solutions
+2.3 and 4.0 guides. They document Excel/CSV, version-specific distribution XLS,
+PDF and proprietary archives; the family manual identifies `.bak` and warns
+that its Omni features may not apply to other configurations. They do not
+establish the exact G(d)/C(d) serialization or algorithm identity in the private
+Lognormal/Multimodal reports. Format capability, actual file content, software
+version and scientific validation remain separate.
+
 | Capability | Available evidence | Required before a broader validation claim |
 |---|---|---|
 | Summary quantities | Product field list, privately consulted owner references and literal exports | Instrument/version-specific definitions of Effective Diameter, reported Polydispersity, Baseline Index and current/average count rates; units and relevant acquisition/settings conventions; paired trustworthy reported results. |
