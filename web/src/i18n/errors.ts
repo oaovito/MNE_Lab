@@ -59,6 +59,8 @@ export const errors: Record<string, readonly [string, string, string]> = {
   'err.export.image_too_large': ['The image would be too large. Lower the size or the DPI.', 'A imagem ficaria grande demais. Diminua o tamanho ou o DPI.', 'La imagen sería demasiado grande. Reduzca el tamaño o el DPI.'],
   'err.export.invalid_dpi': ['Use a resolution from 72 to 1200 DPI.', 'Use uma resolução de 72 a 1200 DPI.', 'Use una resolución de 72 a 1200 DPI.'],
   'err.export.invalid_name': ['This name cannot be used for a file.', 'Este nome não pode ser usado em um arquivo.', 'Este nombre no se puede usar para un archivo.'],
+  'err.export.package_invalid': ['The research package is invalid or its checksums do not match.', 'O pacote de pesquisa é inválido ou seus hashes não correspondem.', 'El paquete de investigación no es válido o sus hashes no coinciden.'],
+  'err.export.package_limit': ['The research package exceeds the supported verification limits.', 'O pacote de pesquisa excede os limites de verificação suportados.', 'El paquete de investigación supera los límites de verificación admitidos.'],
   'err.export.invalid_size': ['Check the width and height of the figure.', 'Confira a largura e a altura da figura.', 'Revise el ancho y el alto de la figura.'],
   'err.export.jpeg_encoding': ['The JPEG image could not be created.', 'A imagem JPEG não pôde ser criada.', 'No se pudo crear la imagen JPEG.'],
   'err.export.nothing_selected': ['Choose at least one format.', 'Escolha pelo menos um formato.', 'Elija al menos un formato.'],

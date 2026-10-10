@@ -467,6 +467,7 @@ file or drawing a graph does not establish scientific validity.
 | Literal ODS 1.3 review | PARTIAL: native bounded plain-cell preview; display and declared values separate | Independently generated schema-checked invented fixture; repetitions, positions, unsafe/malformed sources, scoped read-only HTTP and localized browser review | Not a scientific calculation; no quantities or import receipt | Scientific mapping/import, other ODF versions, merged/richer cells and real instrument oracles remain unsupported |
 | Shared storage / File Library / Graph / Cycle / Statistics / Export | Yes for existing supported data | Isolation, receipts, snapshots, native rendering and exports | Per scientific adapter; never inherited by a new module | New adapters must supply documented quantity and provenance contracts |
 | Export file collisions | Yes: atomic exclusive publication; explicit replacement only | Concurrent keep-both/ask, payload preservation, existing files and symlinks; local Linux and hosted Windows/macOS checks tracked separately | Not applicable | Clean-system/FAT32/exFAT USB runtime tests still required |
+| Research package checksum verification | Partial backend; package /2 covers README; /1 reports uncovered README | Independent invented ZIP/JSON fixtures, altered payload/index/CRC, unsafe paths and bounds; current checkpoint records completed checks | Not applicable; Authenticated=false, no signature or scientific validation | Global UI, canonical signed-manifest integration and standard CMS/PDF/certificate support remain pending |
 | Sign Export / Verify Signature | No | No | Not applicable | Implement global signing/verification, canonical manifest, certificate/key handling and integrity tests |
 
 The existing Zeta spreadsheet and DTS sample are private development corpora.
@@ -603,3 +604,5 @@ rename; actual FAT32/exFAT and clean USB behavior remain separate release gates.
 Native Windows export/key tests are a dedicated hosted CI job, distinct from
 cross-compilation. This is file publication safety, not Sign Export, certificate
 handling or scientific validation.
+
+Research package integrity contract and legacy coverage: [PACKAGE_INTEGRITY.md](PACKAGE_INTEGRITY.md). Checksums are not digital signatures.

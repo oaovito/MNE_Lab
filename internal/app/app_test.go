@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/atomicfile"
+	"github.com/oaovito/mne_lab/internal/export"
 	"github.com/oaovito/mne_lab/internal/paths"
 	"github.com/oaovito/mne_lab/internal/secure"
 )
@@ -216,6 +217,20 @@ func TestEndToEnd(t *testing.T) {
 	c.json("POST", "/api/export", req, &ex)
 	if len(ex.Saved) != 1 || !strings.HasSuffix(ex.Saved[0].Path, ".zip") {
 		t.Fatalf("export %+v", ex)
+	}
+	archiveFile, err := os.Open(ex.Saved[0].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := archiveFile.Stat()
+	if err != nil {
+		archiveFile.Close()
+		t.Fatal(err)
+	}
+	integrity, err := export.VerifyPackage(archiveFile, info.Size())
+	archiveFile.Close()
+	if err != nil || integrity.Manifest.Format != export.PackageFormat || !integrity.WholePayloadCovered || integrity.Authenticated {
+		t.Fatal("HTTP export package coverage/authentication", integrity, err)
 	}
 	// Exporting again does not overwrite silently.
 	c.json("POST", "/api/export", req, &ex)
