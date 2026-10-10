@@ -10,7 +10,11 @@ import {
   translationKeys,
 } from "./lib.mjs";
 const [dir, outRoot] = process.argv.slice(2);
-const out = path.join(outRoot, "statistics");
+const dunnett = process.env.MNELAB_E2E_POSTHOC === "dunnett";
+const observations = dunnett ? 9 : 6;
+const expectedF = dunnett ? 27 : 13.5;
+const expectedP = dunnett ? .001 : 0.021311641128756727;
+const out = path.join(outRoot, dunnett ? "statistics-dunnett" : "statistics");
 fs.mkdirSync(out, { recursive: true });
 const report = new Report("statistical-analysis");
 const browser = await launchBrowser();
@@ -44,7 +48,7 @@ try {
       .get(new URL("/api/statistics", page.url()).href, { headers: scope })
       .then((r) => r.json())
   ).length;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < observations; i++) {
     const bytes = Buffer.from(
       `Sample ID: Oracle observation ${i + 1}\nEffective Diameter (nm): ${i + 1}.000\n`,
     );
@@ -97,22 +101,25 @@ try {
   await page
     .getByRole("button", { name: "Choose measurements", exact: true })
     .click();
-  for (let i = 1; i <= 6; i++)
+  for (let i = 1; i <= observations; i++)
     await page
       .getByRole("checkbox", { name: `Oracle observation ${i}`, exact: true })
       .check();
   await page.getByRole("button", { name: "Apply", exact: true }).click();
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 1; i <= observations; i++) {
     await page
       .getByRole("textbox", {
         name: `Factor A Oracle observation ${i}`,
         exact: true,
       })
-      .fill(i <= 3 ? "A" : "B");
+      .fill(i <= 3 ? "A" : i <= 6 ? "B" : "C");
   }
   await page
     .getByRole("combobox", { name: "Multiple comparisons", exact: true })
-    .selectOption("tukey");
+    .selectOption(dunnett ? "dunnett" : "tukey");
+  if (dunnett) {
+    await page.getByRole("combobox",{name:"Control group",exact:true}).selectOption("A");
+  }
   await page
     .getByRole("button", { name: "Review design and sources", exact: true })
     .click();
@@ -148,8 +155,7 @@ try {
     .waitFor({ timeout: 120000 });
   report.check(
     "local WASM calculation returns expected F and p",
-    (await page.locator("body").innerText()).includes("13.500000") ||
-      (await page.locator("body").innerText()).includes("13.5"),
+    (await page.locator("body").innerText()).includes(String(expectedF)),
   );
   await page
     .getByRole("heading", { name: "ANOVA table", exact: true })
@@ -166,11 +172,15 @@ try {
       .get(new URL("/api/statistics", page.url()).href, { headers: scope })
       .then((r) => r.json())
   )[0];
+  if(dunnett) report.check("Dunnett persists explicit control, pinned libraries and integration precision",
+    saved.snapshot.definition.control==='A' && saved.results.engine.endsWith('; Dunnett/1') &&
+    saved.results.comparisons.length===2 && saved.results.comparisons[0].leftA==='A' && saved.results.comparisons[0].rightA==='B' &&
+    saved.results.diagnostics.some(d=>d.code==='dunnett_integration'&&d.statistic<=1e-5));
   report.check(
     "saved result preserves quantities and full-precision calculation",
-    saved.snapshot.design.n === 6 &&
-      Math.abs(saved.results.terms[0].f - 13.5) < 1e-10 &&
-      Math.abs(saved.results.terms[0].p - 0.021311641128756727) < 1e-10 &&
+    saved.snapshot.design.n === observations &&
+      Math.abs(saved.results.terms[0].f - expectedF) < 1e-10 &&
+      Math.abs(saved.results.terms[0].p - expectedP) < 1e-10 &&
       saved.snapshot.observations[0].quantity.raw === "1.000" &&
       saved.snapshot.definition.module === "lightscattering",
     JSON.stringify({

@@ -27,12 +27,21 @@ being accepted by this shared engine.
 - Tukey HSD: independent classical one-factor models. Two-factor models
   expose conditional simple effects within each level of each factor;
   Bonferroni adjustment covers both sets of Tukey comparison families.
+- Dunnett: two-sided single-step multivariate-t comparisons and simultaneous
+  confidence intervals for independent classical One-Way ANOVA. The user
+  selects a control with included values. Up to eight treatments are supported
+  as a computational bound. Every treatment/control identity is explicit;
+  alpha must be below 0.5, the mature two-sided quantile library's scope.
+  punctuation in labels never determines a contrast. No Welch, repeated,
+  mixed, one-sided or factorial Dunnett procedure is implied.
 - Group means, sample SD, SEM and Student-t confidence intervals retain
   individual values. These intervals are group mean intervals, not effect
   size confidence intervals or simultaneous post-hoc intervals.
 
-Mixed effects and Dunnett are **not implemented**. Their mature additional
-WebAssembly libraries are not yet bundled or independently validated for these methods.
+Mixed effects are **not implemented**. Compatible pinned libraries and
+corresponding package sources have been acquired. Private balanced/incomplete
+ML random-intercept comparisons are preparation; marginal F/denominator-df
+validation and product integration remain pending.
 Incomplete/unbalanced repeated designs are blocked, not silently fitted
 with a simpler model. Welch/RM post-hoc procedures and effect-size confidence
 intervals remain pending. No unadjusted pairwise t-test substitutes for them.
@@ -75,6 +84,13 @@ Package downloads are disabled in the product. Local calculation uses a
 fresh PostMessage worker and an ephemeral R filesystem; no IndexedDB store.
 The unused upstream public TLS certificate bundle is omitted from the build.
 Completion, cancellation, timeout or leaving the profile closes the worker.
+
+The build-only `scripts/statistics_packages.go` verifies every compressed
+package's exact length and SHA-256 against `statistics-packages.json`, rejects
+unsafe archive paths/entries, and generates a deterministic compressed
+WORKERFS image. Its eleven packages are embedded locally; Dunnett workers
+mount a fresh read-only image. Cache/download/Go tooling belong to the build,
+never the product. Current base-R analyses do not load the additional image.
 
 R's Emscripten linker needs generated JS function wrappers. Only the
 `/statistics-engine/webr-worker.js` response allows `unsafe-eval`; worker
@@ -140,6 +156,38 @@ Bonferroni adjustment. Families with more than two levels use `TukeyHSD`.
 A non-estimable conditional family is reported explicitly, with no fabricated
 comparison; the full main model and other estimable families remain visible.
 See https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Tukey.html .
+
+`scripts/statistics_advanced_oracle.py` independently checks Dunnett with
+SciPy's studentized multivariate-t distribution. The pinned development
+`DunnettResult` model and `multivariate_t.cdf` plus Brent's root solver refine
+simultaneous confidence limits without adopting its noisy default CI optimizer.
+Balanced, unbalanced and single-treatment synthetic fixtures use a control
+that is not the first sorted label, with punctuation in labels. Probabilities
+are compared with absolute tolerance `3e-5`; CI endpoints use `1e-4` times
+`max(1, abs(reference))`; differences retain `1e-8`. The independent reference
+uses one million integration points and seed 1701. These are documented
+numeric tolerances, not a claim of exact distribution integration.
+
+The actual R engine uses multcomp 1.4-30 / mvtnorm 1.2-4, seed 1701,
+Genz–Bretz integration, `maxpts=100000`, `abseps=1e-5`, `releps=0`.
+`qmvt` also uses the upstream `ptol=1e-3`, `maxiter=100` and explicit seed 1701.
+An excessive reported p integration error, failed quantile completion or CI
+warning stops calculation. The pinned mvtnorm does not return `estim.prec`;
+this absence is never treated as zero error. A direct mature `pmvt` evaluation
+checks achieved simultaneous-CI coverage against `1-alpha` within `3e-5`,
+with reported integration error at most `1e-5`. Its achieved coverage difference
+and reported integration error are separate persisted diagnostics. Failed
+checks stop calculation; no partially converged result is saved.
+The reported integration error, settings, simultaneous-family correction,
+control and library versions persist in diagnostics/source/results/exports.
+Tests also reproduce every output after unrelated RNG activity. Validation
+applies to this documented method and tolerances; broader stress fixtures
+and other Dunnett designs do not inherit it.
+
+References:
+- https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.dunnett.html
+- https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.multivariate_t.html
+- https://cran.r-project.org/web/packages/multcomp/multcomp.pdf
 
 Runtime licensing and corresponding-source requirements are documented in
 [STATISTICAL_RUNTIME_LICENSES.md](STATISTICAL_RUNTIME_LICENSES.md).

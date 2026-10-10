@@ -18,6 +18,13 @@ const Schema = 1
 const CalculationVersion = "mnelab-statistics/1"
 const EngineVersion = "webR/0.6.0; R/4.6.0"
 
+func ExpectedEngine(d Definition) string {
+	if d.PostHoc == "dunnett" {
+		return EngineVersion + "; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1"
+	}
+	return EngineVersion
+}
+
 var (
 	ErrDefinition = errors.New("statistics.invalid_definition")
 	ErrStructure  = errors.New("statistics.review_structure")
@@ -26,6 +33,8 @@ var (
 	ErrSource     = errors.New("statistics.source_changed")
 	ErrMethod     = errors.New("statistics.method_unavailable")
 	ErrDesign     = errors.New("statistics.incompatible_design")
+	ErrControl    = errors.New("statistics.control_required")
+	ErrFamily     = errors.New("statistics.dunnett_family_limit")
 )
 
 // ExperimentalUnit has an identity independent of the visible sample name.
@@ -206,13 +215,23 @@ func (d Definition) Validate() error {
 	default:
 		return ErrMethod
 	}
-	if d.PostHoc != "none" && d.PostHoc != "tukey" {
+	if d.PostHoc != "none" && d.PostHoc != "tukey" && d.PostHoc != "dunnett" {
 		return ErrMethod
 	}
 	if d.PostHoc == "tukey" && (d.Method == "welch" || d.Method == "repeated") {
 		return ErrDesign
 	}
-	if d.Control != "" {
+	if d.PostHoc == "dunnett" {
+		if d.Alpha >= 0.5 {
+			return ErrDefinition
+		}
+		if d.Method != "one_way" {
+			return ErrDesign
+		}
+		if strings.TrimSpace(d.Control) == "" || !ValidText(d.Control, 120) {
+			return ErrControl
+		}
+	} else if d.Control != "" {
 		return ErrMethod
 	}
 	if d.SphericityCorrection != "" && d.SphericityCorrection != "GG" && d.SphericityCorrection != "HF" {

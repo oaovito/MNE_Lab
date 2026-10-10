@@ -396,6 +396,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                         ? "two_way"
                         : "one_way",
                   postHoc: "none",
+                  control: "",
                 });
               }}
             >
@@ -422,7 +423,7 @@ function AnalysisEditor(p: { cycleId: string }) {
               class="input"
               value={def.method}
               onChange={(e) =>
-                change({ method: e.currentTarget.value, postHoc: "none" })
+                change({ method: e.currentTarget.value, postHoc: "none", control: "" })
               }
             >
               {(def.structure === "repeated"
@@ -439,7 +440,7 @@ function AnalysisEditor(p: { cycleId: string }) {
               class="input"
               type="number"
               min="0.001"
-              max="0.999"
+              max={def.postHoc === "dunnett" ? "0.499" : "0.999"}
               step="0.001"
               value={def.alpha}
               onInput={(e) => change({ alpha: Number(e.currentTarget.value) })}
@@ -450,14 +451,25 @@ function AnalysisEditor(p: { cycleId: string }) {
             <select
               class="input"
               value={def.postHoc}
-              onChange={(e) => change({ postHoc: e.currentTarget.value })}
+              onChange={(e) => change({ postHoc: e.currentTarget.value, control: "" })}
             >
               <option value="none">{t("stat.none")}</option>
               {["one_way", "two_way"].includes(def.method) && (
                 <option value="tukey">Tukey HSD</option>
               )}
+              {def.method === "one_way" && <option value="dunnett">Dunnett</option>}
             </select>
           </label>
+          {def.postHoc === "dunnett" && (
+            <label class="col gap1">
+              {t("stat.control")}
+              <select class="input" aria-label={t("stat.control")} value={def.control || ""} onChange={(e) => change({control:e.currentTarget.value})}>
+                <option value="">{t("stat.choose")}</option>
+                {[...new Set(def.observations.filter(o => !o.excludeReason).map(o => o.factorA))].filter(x => x.trim()).sort().map(x => <option value={x}>{x}</option>)}
+              </select>
+              <small>{t("stat.dunnett_scope")}</small>
+            </label>
+          )}
           {def.method === "repeated" && (
             <label class="col gap1">
               {t("stat.correction")}

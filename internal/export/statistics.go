@@ -29,6 +29,9 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 	d := DataSet{Title: a.Snapshot.Definition.Title, Engine: a.Results.Engine, Created: a.Created,
 		Notes: append(append([]string{}, a.Results.Warnings...), a.Snapshot.Design.Warnings...),
 		Meta:  []KV{{Key: "analysis", Label: "Analysis ID", Value: a.ID}, {Key: "module", Label: "Scientific module", Value: a.Snapshot.Definition.Module}, {Key: "sourceHash", Label: "Source snapshot SHA-256", Value: a.Snapshot.SourceHash}, {Key: "method", Label: "Method", Value: a.Results.Method}, {Key: "calculation", Label: "Calculation version", Value: a.Results.Calculation}, {Key: "resultOrigin", Label: "Result origin", Value: a.ResultOrigin}}}
+	if a.Snapshot.Definition.Control != "" {
+		d.Meta = append(d.Meta, KV{Key: "control", Label: "Control group", Value: a.Snapshot.Definition.Control})
+	}
 	an := statisticalTable("anova", "ANOVA", "source", "SS", "df", "MS", "F", "p", "eta_squared", "partial_eta_squared", "omega_squared")
 	effects := statisticalTable("effects", "Effect sizes", "source", "eta_squared", "partial_eta_squared", "omega_squared")
 	for _, r := range a.Results.Terms {

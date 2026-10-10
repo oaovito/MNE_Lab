@@ -437,7 +437,7 @@ statistical tables, diagnostics, snapshots and graph annotations.
 
 See [STATISTICAL_ANALYSIS.md](STATISTICAL_ANALYSIS.md) for numerical oracles,
 source/experimental-unit review, supported designs and limits. Mixed effects,
-Dunnett, effect-size confidence intervals, global export signatures and clean
+effect-size confidence intervals, global export signatures and clean
 Windows installation validation remain pending. Runtime acquisition is local
 to the build; users need no R/Python/Excel. ZETA/NTA variables are rejected
 until their own scientific definitions and exports are validated.
@@ -452,7 +452,8 @@ file or drawing a graph does not establish scientific validity.
 |---|---|---|---|---|
 | Statistical Analysis: One-Way / Welch / complete Two-Way / balanced complete repeated | Yes | Backend, independent R vs SciPy/statsmodels/Pingouin, offline browser | Yes, within these documented designs and tolerances | No claim for unsupported methods/designs |
 | Tukey / conditional simple effects / Mauchly / GG / HF | Yes | Independent numeric fixtures, explicit pair identities | Yes, within documented scope | Broader instrument/design fixtures remain useful; R quantile precision is documented |
-| Mixed effects / Dunnett / effect-size confidence intervals | No | No | No | Acquire compatible mature WASM libraries and sources; implement and compare reliable independent references |
+| Dunnett: two-sided single-step, classical independent One-Way, explicit control | Yes | Independent refined SciPy multivariate-t p/CI fixtures; seeded repeatability; scoped persistence and offline worker | Yes, documented designs and numerical tolerances only | Other designs, one-sided tests and more than eight treatments remain unsupported |
+| Mixed effects / effect-size confidence intervals | No | Private ML random-intercept preparation only | No | Libraries and corresponding package sources acquired; validate marginal F/denominator df, converge/singular cases, then integrate product; effect-size CIs separately pending |
 | LIGHTSCATTERING / NanoBrook DLS | Yes, continuing | Synthetic and private export corpus | PARTIAL; parser rules remain provisional | Finish instrument field/method documentation cross-check and quantitative reference comparisons |
 | ZETA | Implementation allowed; scientific parser pending | Private workbook structure reviewed | PENDING / UNVALIDATED | Official potential/mobility/quality documentation; raw instrument exports with matching reference results; units, timestamps, settings and methodology provenance; independent parser/numerical comparisons |
 | NTA | Architecture/preparation allowed | No real NTA result fixture | PENDING / UNVALIDATED | Official NanoSight export/software schema and settings documentation; real tracking/summary/distribution exports with corresponding trusted results; independent field/unit/numerical comparisons |

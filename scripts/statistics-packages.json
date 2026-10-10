@@ -1,0 +1,205 @@
+{
+  "schema": 1,
+  "runtime": "webR/0.6.0; R/4.6.0",
+  "packages": [
+    {
+      "package": "MASS",
+      "version": "7.3-65",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/MASS_7.3-65.tgz",
+      "file": "MASS_7.3-65.tgz",
+      "size": 874568,
+      "sha256": "9cb66dfbaf017f74e4408117128c04a859697ad8ff49cffad0537b2b15f0d846",
+      "license": "GPL-2 | GPL-3",
+      "source": {
+        "package": "MASS",
+        "version": "7.3-65",
+        "url": "https://repo.r-wasm.org/src/contrib/MASS_7.3-65.tar.gz",
+        "file": "MASS_7.3-65.tar.gz",
+        "size": 503957,
+        "sha256": "af8de7a73f291c4dac6747b257ca63c0213770aaa06c3d500ec2c031bc7db0c1",
+        "index_md5_verified": true
+      }
+    },
+    {
+      "package": "Matrix",
+      "version": "1.7-5",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/Matrix_1.7-5.tgz",
+      "file": "Matrix_1.7-5.tgz",
+      "size": 2937115,
+      "sha256": "52f76ce63e3421b0a0381d8983e7f18bebf492ddf5dde71f57a50ee4d27782d8",
+      "license": "GPL (>= 2) | file LICENCE",
+      "source": {
+        "package": "Matrix",
+        "version": "1.7-5",
+        "url": "https://repo.r-wasm.org/src/contrib/Matrix_1.7-5.tar.gz",
+        "file": "Matrix_1.7-5.tar.gz",
+        "size": 2509505,
+        "sha256": "30f8eb6664f5dfd5c9f0eb7ecf7ca3189ed0d207a813f5a9d417068589ae16a0",
+        "index_md5_verified": true
+      }
+    },
+    {
+      "package": "TH.data",
+      "version": "1.1-5",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/TH.data_1.1-5.tgz",
+      "file": "TH.data_1.1-5.tgz",
+      "size": 8762399,
+      "sha256": "3082228c250617c6e019656aa88f3b87d46dfb7084b3763d131813388e3fccf9",
+      "license": "GPL-3",
+      "source": {
+        "package": "TH.data",
+        "version": "1.1-5",
+        "url": "https://repo.r-wasm.org/src/contrib/TH.data_1.1-5.tar.gz",
+        "file": "TH.data_1.1-5.tar.gz",
+        "size": 8581183,
+        "sha256": "76634cee1be2ff1f2868b2a2790859db38051f1d3e6ecd37cfcce2d5bbaa4b2d",
+        "index_md5_verified": true
+      }
+    },
+    {
+      "package": "codetools",
+      "version": "0.2-20",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/codetools_0.2-20.tgz",
+      "file": "codetools_0.2-20.tgz",
+      "size": 48849,
+      "sha256": "36b3c58993dffe36937ff8470b2d185f9f6588412605ca0709fc95d970ce5014",
+      "license": "GPL",
+      "source": {
+        "package": "codetools",
+        "version": "0.2-20",
+        "url": "https://repo.r-wasm.org/src/contrib/codetools_0.2-20.tar.gz",
+        "file": "codetools_0.2-20.tar.gz",
+        "size": 38327,
+        "sha256": "a87bcc59979b23404802e629bdf6b503a4a2e53c07bfbd19163d630612219062",
+        "index_md5_verified": true
+      }
+    },
+    {
+      "package": "lattice",
+      "version": "0.22-9",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/lattice_0.22-9.tgz",
+      "file": "lattice_0.22-9.tgz",
+      "size": 1002014,
+      "sha256": "2797c655d7bd06c7bd212a6dd6eeb1b3c672a8bac43d09a406e1a2190264f79b",
+      "license": "GPL (>= 2)",
+      "source": {
+        "package": "lattice",
+        "version": "0.22-9",
+        "url": "https://repo.r-wasm.org/src/contrib/lattice_0.22-9.tar.gz",
+        "file": "lattice_0.22-9.tar.gz",
+        "size": 641804,
+        "sha256": "d641bc6167da54fc6893e190bbc66fd9132d1ecceb52a2e00aa928e30ae7cc4a",
+        "index_md5_verified": true
+      }
+    },
+    {
+      "package": "multcomp",
+      "version": "1.4-30",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/multcomp_1.4-30.tgz",
+      "file": "multcomp_1.4-30.tgz",
+      "size": 652625,
+      "sha256": "2ccaeb4203111854c5bd3714ae305c77f2f0e072260eba23c4de0df9b9c5fabd",
+      "license": "GPL-2",
+      "source": {
+        "package": "multcomp",
+        "version": "1.4-30",
+        "url": "https://repo.r-wasm.org/src/contrib/multcomp_1.4-30.tar.gz",
+        "file": "multcomp_1.4-30.tar.gz",
+        "size": 682967,
+        "sha256": "9a547c96c0733ef79d5d4191db5c693c0e899fbe4c371def1afe6cd9e2d894a9",
+        "index_md5_verified": true
+      }
+    },
+    {
+      "package": "mvtnorm",
+      "version": "1.2-4",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/mvtnorm_1.2-4.tgz",
+      "file": "mvtnorm_1.2-4.tgz",
+      "size": 652763,
+      "sha256": "ae2c5c562144af25eabce27ebaba8f80767c104a28d9977599cf19f1efa9df45",
+      "license": "GPL-2",
+      "source": {
+        "package": "mvtnorm",
+        "version": "1.2-4",
+        "url": "https://github.com/cran/mvtnorm/tree/126b767dcdb436ef00f9cdcd5b26a99c44302fee",
+        "commit": "126b767dcdb436ef00f9cdcd5b26a99c44302fee",
+        "file": "mvtnorm_1.2-4.tar.gz",
+        "size": 660271,
+        "sha256": "26833ff491e3d42b2e3cb669992db1e3106e98e7dd15c717b988fff09b17231b",
+        "source_version_verified": true
+      }
+    },
+    {
+      "package": "nlme",
+      "version": "3.1-169",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/nlme_3.1-169.tgz",
+      "file": "nlme_3.1-169.tgz",
+      "size": 1751404,
+      "sha256": "7918af1e887b98d1162cf7a2afe63936a54ad4e87cb2f0bead665bbe101194da",
+      "license": "GPL (>= 2)",
+      "source": {
+        "package": "nlme",
+        "version": "3.1-169",
+        "url": "https://repo.r-wasm.org/src/contrib/nlme_3.1-169.tar.gz",
+        "file": "nlme_3.1-169.tar.gz",
+        "size": 797963,
+        "sha256": "82060aaddfab3e09b0097c6d7846b98c8d0037d8b60f5261b74257a271bd1efb",
+        "index_md5_verified": true
+      }
+    },
+    {
+      "package": "sandwich",
+      "version": "3.1-1",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/sandwich_3.1-1.tgz",
+      "file": "sandwich_3.1-1.tgz",
+      "size": 1418434,
+      "sha256": "4a0a00e4a8e2a86892af9b10557f29770893778c7eddebbe1501906285ddddda",
+      "license": "GPL-2 | GPL-3",
+      "source": {
+        "package": "sandwich",
+        "version": "3.1-1",
+        "url": "https://repo.r-wasm.org/src/contrib/sandwich_3.1-1.tar.gz",
+        "file": "sandwich_3.1-1.tar.gz",
+        "size": 1391253,
+        "sha256": "0cb0207442d2d322d4ce82aedcbbd3b3a4175788f9d51475feaece0996773202",
+        "index_md5_verified": true
+      }
+    },
+    {
+      "package": "survival",
+      "version": "3.8-6",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/survival_3.8-6.tgz",
+      "file": "survival_3.8-6.tgz",
+      "size": 7760573,
+      "sha256": "925e35820900c4c0f1762dee8b0fac59d69dee33e597d2de8bc7724d075507ba",
+      "license": "LGPL (>= 2)",
+      "source": {
+        "package": "survival",
+        "version": "3.8-6",
+        "url": "https://repo.r-wasm.org/src/contrib/survival_3.8-6.tar.gz",
+        "file": "survival_3.8-6.tar.gz",
+        "size": 9437916,
+        "sha256": "11d95fd6ebacb9a753d32f4ea83586743ef1a87bfc7d0dd2355552d598ed7b8d",
+        "index_md5_verified": true
+      }
+    },
+    {
+      "package": "zoo",
+      "version": "1.8-15",
+      "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/zoo_1.8-15.tgz",
+      "file": "zoo_1.8-15.tgz",
+      "size": 874368,
+      "sha256": "59900b9cc02c4950c22db6ad48e0c6ca2fe9777ee67e285aaad188a2d8d17453",
+      "license": "GPL-2 | GPL-3",
+      "source": {
+        "package": "zoo",
+        "version": "1.8-15",
+        "url": "https://repo.r-wasm.org/src/contrib/zoo_1.8-15.tar.gz",
+        "file": "zoo_1.8-15.tar.gz",
+        "size": 805120,
+        "sha256": "c1f600a8178f1d527e62ffd84a441c6bee593f2ffa538af48f93ca09c8c60ac0",
+        "index_md5_verified": true
+      }
+    }
+  ]
+}

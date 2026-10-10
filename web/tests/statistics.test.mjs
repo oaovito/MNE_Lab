@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { WebR } from "webr";
 
 const golden = JSON.parse(
@@ -175,6 +176,46 @@ try {
       assert.ok(left && right);
       near(c.difference, right.mean - left.mean, c.contrast);
     }
+  });
+  // Mount the same read-only compressed image used by browser workers. No
+  // NODEFS shortcut or package download may supply these calculation tests.
+  await r.FS.mkdir("/mne-packages");
+  await r.FS.mount("WORKERFS", { packages: [{
+    metadata: JSON.parse(fs.readFileSync(new URL("../dist/statistics-engine/packages.metadata.json", import.meta.url))),
+    blob: new Uint8Array(gunzipSync(fs.readFileSync(new URL("../dist/statistics-engine/packages.data.gz", import.meta.url)))),
+  }] }, "/mne-packages");
+  await r.evalRVoid('.libPaths(c("/mne-packages", .libPaths()))');
+  const advanced=JSON.parse(fs.readFileSync(new URL("./fixtures/statistics-advanced-golden.json",import.meta.url)));
+  for(const c of advanced.cases) await test(`independent Dunnett oracle: ${c.name}`,async()=>{
+    const actual=await calculate(c.input);
+    assert.equal(actual.engine,"webR/0.6.0; R/4.6.0; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1");
+    assert.equal(actual.comparisons.length,c.expected.length);
+    for(const expected of c.expected) {
+      const v=actual.comparisons.find(v=>v.leftA===expected.leftA&&v.rightA===expected.rightA);
+      assert.ok(v,'explicit treatment/control identity missing');
+      near(v.difference,expected.difference,c.name+'.difference');
+      near(v.adjustedP,expected.adjustedP,c.name+'.adjustedP',3e-5);
+      near(v.lower,expected.lower,c.name+'.lower',1e-4);
+      near(v.upper,expected.upper,c.name+'.upper',1e-4);
+      assert.equal(v.correction,'Dunnett two-sided single-step (multivariate t)');
+    }
+    const diagnostic=actual.diagnostics.find(v=>v.code==='dunnett_integration');
+    assert.ok(diagnostic.statistic>=0&&diagnostic.statistic<=1e-5);
+    assert.match(diagnostic.details,/seed=1701/);
+    const quantile=actual.diagnostics.find(v=>v.code==='dunnett_quantile');
+    assert.ok(quantile.statistic>=0&&quantile.statistic<=3e-5);
+    assert.ok(actual.diagnostics.find(v=>v.code==='dunnett_confidence_integration').statistic<=1e-5);
+    // Re-running after unrelated RNG activity must reproduce every number.
+    await r.evalRVoid('runif(100)');
+    assert.deepEqual(await calculate(c.input),actual);
+  });
+  for(const [name,patch,error] of [
+    ['missing control',{control:''},'control_required'],
+    ['unknown control',{control:'invented-not-present'},'control_required'],
+    ['Welch is incompatible',{method:'welch'},'incompatible_posthoc'],
+    ['confidence level outside library scope',{alpha:.5},'invalid_definition'],
+  ]) await test(`Dunnett rejection: ${name}`,async()=>{
+    await assert.rejects(calculate({...advanced.cases[0].input,...patch}),new RegExp(`statistics.${error}`));
   });
 } finally {
   r.close();

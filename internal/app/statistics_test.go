@@ -95,6 +95,50 @@ func statisticalContract(s analysis.Snapshot) analysis.Results {
 	return r
 }
 
+func TestDunnettExplicitControlAndSavedContract(t *testing.T) {
+	_, _, p := inspectionProfile(t)
+	d := statisticalFixture(t, p)
+	d.PostHoc = "dunnett"
+	if _, err := p.PrepareAnalysis(d); !errors.Is(err, analysis.ErrControl) {
+		t.Fatal("implicit control accepted", err)
+	}
+	d.Control = "absent"
+	if _, err := p.PrepareAnalysis(d); !errors.Is(err, analysis.ErrControl) {
+		t.Fatal("unknown control accepted", err)
+	}
+	d.Control = "A"
+	s, err := p.PrepareAnalysis(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := statisticalContract(s)
+	r.Engine = analysis.ExpectedEngine(d)
+	lower, upper, accuracy := .732, 5.268, 0.
+	r.Comparisons = []analysis.Comparison{{ID: "comparison-1", LeftA: "A", RightA: "B", Contrast: "B-A", Difference: 3, Lower: &lower, Upper: &upper, AdjustedP: .021311641128756727, Correction: "Dunnett two-sided single-step (multivariate t)"}}
+	r.Diagnostics = []analysis.Diagnostic{{Code: "dunnett_integration", Statistic: &accuracy}, {Code: "dunnett_quantile", Statistic: &accuracy}, {Code: "dunnett_confidence_integration", Statistic: &accuracy}}
+	if _, err = p.SaveAnalysis(d, s.Receipt, r, ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, mutation := range []func(*analysis.Results){
+		func(r *analysis.Results) { r.Engine = analysis.EngineVersion },
+		func(r *analysis.Results) { r.Comparisons = nil },
+		func(r *analysis.Results) { r.Comparisons[0].LeftA = "B"; r.Comparisons[0].RightA = "A" },
+		func(r *analysis.Results) { r.Comparisons[0].Lower = nil },
+		func(r *analysis.Results) { r.Diagnostics = nil },
+	} {
+		bad := r
+		bad.Comparisons = append([]analysis.Comparison{}, r.Comparisons...)
+		mutation(&bad)
+		if _, err = p.SaveAnalysis(d, s.Receipt, bad, ""); err == nil {
+			t.Fatal("unbound/incomplete Dunnett result accepted")
+		}
+	}
+	d.Method = "welch"
+	if _, err = p.PrepareAnalysis(d); !errors.Is(err, analysis.ErrDesign) {
+		t.Fatal("Dunnett silently substituted for Welch", err)
+	}
+}
+
 func TestAnalysisReviewPersistenceRevisionsAndScope(t *testing.T) {
 	a, c, p := inspectionProfile(t)
 	d := statisticalFixture(t, p)

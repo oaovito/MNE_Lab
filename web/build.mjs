@@ -2,6 +2,13 @@
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+
+// Verify every pinned package before replacing working build assets. Downloads
+// are build-only; the product mounts an embedded read-only WORKERFS image.
+const packageCache = process.env.MNELAB_R_PACKAGE_CACHE || '.statistics-package-cache';
+const packageImage = path.join(packageCache, 'image');
+execFileSync('go', ['run', '../scripts/statistics_packages.go', '-manifest', '../scripts/statistics-packages.json', '-cache', packageCache, '-out', packageImage], { stdio: 'inherit' });
 
 const dist = 'dist';
 fs.rmSync(dist, { recursive: true, force: true });
@@ -46,6 +53,10 @@ for (const name of ['R.js', 'R.wasm', 'libRblas.so', 'libRlapack.so', 'webr-work
 // need the upstream public TLS trust store; omit unnecessary PEM material.
 fs.rmSync(path.join(runtime, 'vfs/etc/ssl/cert.pem'), { force: true });
 fs.copyFileSync('node_modules/webr/LICENSE.md', path.join(runtime, 'LICENSE.md'));
+fs.copyFileSync('../docs/STATISTICAL_PACKAGES_LICENSES.md', path.join(runtime, 'PACKAGES_LICENSES.md'));
+for (const name of ['packages.data.gz', 'packages.metadata.json', 'packages.manifest.json']) {
+  fs.copyFileSync(path.join(packageImage, name), path.join(runtime, name));
+}
 
 const icon = fs.readFileSync('../assets/brand/mnelab-icon.svg', 'utf8');
 fs.writeFileSync(path.join(dist, 'icon.svg'), icon);
