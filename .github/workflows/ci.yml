@@ -83,6 +83,17 @@ jobs:
           go test ./...
           scripts/build.sh darwin/arm64 darwin/amd64
 
+  windows-export:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - name: Native export collisions and release key safety
+        run: go test -count=1 -v ./internal/export ./cmd/mnelab-release
+
   e2e:
     runs-on: ubuntu-latest
     steps:

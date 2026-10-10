@@ -62,7 +62,7 @@ func Save(dir, name, policy string, estimate int64, write func(io.Writer) error)
 		switch policy {
 		case CollisionReplace:
 		case CollisionKeepBoth:
-			name = KeepBothName(name, func(n string) bool { return Exists(dir, n) })
+			// Choose and claim a unique name after the bytes are finalized.
 		default:
 			return Saved{}, ErrExists
 		}
@@ -97,25 +97,27 @@ func Save(dir, name, policy string, estimate int64, write func(io.Writer) error)
 		return Saved{}, mapWriteErr(err)
 	}
 	final := filepath.Join(dir, name)
-	if policy != CollisionReplace {
-		// Claim the name without replacing anything that appeared meanwhile.
-		if err := os.Link(tmp, final); err == nil {
-			os.Remove(tmp)
-			ok = true
-			return Saved{Path: final, Name: name, Size: cw.n}, nil
-		} else if errors.Is(err, os.ErrExist) {
-			if policy != CollisionKeepBoth {
+	if policy == CollisionReplace {
+		if err := os.Rename(tmp, final); err != nil {
+			return Saved{}, mapWriteErr(err)
+		}
+	} else {
+		// Existence checks only suggest names. The filesystem operation must
+		// refuse replacement atomically, including on FAT32/exFAT where hard
+		// links are unavailable. Retry every keep-both collision this way.
+		for attempt := 0; ; attempt++ {
+			err := publishNoReplace(tmp, final)
+			if err == nil {
+				break
+			}
+			if !errors.Is(err, os.ErrExist) {
+				return Saved{}, mapWriteErr(err)
+			}
+			if policy != CollisionKeepBoth || attempt >= 9999 {
 				return Saved{}, ErrExists
 			}
 			final = filepath.Join(dir, KeepBothName(name, func(n string) bool { return Exists(dir, n) }))
 		}
-		// File systems without hard links (FAT32, exFAT) fall back to rename.
-		if Exists(dir, filepath.Base(final)) {
-			return Saved{}, ErrExists
-		}
-	}
-	if err := os.Rename(tmp, final); err != nil {
-		return Saved{}, mapWriteErr(err)
 	}
 	ok = true
 	syncDir(dir)

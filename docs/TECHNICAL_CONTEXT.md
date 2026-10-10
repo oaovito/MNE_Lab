@@ -466,6 +466,7 @@ file or drawing a graph does not establish scientific validity.
 | Explicit XLSX DLS mapping | PARTIAL: versioned sheet/physical-row/column declarations, preserved XML precision and user-unit provenance; encrypted recipe schema 3 | Independent invented XML fixture; unsafe excluded sheets, coordinates, repeated/shared-string and encoded payload bounds, missing/zero/full-source, receipts, graph/cycle/analysis/export and localized browser workflow | UNVALIDATED declarations; opening/plotting/software tests do not validate instrument semantics | Adequate instrument documentation and paired trustworthy reference results; merged/linked workbooks, distributions and ZETA/NTA mappings unsupported |
 | Literal ODS 1.3 review | PARTIAL: native bounded plain-cell preview; display and declared values separate | Independently generated schema-checked invented fixture; repetitions, positions, unsafe/malformed sources, scoped read-only HTTP and localized browser review | Not a scientific calculation; no quantities or import receipt | Scientific mapping/import, other ODF versions, merged/richer cells and real instrument oracles remain unsupported |
 | Shared storage / File Library / Graph / Cycle / Statistics / Export | Yes for existing supported data | Isolation, receipts, snapshots, native rendering and exports | Per scientific adapter; never inherited by a new module | New adapters must supply documented quantity and provenance contracts |
+| Export file collisions | Yes: atomic exclusive publication; explicit replacement only | Concurrent keep-both/ask, payload preservation, existing files and symlinks; local Linux and hosted Windows/macOS checks tracked separately | Not applicable | Clean-system/FAT32/exFAT USB runtime tests still required |
 | Sign Export / Verify Signature | No | No | Not applicable | Implement global signing/verification, canonical manifest, certificate/key handling and integrity tests |
 
 The existing Zeta spreadsheet and DTS sample are private development corpora.
@@ -581,3 +582,24 @@ partial binary interoperability and its separate technical/scientific status.
 See [READINESS.md](READINESS.md) for the explicit remaining owner actions and
 separate development tasks. A tested development checkpoint is not a complete
 Stable release. No native persistent scheduling mechanism has been verified.
+
+
+### Concurrent export publication
+
+Export completes and flushes a hidden partial file before claiming its final
+name. “Keep both” retries collisions against the original requested name using
+an atomic operation that refuses replacement. “Ask” has exactly one winner
+when concurrent exports request the same absent path. Only an explicit
+“Replace” policy uses replacement. This corrects a reproduced race in the
+previous check-then-rename fallback, which could overwrite a concurrent export.
+
+Linux uses `renameat2(RENAME_NOREPLACE)`; macOS uses
+`renameatx_np(RENAME_EXCL)`; Windows uses `MoveFileExW` without
+`MOVEFILE_REPLACE_EXISTING`. A hard-link fallback also refuses replacement.
+If no supported exclusive operation is available, export fails safely rather
+than substituting an ordinary replacing rename. These operations support
+filesystems without hard links when the platform/filesystem provides exclusive
+rename; actual FAT32/exFAT and clean USB behavior remain separate release gates.
+Native Windows export/key tests are a dedicated hosted CI job, distinct from
+cross-compilation. This is file publication safety, not Sign Export, certificate
+handling or scientific validation.
