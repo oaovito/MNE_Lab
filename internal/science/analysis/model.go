@@ -19,6 +19,9 @@ const CalculationVersion = "mnelab-statistics/1"
 const EngineVersion = "webR/0.6.0; R/4.6.0"
 
 func ExpectedEngine(d Definition) string {
+	if d.Method == "mixed" {
+		return EngineVersion + "; nlme/3.1-169; mixed-random-intercept/1"
+	}
 	if d.PostHoc == "dunnett" {
 		return EngineVersion + "; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1"
 	}
@@ -118,6 +121,7 @@ type Term struct {
 	Source            string   `json:"source"`
 	SS                *float64 `json:"ss,omitempty"`
 	DF                float64  `json:"df"`
+	DenominatorDF     *float64 `json:"denominatorDF,omitempty"`
 	MS                *float64 `json:"ms,omitempty"`
 	F                 *float64 `json:"f,omitempty"`
 	P                 *float64 `json:"p,omitempty"`
@@ -160,6 +164,27 @@ type Diagnostic struct {
 	Details   string   `json:"details,omitempty"`
 }
 
+type FixedCoefficient struct {
+	Name     string  `json:"name"`
+	Estimate float64 `json:"estimate"`
+	SE       float64 `json:"se"`
+}
+type MixedModel struct {
+	Family             string             `json:"family"`
+	Fixed              string             `json:"fixed"`
+	Estimation         string             `json:"estimation"`
+	Random             string             `json:"random"`
+	ResidualCovariance string             `json:"residualCovariance"`
+	Test               string             `json:"test"`
+	LevelsA            []string           `json:"levelsA"`
+	LevelsB            []string           `json:"levelsB"`
+	RandomVariance     float64            `json:"randomVariance"`
+	ResidualVariance   float64            `json:"residualVariance"`
+	LogLikelihood      float64            `json:"logLikelihood"`
+	BoundaryTolerance  float64            `json:"boundaryTolerance"`
+	FixedCoefficients  []FixedCoefficient `json:"fixedCoefficients"`
+}
+
 type Results struct {
 	Engine        string             `json:"engine"`
 	Calculation   string             `json:"calculation"`
@@ -174,6 +199,7 @@ type Results struct {
 	QQObserved    []float64          `json:"qqObserved"`
 	Warnings      []string           `json:"warnings"`
 	Corrections   map[string]float64 `json:"corrections,omitempty"`
+	Model         *MixedModel        `json:"model,omitempty"`
 }
 
 // StatisticalAnalysis preserves the definition, source snapshot and results.
@@ -208,7 +234,7 @@ func (d Definition) Validate() error {
 		if d.Structure != "independent" {
 			return ErrDesign
 		}
-	case "repeated":
+	case "repeated", "mixed":
 		if d.Structure != "repeated" {
 			return ErrDesign
 		}
@@ -219,6 +245,9 @@ func (d Definition) Validate() error {
 		return ErrMethod
 	}
 	if d.PostHoc == "tukey" && (d.Method == "welch" || d.Method == "repeated") {
+		return ErrDesign
+	}
+	if d.Method == "mixed" && (d.PostHoc != "none" || d.SphericityCorrection != "") {
 		return ErrDesign
 	}
 	if d.PostHoc == "dunnett" {
@@ -246,7 +275,7 @@ func (d Definition) Validate() error {
 		if o.ExcludeReason == "" && (d.Method == "one_way" || d.Method == "welch") && o.FactorB != "" {
 			return ErrDesign
 		}
-		if o.ExcludeReason == "" && (strings.TrimSpace(o.FactorA) == "" || ((d.Method == "two_way" || d.Method == "repeated") && strings.TrimSpace(o.FactorB) == "")) {
+		if o.ExcludeReason == "" && (strings.TrimSpace(o.FactorA) == "" || ((d.Method == "two_way" || d.Method == "repeated" || d.Method == "mixed") && strings.TrimSpace(o.FactorB) == "")) {
 			return ErrDesign
 		}
 	}

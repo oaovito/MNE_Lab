@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -253,9 +254,9 @@ func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
 	}
 	if def.Structure == "repeated" {
 		d.Recommended = "repeated"
-		if !d.CompleteRepeated || d.Missing > 0 {
+		if (!d.CompleteRepeated || d.Missing > 0) && def.Method != "mixed" {
 			d.Recommended = "mixed"
-			d.Warnings = append(d.Warnings, "statistics.mixed_engine_unavailable")
+			d.Warnings = append(d.Warnings, "statistics.mixed_selection_required")
 			return d, analysis.ErrDesign
 		}
 		if len(d.LevelsB) < 2 || d.ExperimentalUnits < 2 {
@@ -264,7 +265,7 @@ func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
 		// The supported classical RM implementation requires complete,
 		// balanced between-subject groups. Other structures belong to the
 		// separately validated mixed-effects engine, not a silent fallback.
-		if !d.Balanced || d.ExperimentalUnits <= len(a) {
+		if (def.Method != "mixed" && !d.Balanced) || d.ExperimentalUnits <= len(a) {
 			return d, analysis.ErrDesign
 		}
 		if len(a) > 1 {
@@ -276,6 +277,23 @@ func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
 				if n < 2 {
 					return d, analysis.ErrDesign
 				}
+			}
+		}
+		if def.Method == "mixed" {
+			counts := map[string]int{}
+			for _, o := range snapshot.Observations {
+				if !o.Missing && o.ExcludeReason == "" {
+					counts[o.UnitID]++
+				}
+			}
+			for _, n := range counts {
+				if n < 2 {
+					return d, analysis.ErrDesign
+				}
+			}
+			d.Recommended = "mixed"
+			if d.ExperimentalUnits < 3 || len(cells) != len(a)*len(b) || d.N-d.ExperimentalUnits-len(a)*(len(b)-1) <= 0 {
+				return d, analysis.ErrDesign
 			}
 		}
 	} else if len(d.LevelsB) > 1 && len(d.LevelsA) > 1 {
@@ -326,7 +344,87 @@ func (p *Profile) PrepareAnalysis(def analysis.Definition) (analysis.Snapshot, e
 }
 
 func validateAnalysisResults(snapshot analysis.Snapshot, result analysis.Results) error {
-	if result.Engine != analysis.ExpectedEngine(snapshot.Definition) || result.Calculation != analysis.CalculationVersion || result.Method != snapshot.Definition.Method || len(result.Terms) < 2 || len(result.Terms) > 40 || len(result.Groups) > 1000 || len(result.Comparisons) > 10000 || len(result.Residuals) != snapshot.Design.N || len(result.QQObserved) != len(result.Residuals) || len(result.QQTheoretical) != len(result.Residuals) {
+	minimumTerms := 2
+	if snapshot.Definition.Method == "mixed" {
+		minimumTerms = 1
+	}
+	if result.Engine != analysis.ExpectedEngine(snapshot.Definition) || result.Calculation != analysis.CalculationVersion || result.Method != snapshot.Definition.Method || len(result.Terms) < minimumTerms || len(result.Terms) > 40 || len(result.Groups) > 1000 || len(result.Comparisons) > 10000 || len(result.Residuals) != snapshot.Design.N || len(result.QQObserved) != len(result.Residuals) || len(result.QQTheoretical) != len(result.Residuals) {
+		return analysis.ErrDefinition
+	}
+	if snapshot.Definition.Method == "mixed" {
+		m := result.Model
+		if result.SSType != "not_applicable_marginal_Wald_F" {
+			return analysis.ErrDefinition
+		}
+		if m == nil || m.Family != "random_intercept" || m.Estimation != "ML" || m.Random != "1|unit" || m.ResidualCovariance != "homoscedastic conditional errors" || m.Test != "marginal Wald F; sum contrasts; adjustSigma=TRUE" || m.BoundaryTolerance != 1e-4 || !(m.RandomVariance > 0) || !(m.ResidualVariance > 0) || math.Sqrt(m.RandomVariance/m.ResidualVariance) < m.BoundaryTolerance || len(m.FixedCoefficients) != len(snapshot.Design.LevelsA)*len(snapshot.Design.LevelsB) || len(result.Comparisons) != 0 || len(result.Corrections) != 0 {
+			return analysis.ErrDefinition
+		}
+		if len(snapshot.Design.LevelsA) > 1 && m.Fixed != "A*B" || len(snapshot.Design.LevelsA) == 1 && m.Fixed != "B" {
+			return analysis.ErrDefinition
+		}
+		for _, pair := range [][2][]string{{m.LevelsA, snapshot.Design.LevelsA}, {m.LevelsB, snapshot.Design.LevelsB}} {
+			got := append([]string{}, pair[0]...)
+			sort.Strings(got)
+			if len(got) != len(pair[1]) {
+				return analysis.ErrDefinition
+			}
+			for i, v := range got {
+				if v != pair[1][i] {
+					return analysis.ErrDefinition
+				}
+			}
+		}
+		wantCoefficients := map[string]bool{"(Intercept)": true}
+		for b := 1; b < len(m.LevelsB); b++ {
+			wantCoefficients[fmt.Sprintf("B%d", b)] = true
+		}
+		for a := 1; a < len(m.LevelsA); a++ {
+			wantCoefficients[fmt.Sprintf("A%d", a)] = true
+			for b := 1; b < len(m.LevelsB); b++ {
+				wantCoefficients[fmt.Sprintf("A%d:B%d", a, b)] = true
+			}
+		}
+		for _, v := range m.FixedCoefficients {
+			if !wantCoefficients[v.Name] || !(v.SE > 0) {
+				return analysis.ErrDefinition
+			}
+			delete(wantCoefficients, v.Name)
+		}
+		if len(wantCoefficients) != 0 {
+			return analysis.ErrDefinition
+		}
+		wantTerms := map[string]bool{"B": true}
+		if len(snapshot.Design.LevelsA) > 1 {
+			wantTerms["A"] = true
+			wantTerms["A:B"] = true
+		}
+		for _, t := range result.Terms {
+			if !wantTerms[t.Source] || t.DenominatorDF == nil || !(*t.DenominatorDF > 0) || t.F == nil || t.P == nil || t.SS != nil || t.MS != nil || t.EtaSquared != nil || t.PartialEtaSquared != nil || t.OmegaSquared != nil {
+				return analysis.ErrDefinition
+			}
+			numerator := (len(m.LevelsA) - 1) * (len(m.LevelsB) - 1)
+			denominator := snapshot.Design.N - snapshot.Design.ExperimentalUnits - len(m.LevelsA)*(len(m.LevelsB)-1)
+			if t.Source == "A" {
+				numerator = len(m.LevelsA) - 1
+				denominator = snapshot.Design.ExperimentalUnits - len(m.LevelsA)
+			}
+			if t.Source == "B" {
+				numerator = len(m.LevelsB) - 1
+			}
+			if t.DF != float64(numerator) || *t.DenominatorDF != float64(denominator) || !(*t.F >= 0) {
+				return analysis.ErrDefinition
+			}
+			delete(wantTerms, t.Source)
+		}
+		if len(wantTerms) != 0 {
+			return analysis.ErrDefinition
+		}
+		for _, v := range m.FixedCoefficients {
+			if !analysis.ValidText(v.Name, 120) || !(v.SE > 0) {
+				return analysis.ErrDefinition
+			}
+		}
+	} else if result.Model != nil {
 		return analysis.ErrDefinition
 	}
 	// Group values must be the reviewed source quantities, in source order.

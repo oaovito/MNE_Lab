@@ -58,6 +58,7 @@ run tests/e2e/counts.mjs "$work/portable" "$out"
 run tests/e2e/timezones.mjs "$work/portable" "$out"
 run tests/e2e/statistics.mjs "$work/portable" "$out"
 MNELAB_E2E_POSTHOC=dunnett run tests/e2e/statistics.mjs "$work/portable" "$out"
+run tests/e2e/statistics-mixed.mjs "$work/portable" "$out"
 run tests/e2e/dts.mjs "$work/portable" "$out"
 
 start temporary temporary

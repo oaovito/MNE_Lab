@@ -60,6 +60,11 @@ func (p *Profile) analysisOutputs(id string, req ExportRequest, spec plot.Spec, 
 				return nil, "", e
 			}
 		case "pdf":
+			if a.Results.Model != nil {
+				if e := addJSON("statistics/analysis-definitions/mixed-model.json", "statistics", a.Results.Model); e != nil {
+					return nil, "", e
+				}
+			}
 			b, e := export.StatisticalReport(a)
 			if e != nil {
 				return nil, "", e
@@ -74,12 +79,22 @@ func (p *Profile) analysisOutputs(id string, req ExportRequest, spec plot.Spec, 
 				{"statistics/anova-tables/anova.json", a.Results.Terms},
 				{"statistics/posthoc-tests/comparisons.json", a.Results.Comparisons},
 				{"statistics/diagnostics/diagnostics.json", map[string]any{"tests": a.Results.Diagnostics, "residuals": a.Results.Residuals, "qqTheoretical": a.Results.QQTheoretical, "qqObserved": a.Results.QQObserved, "sphericity": a.Results.Corrections, "warnings": d.Notes}},
-				{"statistics/effect-sizes/effects.json", a.Results.Terms},
+				{"statistics/effect-sizes/effects.json", func() any {
+					if a.Results.Model != nil {
+						return []analysis.Term{}
+					}
+					return a.Results.Terms
+				}()},
 				{"statistics/graph-annotations/annotations.json", map[string]any{"graphs": annotationGraphs, "availableComparisons": a.Results.Comparisons}},
 				{"statistics/analysis-provenance/snapshot.json", a.Snapshot},
 				{"statistics/analysis-summary/analysis.json", a},
 			} {
 				if e := addJSON(entry.path, "statistics", entry.value); e != nil {
+					return nil, "", e
+				}
+			}
+			if a.Results.Model != nil {
+				if e := addJSON("statistics/analysis-definitions/mixed-model.json", "statistics", a.Results.Model); e != nil {
 					return nil, "", e
 				}
 			}

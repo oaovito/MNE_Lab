@@ -38,13 +38,39 @@ being accepted by this shared engine.
   individual values. These intervals are group mean intervals, not effect
   size confidence intervals or simultaneous post-hoc intervals.
 
-Mixed effects are **not implemented**. Compatible pinned libraries and
-corresponding package sources have been acquired. Private balanced/incomplete
-ML random-intercept comparisons are preparation; marginal F/denominator-df
-validation and product integration remain pending.
-Incomplete/unbalanced repeated designs are blocked, not silently fitted
-with a simpler model. Welch/RM post-hoc procedures and effect-size confidence
-intervals remain pending. No unadjusted pairwise t-test substitutes for them.
+Mixed effects support a restricted Gaussian **ML random-intercept** model:
+`nlme::lme`, categorical within-unit B and optional between-unit A, sum
+contrasts, `y ~ A*B` (or `y ~ B` for one group), random `~1|unit`, homogeneous
+conditional residual errors. Every included unit has at least two distinct
+B observations; at least three explicit physical units, every factorial cell,
+positive inner/outer residual df and at least two units per between group
+are required. Incomplete and unequal repeated observations are allowed only
+when the user explicitly chooses Mixed. Missing quantities are omitted, never
+imputed. Classical repeated-measures ANOVA retains its complete/balanced limits.
+
+Marginal Wald F tests use `anova.lme(type="marginal", adjustSigma=TRUE)`:
+conditional fixed-effect covariance is multiplied by `n/(n-p)` for tests;
+reported coefficient SEs are unscaled conditional GLS SEs. Numerator and
+inner/outer denominator df, ML log likelihood, full-precision random/residual
+variances, coefficient names and ordered factor levels persist and export.
+Conditional response residuals feed the QQ/histogram and auxiliary Shapiro test.
+Raw group summaries and their Student-t intervals describe original values,
+not fitted mixed-model means or model confidence intervals. No classical
+SS/effect sizes, Mauchly/GG/HF, independent-group variance test or post-hoc
+procedure is supplied for Mixed.
+
+Convergence warnings/errors, non-positive variance information, failed
+variance intervals, rank deficiency and scalar random SD/residual SD below
+`1e-4` stop calculation. The scalar boundary tolerance follows the documented
+[lme4 1.1-37 isSingular default](https://github.com/cran/lme4/blob/79c411060a27b934ee4d541bdb983ea4db7269b2/R/utilities.R);
+lme4 is a methodological reference, not a bundled fitting dependency.
+This deliberately restricted numerical guard is not a scientific unit rule.
+[nlme lme](https://stat.ethz.ch/R-manual/R-devel/library/nlme/html/lme.html)
+and [anova.lme](https://stat.ethz.ch/R-manual/R-devel/library/nlme/html/anova.lme.html)
+document the model and test conventions; the bundled source version is 3.1-169.
+Random slopes, heteroscedastic/serial residual structures, REML selection,
+mixed/Welch/RM post-hoc procedures and effect-size confidence intervals remain
+pending. No simpler model or unadjusted pairwise t-test substitutes for them.
 
 ## Review and persistence
 
@@ -58,8 +84,9 @@ The core builds a profile-scoped source snapshot. Missing quantities remain
 missing; exclusion reasons persist; units must match exactly. No automatic
 imputation, unit conversion or outlier removal occurs. Residual Shapiro–Wilk
 and median-centred Brown–Forsythe tests are auxiliary diagnostics, not
-automatic method selectors. Repeated observations use sphericity instead of
-an inappropriate independent-groups variance test.
+automatic method selectors. Classical repeated observations use sphericity diagnostics. Mixed instead
+reports its covariance assumptions; neither applies an independent-groups
+variance test to repeated values.
 
 A scoped, process-local HMAC receipt binds preparation to the reviewed
 definition, file SHA-256, measurement IDs, selected quantity, source
@@ -88,7 +115,7 @@ Completion, cancellation, timeout or leaving the profile closes the worker.
 The build-only `scripts/statistics_packages.go` verifies every compressed
 package's exact length and SHA-256 against `statistics-packages.json`, rejects
 unsafe archive paths/entries, and generates a deterministic compressed
-WORKERFS image. Its eleven packages are embedded locally; Dunnett workers
+WORKERFS image. Its eleven packages are embedded locally; Dunnett and Mixed workers
 mount a fresh read-only image. Cache/download/Go tooling belong to the build,
 never the product. Current base-R analyses do not load the additional image.
 
@@ -116,7 +143,9 @@ precision, without inventing a numerical bound.
 
 Smart Export accepts statistical analyses. XLSX includes named sheets for
 ANOVA, group summaries, observations, post-hoc, diagnostics, residuals,
-effects and corrections. Delimited formats produce a separate file per table
+effects and corrections for classical analyses. Mixed instead includes seven
+tables: marginal tests with denominator df, raw groups, observations,
+diagnostics, residuals, model metadata and sum-contrast coefficients. Delimited formats produce a separate file per table
 to avoid dropping secondary results. JSON preserves the full analysis and
 source snapshot; exports omit local Account/Profile IDs and receipts. PDF
 reports paginate every table row using the existing bundled font/library.
@@ -191,3 +220,21 @@ References:
 
 Runtime licensing and corresponding-source requirements are documented in
 [STATISTICAL_RUNTIME_LICENSES.md](STATISTICAL_RUNTIME_LICENSES.md).
+
+### Mixed independent reference
+
+`scripts/statistics_mixed_oracle.py` generates five wholly invented designs:
+two/three between groups, three/four categorical times, complete/incomplete
+observations and a one-group repeated design. Statsmodels 0.14.5 independently
+fits ML variance parameters and fixed coefficients; SciPy 1.17.0 evaluates
+GLS covariance and F probabilities. Joint observed-likelihood `bse_fe` is not
+the same covariance convention as nlme's conditional GLS SE and is not used
+as its oracle. F tests independently use the documented `n/(n-p)` adjustment
+and inner/outer df for the restricted supported design. Parameters/F/residuals
+use relative tolerance `1e-5` with a unit absolute floor, probabilities `1e-6`,
+log likelihood absolute `1e-6`, and df exact equality. Actual product R code
+runs against the same read-only local WORKERFS image as browser workers.
+Unknown units, duplicate unit/time, unit group changes, absent factorial
+cells, constant outcomes, near-boundary variance and post-hoc requests are
+rejected. These tests establish only this documented scope; they do not
+validate arbitrary mixed models or ZETA/NTA scientific quantities.
