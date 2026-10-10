@@ -34,7 +34,9 @@ and comparison with a trustworthy reference, with stated tolerances.
 - Global Sign Export / Verify Signature, certificate/PFX/P12 handling and
   interoperable PDF/CMS verification. Obtaining a certificate alone does not
   implement this feature; private-key exclusion from sync/backups/recovery and
-  export packages must be tested.
+  export packages must be tested. Package /2 checksum coverage and the native
+  integrity verifier are partial backend prerequisites, not completed signing
+  or a global Verify interface; see PACKAGE_INTEGRITY.md.
 - Desktop distribution/bootstrap packaging and verified offline USB behavior
   on supported clean operating systems; browser/runtime acquisition must be
   reproducible and integrity checked.

@@ -25,7 +25,7 @@ const (
 )
 
 // PackageFormat identifies the package layout version.
-const PackageFormat = "mnelab-package/1"
+const PackageFormat = "mnelab-package/2"
 
 // ManifestEntry describes one file inside a package.
 type ManifestEntry struct {
@@ -112,6 +112,9 @@ func (a *Archive) Len() int { return len(a.files) }
 // list compatible with "sha256sum -c".
 func (a *Archive) WriteZip(w io.Writer) (Manifest, error) {
 	m := Manifest{Format: PackageFormat, Kind: a.Kind, Title: a.Title, Software: a.App, Schema: a.Schema, Created: a.Created, Versions: a.Version}
+	if !safePackagePath(a.Root) || strings.Contains(a.Root, "/") {
+		return m, ErrPackageInvalid
+	}
 	zw := zip.NewWriter(w)
 	put := func(p string, data []byte, method uint16) error {
 		h := &zip.FileHeader{Name: a.Root + "/" + p, Method: method, Modified: a.Created}
@@ -123,13 +126,19 @@ func (a *Archive) WriteZip(w io.Writer) (Manifest, error) {
 		_, err = fw.Write(data)
 		return err
 	}
-	if a.Readme != "" {
-		if err := put("README.txt", []byte(a.Readme), zip.Deflate); err != nil {
-			return m, err
-		}
-	}
 	files := append([]archFile(nil), a.files...)
+	if a.Readme != "" {
+		files = append(files, archFile{"README.txt", "readme", []byte(a.Readme)})
+	}
 	sort.SliceStable(files, func(i, j int) bool { return files[i].path < files[j].path })
+	names := map[string]bool{}
+	for _, f := range files {
+		key := strings.ToLower(f.path)
+		if !safePackagePath(f.path) || names[key] || key == "manifest/manifest.json" || key == "manifest/checksums.sha256" {
+			return m, ErrPackageInvalid
+		}
+		names[key] = true
+	}
 	var sums strings.Builder
 	for _, f := range files {
 		method := uint16(zip.Deflate)
