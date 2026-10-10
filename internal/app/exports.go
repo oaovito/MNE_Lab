@@ -389,7 +389,7 @@ func (p *Profile) produceItem(it ExportItem, req ExportRequest, spec plot.Spec, 
 					"sourceSHA256": f.SHA256, "size": f.Size, "module": f.Module,
 					"parser": f.Parser, "spec": f.Spec, "importedAt": f.ImportedAt,
 					"sourceInfo": f.SourceInfo, "warnings": f.Warnings,
-					"producerOrigin": model.CloneProducerOrigin(f.ProducerOrigin),
+					"producerOrigin":         model.CloneProducerOrigin(f.ProducerOrigin),
 					"normalizedMeasurements": 0,
 				}, "", "  ")
 				if err != nil {
