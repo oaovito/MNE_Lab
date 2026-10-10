@@ -2197,3 +2197,9 @@
   min-width: 200px;
   max-width: 50%;
 }
+
+/* Statistical pages scroll within the desktop shell, including small screens. */
+.statistics-page { flex: 1; min-height: 0; overflow: auto; padding: 2px 3px 12px; }
+.statistics-page > * { flex-shrink: 0; }
+.statistics-page .input { min-height: 32px; border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); background: var(--surface); padding: 6px 8px; }
+.statistics-page figure { margin: 0; }

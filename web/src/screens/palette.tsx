@@ -3,17 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { changeAccount, exitApp, saveNow, setTheme, switchProfile, syncNow, toggleTurbo } from '../lib/actions';
 import { get } from '../lib/api';
+import { statisticsHeaders } from '../lib/analyses';
 import { FEATURES, openHelp } from '../lib/features';
 import { lang, t } from '../lib/i18n';
 import { navigate } from '../lib/route';
 import { app, openPanel } from '../lib/state';
 import { useStore } from '../lib/store';
 import type { CycleDoc, FileView, GraphDef } from '../lib/types';
+import type { StatisticalAnalysis } from '../lib/statistics';
 import { Icon, type IconName } from '../ui/icons';
 import { Kbd, Portal } from '../ui/kit';
 import { importFiles } from './ls/files';
 
-type Entry = { id: string; kind: 'action' | 'page' | 'feature' | 'file' | 'graph' | 'cycle'; icon: IconName; title: string; sub?: string; run: () => void; words?: string };
+type Entry = { id: string; kind: 'action' | 'page' | 'feature' | 'file' | 'graph' | 'cycle' | 'analysis'; icon: IconName; title: string; sub?: string; run: () => void; words?: string };
 
 export function Palette() {
   const open = useStore(app, (s) => s.palette);
@@ -27,14 +29,14 @@ function Box() {
   const s = useStore(app, (x) => x.s)!;
   const [q, setQ] = useState('');
   const [i, setI] = useState(0);
-  const [data, setData] = useState<{ files: FileView[]; graphs: GraphDef[]; cycles: CycleDoc[] }>({ files: [], graphs: [], cycles: [] });
+  const [data, setData] = useState<{ files: FileView[]; graphs: GraphDef[]; cycles: CycleDoc[]; analyses:StatisticalAnalysis[] }>({ files: [], graphs: [], cycles: [], analyses:[] });
   const list = useRef<HTMLDivElement>(null);
   const prof = !!s.profile;
 
   useEffect(() => {
     if (!prof) return;
-    Promise.all([get<FileView[] | null>('/api/files'), get<GraphDef[] | null>('/api/graphs'), get<CycleDoc[] | null>('/api/cycles')])
-      .then(([files, graphs, cycles]) => setData({ files: files || [], graphs: graphs || [], cycles: cycles || [] }))
+    Promise.all([get<FileView[] | null>('/api/files'), get<GraphDef[] | null>('/api/graphs'), get<CycleDoc[] | null>('/api/cycles'),get<StatisticalAnalysis[]>('/api/statistics',{headers:statisticsHeaders()})])
+      .then(([files, graphs, cycles,analyses]) => setData({ files: files || [], graphs: graphs || [], cycles: cycles || [],analyses:analyses||[] }))
       .catch(() => undefined);
   }, []);
 
@@ -47,6 +49,7 @@ function Box() {
       page('files', 'files', t('ls.tab.files'), () => navigate('/ls/files'), 'lightscattering dls');
       page('graphs', 'chart', t('ls.tab.graphs'), () => navigate('/ls/graphs'), 'lightscattering dls');
       page('cycles', 'cycle', t('ls.tab.cycles'), () => navigate('/ls/cycles'), 'lightscattering dls');
+      page('statistics', 'sigma', t('ls.tab.statistics'), () => navigate('/ls/statistics'), 'anova tukey welch statistical analysis estatistica');
       page('mystuff', 'archive', t('menu.mystuff'), () => openPanel('mystuff'));
       for (const tab of ['general', 'profile', 'account', 'storage', 'backups', 'updates', 'mobile', 'privacy', 'about'])
         page('settings.' + tab, 'settings', t('settings.title') + ' · ' + t('settings.tab.' + tab), () => openPanel('settings', tab), t('settings.tab.' + tab));
@@ -76,6 +79,7 @@ function Box() {
       for (const f of data.files) data2.push({ id: 'file.' + f.id, kind: 'file', icon: 'file', title: f.name, sub: [f.experiment, f.group].filter(Boolean).join(' · ') || t('ls.tab.files'), run: () => navigate('/ls/files?file=' + f.id), words: (f.tags || []).join(' ') + ' ' + (f.items || []).map((m) => m.sampleId || '').join(' ') });
       for (const g of data.graphs) data2.push({ id: 'graph.' + g.id, kind: 'graph', icon: 'chart', title: g.title || t('graph.kind.' + g.kind), sub: t('graph.kind.' + g.kind), run: () => navigate('/ls/graphs/' + g.id), words: (g.tags || []).join(' ') });
       for (const c of data.cycles) data2.push({ id: 'cycle.' + c.id, kind: 'cycle', icon: 'cycle', title: c.config.name, sub: t('ls.tab.cycles'), run: () => navigate('/ls/cycles/' + c.id), words: [c.config.sampleId, c.config.experiment].join(' ') });
+      for(const a of data.analyses)data2.push({id:'analysis.'+a.id,kind:'analysis',icon:'sigma',title:a.snapshot.definition.title,sub:t('stat.title'),run:()=>navigate('/ls/statistics/'+a.id),words:a.snapshot.definition.module+' '+t('stat.method.'+a.results.method)});
     }
     const all = [...base, ...data2];
     if (!n) return all.filter((e) => e.kind === 'action' || e.kind === 'page').slice(0, 12);

@@ -307,6 +307,44 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		}
 	}
 
+	// Comparison labels must remain interpretable even when optional metadata
+	// is hidden. Wrap the correction/threshold note instead of truncating it.
+	if len(res.Annotations) > 0 {
+		seen := map[string]bool{}
+		corrections := []string{}
+		for _, a := range res.Annotations {
+			if !seen[a.Correction] {
+				seen[a.Correction] = true
+				corrections = append(corrections, a.Correction)
+			}
+		}
+		notes := []string{T("plot.stat.annotations", "correction", strings.Join(corrections, "; "))}
+		if res.AnnotationStyle == "stars" {
+			notes = append(notes, T("plot.stat.stars"))
+		}
+		nfs := fs * .72
+		lines := []string{}
+		for _, note := range notes {
+			line := ""
+			for _, word := range strings.Fields(note) {
+				next := strings.TrimSpace(line + " " + word)
+				if line != "" && TextWidth(FontSans, next, nfs) > right-left {
+					lines = append(lines, line)
+					line = word
+				} else {
+					line = next
+				}
+			}
+			if line != "" {
+				lines = append(lines, line)
+			}
+		}
+		for i := len(lines) - 1; i >= 0; i-- {
+			fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: bottom, Text: lines[i], Size: nfs, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "statistical-annotation-note"})
+			bottom -= nfs * 1.4
+		}
+		bottom -= nfs * .5
+	}
 	// Metadata block at the bottom.
 	if s.Metadata {
 		ms := fs * 0.82
@@ -507,6 +545,18 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 			}
 		}
 	}
+	for _, annotation := range res.Annotations {
+		x1, x2, y := mx(annotation.X1), mx(annotation.X2), my(annotation.Y)
+		label := annotation.Label
+		if label == "statistics.below_precision" {
+			label = T("stat.p_underflow")
+		}
+		fig.Ops = append(fig.Ops,
+			Op{K: "line", X: x1, Y: y + fs*.35, X2: x1, Y2: y, Stroke: inkAxis, SW: .8 * s.Scale, Role: "statistical-annotation"},
+			Op{K: "line", X: x1, Y: y, X2: x2, Y2: y, Stroke: inkAxis, SW: .8 * s.Scale, Role: "statistical-annotation"},
+			Op{K: "line", X: x2, Y: y, X2: x2, Y2: y + fs*.35, Stroke: inkAxis, SW: .8 * s.Scale, Role: "statistical-annotation"},
+			Op{K: "text", X: (x1 + x2) / 2, Y: y - fs*.35, Text: label, Size: fs * .85, Font: FontSans, Fill: inkAxis, Anchor: "middle", Role: "statistical-annotation"})
+	}
 	fig.Ops = append(fig.Ops, Op{K: "unclip"})
 
 	// Axis lines, ticks and labels.
@@ -632,6 +682,17 @@ func buildAxis(ax graph.Axis, view *graph.Range, isX, integer bool, dec string) 
 		lo, hi = 0, 1
 	}
 	a := axisInfo{log: ax.Scale == "log" && lo > 0}
+	if isX && len(ax.Categories) > 0 {
+		a.min, a.max = lo, hi
+		for i, label := range ax.Categories {
+			x := float64(i + 1)
+			if x >= lo && x <= hi {
+				a.ticks = append(a.ticks, x)
+				a.labels = append(a.labels, label)
+			}
+		}
+		return a
+	}
 	if a.log {
 		if hi <= lo {
 			hi = lo * 10
@@ -775,6 +836,12 @@ func AxisLabel(a graph.Axis, T Translator) string {
 // SeriesLabel localizes generated series labels.
 func SeriesLabel(label string, T Translator) string {
 	switch {
+	case strings.HasPrefix(label, "statistics:"):
+		parts := strings.SplitN(label, ":", 3)
+		keys := map[string]string{"individual": "series.stat_individual", "mean_sd": "series.stat_mean_sd", "mean_sem": "series.stat_mean_sem", "mean_ci": "series.stat_mean_ci", "mean_only": "series.stat_mean_only"}
+		if len(parts) == 3 && keys[parts[1]] != "" {
+			return T(keys[parts[1]]) + " · " + parts[2]
+		}
 	case strings.HasPrefix(label, "series."):
 		return T(label)
 	case strings.HasPrefix(label, "point:"):
@@ -850,6 +917,9 @@ func description(res graph.Result) string {
 	b.WriteString(res.Provenance.Engine + "; " + res.Provenance.Spec)
 	for _, src := range res.Provenance.Sources {
 		b.WriteString("; " + src.FileName + " sha256:" + src.SHA256)
+	}
+	for _, t := range res.Provenance.Transformations {
+		b.WriteString("; " + t)
 	}
 	return b.String()
 }

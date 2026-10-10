@@ -128,5 +128,17 @@
  "unit.hours": "horas",
  "unit.months": "meses",
  "unit.weeks": "semanas",
- "unit.years": "anos"
+ "unit.years": "anos",
+ "plot.stat.annotations": "Colchetes usam valores p ajustados: {correction}",
+ "plot.stat.stars": "p ajustado: * <0,05; ** <0,01; *** <0,001; **** <0,0001; ns ≥0,05",
+ "stat.p_underflow": "Abaixo da precisão do engine",
+ "axis.statistical_group": "Grupo experimental",
+ "graph.kind.statistical_groups": "Grupos estatísticos",
+ "series.stat_individual": "Observações individuais",
+ "series.stat_mean_sd": "Média ± SD",
+ "series.stat_mean_sem": "Média ± SEM",
+ "series.stat_mean_ci": "Média e intervalo de confiança",
+ "series.stat_mean_only": "Média; erro não estimável",
+ "dts.no_scientific_results": "Não há resultados científicos suportados. Exporte o original ou a metadata da fonte em JSON.",
+ "ls.invalid_delimited_table": "Tabela delimitada da fonte malformada."
 }

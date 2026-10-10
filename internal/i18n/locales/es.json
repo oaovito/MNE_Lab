@@ -128,5 +128,17 @@
  "unit.hours": "horas",
  "unit.months": "meses",
  "unit.weeks": "semanas",
- "unit.years": "años"
+ "unit.years": "años",
+ "plot.stat.annotations": "Los corchetes usan valores p ajustados: {correction}",
+ "plot.stat.stars": "p ajustado: * <0,05; ** <0,01; *** <0,001; **** <0,0001; ns ≥0,05",
+ "stat.p_underflow": "Por debajo de la precisión del motor",
+ "axis.statistical_group": "Grupo experimental",
+ "graph.kind.statistical_groups": "Grupos estadísticos",
+ "series.stat_individual": "Observaciones individuales",
+ "series.stat_mean_sd": "Media ± SD",
+ "series.stat_mean_sem": "Media ± SEM",
+ "series.stat_mean_ci": "Media e intervalo de confianza",
+ "series.stat_mean_only": "Media; error no estimable",
+ "dts.no_scientific_results": "No hay resultados científicos admitidos. Exporte el original o la metadata de origen en JSON.",
+ "ls.invalid_delimited_table": "Tabla delimitada de origen malformada."
 }

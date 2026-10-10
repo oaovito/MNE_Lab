@@ -15,7 +15,7 @@ const common = {
   target: ['chrome100', 'edge100'],
   jsx: 'automatic',
   jsxImportSource: 'preact',
-  loader: { '.woff2': 'file', '.svg': 'text' },
+  loader: { '.woff2': 'file', '.svg': 'text', '.R': 'text' },
   entryNames: 'assets/[name]-[hash]',
   assetNames: 'assets/[name]-[hash]',
   metafile: true,
@@ -34,6 +34,18 @@ async function build(entry, publicPath) {
 
 const app = await build({ name: 'app', file: 'src/main.tsx' }, '/');
 const mob = await build({ name: 'm', file: 'src/mobile/main.tsx' }, '/m/');
+
+// The statistical runtime is embedded with the application. Only the worker,
+// R runtime and lazy filesystem are needed; no REPL or external package server.
+const runtime = path.join(dist, 'statistics-engine');
+fs.mkdirSync(runtime, { recursive: true });
+for (const name of ['R.js', 'R.wasm', 'libRblas.so', 'libRlapack.so', 'webr-worker.js', 'webr.mjs', 'vfs']) {
+  fs.cpSync(path.join('node_modules/webr/dist', name), path.join(runtime, name), { recursive: true });
+}
+// The product never downloads R packages. Its offline calculations do not
+// need the upstream public TLS trust store; omit unnecessary PEM material.
+fs.rmSync(path.join(runtime, 'vfs/etc/ssl/cert.pem'), { force: true });
+fs.copyFileSync('node_modules/webr/LICENSE.md', path.join(runtime, 'LICENSE.md'));
 
 const icon = fs.readFileSync('../assets/brand/mnelab-icon.svg', 'utf8');
 fs.writeFileSync(path.join(dist, 'icon.svg'), icon);

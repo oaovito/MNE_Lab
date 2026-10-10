@@ -31,3 +31,9 @@ CLAUDE.md
 /PROMPT_MESTRE_MNE_LAB_CURRENT.md
 /MNE_Lab_Pacote_Mestre*/
 /MNE_Lab_Pacote_Mestre*.zip
+
+# Private interoperability originals and updated implementation package
+/Example Results.dts
+/Example_Results.dts
+/MNE_Lab_Pacote_Implementacao*/
+/MNE_Lab_Pacote_Implementacao*.zip

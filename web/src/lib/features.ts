@@ -28,6 +28,7 @@ const portableOnly = (s: StateView) => (s.mode === 'portable' ? null : 'avail.po
 const needsProfile = (s: StateView) => (s.profile ? null : 'avail.needs_profile');
 
 export const FEATURES: Feature[] = [
+  { id: 'statistics', group: 'cycles', icon: 'sigma', open: () => navigate('/ls/statistics'), avail: needsProfile, words: 'anova welch tukey repeated diagnostics estatistica' },
   { id: 'account', group: 'account', icon: 'key', open: settings('account'), words: 'passphrase sign in login' },
   { id: 'profiles', group: 'account', icon: 'users', open: () => navigate('/'), words: 'profile switch five' },
   { id: 'avatar', group: 'account', icon: 'camera', open: settings('profile'), avail: needsProfile, words: 'photo gif picture' },

@@ -14,6 +14,7 @@ export type View = { XMin: number; XMax: number; YMin: number; YMax: number };
 
 /** seriesLabel localizes generated series labels (same rules as the core). */
 export function seriesLabel(label: string): string {
+  if(label.startsWith('statistics:')){const [,key,...rest]=label.split(':');return t('series.stat_'+key)+' · '+rest.join(':');}
   if (label.startsWith('series.')) return t(label);
   if (label.startsWith('point:')) {
     const p = label.split(':'); // point:<unit>:<offset>[:<replicate>]

@@ -63,6 +63,7 @@ export function GraphLibrary() {
             { value: 'dls_distribution', label: t('graph.kind.dls_distribution') },
             { value: 'parameter_time', label: t('graph.kind.parameter_time') },
             { value: 'dls_by_time', label: t('graph.kind.dls_by_time') },
+            { value: 'statistical_groups', label: t('graph.kind.statistical_groups') },
           ]}
         />
         <span class="spacer" />

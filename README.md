@@ -73,7 +73,7 @@ O método fica registrado nos gráficos salvos.
 
 ## Compilação
 
-Requisitos: Go 1.26 e Node.js 22.
+Requisitos: Go 1.26.9 ou uma versão posterior com as correções de segurança atuais, e Node.js 22.
 
 ```sh
 cd web && npm ci && npm run build && cd ..

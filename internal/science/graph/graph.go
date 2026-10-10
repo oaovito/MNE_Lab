@@ -21,13 +21,14 @@ import (
 )
 
 // EngineVersion identifies the engine in provenance.
-const EngineVersion = "graph-engine/1.1.0"
+const EngineVersion = "graph-engine/1.2.0"
 
 // Graph kinds.
 const (
 	KindDistribution   = "dls_distribution"
 	KindParameterTime  = "parameter_time"
 	KindDistributionAt = "dls_by_time"
+	KindStatistical    = "statistical_groups"
 )
 
 // Errors (stable identifiers).
@@ -65,23 +66,27 @@ type Range struct {
 
 // Definition is a saved, reproducible graph.
 type Definition struct {
-	Schema        int                    `json:"schema"`
-	ID            string                 `json:"id"`
-	Title         string                 `json:"title"`
-	Kind          string                 `json:"kind"`
-	Measurements  []string               `json:"measurements"`
-	Distributions map[string]string      `json:"distributions,omitempty"` // measurement -> original distribution candidate
-	Weighting     string                 `json:"weighting,omitempty"`
-	XScale        string                 `json:"xScale,omitempty"` // auto, log, linear
-	CycleID       string                 `json:"cycleId,omitempty"`
-	Param         string                 `json:"param,omitempty"`
-	Series        map[string]SeriesStyle `json:"series,omitempty"`
-	Visual        Visual                 `json:"visual"`
-	Tags          []string               `json:"tags,omitempty"`
-	Notes         string                 `json:"notes,omitempty"`
-	Created       time.Time              `json:"created"`
-	Updated       time.Time              `json:"updated"`
-	Trashed       bool                   `json:"trashed,omitempty"`
+	Schema          int                    `json:"schema"`
+	ID              string                 `json:"id"`
+	Title           string                 `json:"title"`
+	Kind            string                 `json:"kind"`
+	AnalysisID      string                 `json:"analysisId,omitempty"`
+	ErrorBars       string                 `json:"errorBars,omitempty"`       // sd, sem or ci; explicit statistical graph choice
+	Annotations     []string               `json:"annotations,omitempty"`     // saved analysis comparison IDs, explicitly selected
+	AnnotationStyle string                 `json:"annotationStyle,omitempty"` // exact or stars
+	Measurements    []string               `json:"measurements"`
+	Distributions   map[string]string      `json:"distributions,omitempty"` // measurement -> original distribution candidate
+	Weighting       string                 `json:"weighting,omitempty"`
+	XScale          string                 `json:"xScale,omitempty"` // auto, log, linear
+	CycleID         string                 `json:"cycleId,omitempty"`
+	Param           string                 `json:"param,omitempty"`
+	Series          map[string]SeriesStyle `json:"series,omitempty"`
+	Visual          Visual                 `json:"visual"`
+	Tags            []string               `json:"tags,omitempty"`
+	Notes           string                 `json:"notes,omitempty"`
+	Created         time.Time              `json:"created"`
+	Updated         time.Time              `json:"updated"`
+	Trashed         bool                   `json:"trashed,omitempty"`
 }
 
 // DefaultVisual is the visual configuration of a new graph.
@@ -91,11 +96,12 @@ func DefaultVisual() Visual {
 
 // Axis describes one axis.
 type Axis struct {
-	Label string  `json:"label"` // neutral key, localized by the interface
-	Unit  string  `json:"unit"`
-	Scale string  `json:"scale"` // log or linear
-	Min   float64 `json:"min"`
-	Max   float64 `json:"max"`
+	Categories []string `json:"categories,omitempty"`
+	Label      string   `json:"label"` // neutral key, localized by the interface
+	Unit       string   `json:"unit"`
+	Scale      string   `json:"scale"` // log or linear
+	Min        float64  `json:"min"`
+	Max        float64  `json:"max"`
 }
 
 // Series is one plotted series.
@@ -147,16 +153,18 @@ type Provenance struct {
 
 // Result is the computed scientific representation.
 type Result struct {
-	Kind       string     `json:"kind"`
-	Title      string     `json:"title"`
-	X          Axis       `json:"x"`
-	Y          Axis       `json:"y"`
-	Series     []Series   `json:"series"`
-	Gaps       []float64  `json:"gaps,omitempty"`
-	Provenance Provenance `json:"provenance"`
-	Warnings   []string   `json:"warnings,omitempty"`
-	Visual     Visual     `json:"visual"`
-	Weightings []string   `json:"weightings,omitempty"`
+	Kind            string                  `json:"kind"`
+	Title           string                  `json:"title"`
+	X               Axis                    `json:"x"`
+	Y               Axis                    `json:"y"`
+	Series          []Series                `json:"series"`
+	Gaps            []float64               `json:"gaps,omitempty"`
+	Provenance      Provenance              `json:"provenance"`
+	Warnings        []string                `json:"warnings,omitempty"`
+	Visual          Visual                  `json:"visual"`
+	Weightings      []string                `json:"weightings,omitempty"`
+	Annotations     []StatisticalAnnotation `json:"annotations,omitempty"`
+	AnnotationStyle string                  `json:"annotationStyle,omitempty"`
 }
 
 // Input bundles what the engine needs.

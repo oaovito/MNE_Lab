@@ -18,6 +18,7 @@ type Format = { id: string; ext: string; group: string; vector?: boolean; lossy?
 type Choice = { preset: string; formats: string[] };
 type Spec = { width: number; height: number; unit: string; dpi: number; background: string; backColor?: string; title: boolean; legend: boolean; metadata: boolean; grid: boolean; points: boolean; lineWidth: number; fontSize: number; margin: number; scale: number };
 type Options = {
+  metadataOnly?: boolean;
   options: { kind: string; sections: { id: string; formats: string[] }[]; presets: string[]; default: Choice };
   defaults: Record<string, Choice>;
   formats: Record<string, Format>;
@@ -34,7 +35,8 @@ const figurePreset = (preset: string) => (preset === 'publication' ? 'publicatio
 export function ExportDialog(p: { arg: { items: Item[] } }) {
   const items = p.arg.items || [];
   const kind = items.length > 1 ? 'batch' : items[0]?.kind || 'graph';
-  const o = useAsync(() => get<Options>('/api/export/options?kind=' + kind), [kind]);
+  const file = kind === 'file' ? items[0]?.id || '' : '';
+  const o = useAsync(() => get<Options>('/api/export/options?kind=' + kind + (file ? '&file=' + encodeURIComponent(file) : '')), [kind, file]);
   if (o.error)
     return (
       <Modal title={t('export.title')} icon="download" onClose={closePanel} size="narrow">
@@ -162,6 +164,7 @@ function Dialog(p: { items: Item[]; kind: string; o: Options }) {
         </div>
 
         <div class="col-c">
+          {o.metadataOnly && <Notice kind="warning">{t('dts.metadata_export')}</Notice>}
           {recommended.map((s) => (
             <FormatGroup title={t('export.sec.' + s.id)} ids={s.formats} o={o} selected={formats} onToggle={toggle} />
           ))}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image/color"
@@ -320,6 +321,8 @@ func (p *Profile) produce(req ExportRequest, spec plot.Spec) ([]output, string, 
 func (p *Profile) produceItem(it ExportItem, req ExportRequest, spec plot.Spec, multi bool) ([]output, string, error) {
 	T := p.app.T
 	switch it.Kind {
+	case export.KindAnalysis:
+		return p.analysisOutputs(it.ID, req, spec, multi)
 	case export.KindGraph:
 		def, err := p.Graph(it.ID)
 		if err != nil {
@@ -373,6 +376,25 @@ func (p *Profile) produceItem(it ExportItem, req ExportRequest, spec plot.Spec, 
 					return nil, "", err
 				}
 				outs = append(outs, o)
+				continue
+			}
+			if f.SourceInfo != nil && len(f.Measurements) == 0 {
+				if format != "json" {
+					return nil, "", errors.New("dts.no_scientific_results")
+				}
+				// This is a coverage/provenance report, not a normalized dataset.
+				// Exclude internal blob IDs and distinguish import from measurement time.
+				b, err := json.MarshalIndent(map[string]any{
+					"kind": "source_metadata", "schema": 1, "name": f.Name,
+					"sourceSHA256": f.SHA256, "size": f.Size, "module": f.Module,
+					"parser": f.Parser, "spec": f.Spec, "importedAt": f.ImportedAt,
+					"sourceInfo": f.SourceInfo, "warnings": f.Warnings,
+					"normalizedMeasurements": 0,
+				}, "", "  ")
+				if err != nil {
+					return nil, "", err
+				}
+				outs = append(outs, output{name: base + ".json", role: "source_metadata", data: append(b, '\n')})
 				continue
 			}
 			sub, _, err := p.produceItem(ExportItem{Kind: export.KindDataset, IDs: f.Measurements}, ExportRequest{Formats: []string{format}, Data: req.Data}, spec, multi)
@@ -456,7 +478,13 @@ func (p *Profile) graphOutputs(def graph.Definition, formats []string, spec plot
 	ids := def.Measurements
 	var ci *graph.CycleInput
 	var in graph.Input
-	if def.Kind != graph.KindDistribution {
+	if def.Kind == graph.KindStatistical {
+		saved, e := p.Analysis(def.AnalysisID)
+		if e != nil {
+			return nil, "", e
+		}
+		in = analysisInput(saved)
+	} else if def.Kind != graph.KindDistribution {
 		cy, err := p.Cycle(def.CycleID)
 		if err != nil {
 			return nil, "", err
@@ -490,6 +518,12 @@ func (p *Profile) graphOutputs(def graph.Definition, formats []string, spec plot
 		case export.GroupData:
 			var ds export.DataSet
 			switch {
+			case def.Kind == graph.KindStatistical:
+				saved, e := p.Analysis(def.AnalysisID)
+				if e != nil {
+					return nil, "", e
+				}
+				ds = export.StatisticalData(saved)
 			case def.Kind == graph.KindParameterTime:
 				ds, err = export.ParameterData(fig.Title, def.Param, in, *ci, T)
 				if err != nil {
@@ -715,6 +749,23 @@ func (p *Profile) researchPackage(cy CycleDoc, in graph.Input, ci graph.CycleInp
 		return nil, "", err
 	}
 	// Statistics per tracked parameter.
+	analyses, err := p.Analyses()
+	if err != nil {
+		return nil, "", err
+	}
+	for _, a := range analyses {
+		if a.Snapshot.Definition.CycleID != cy.ID {
+			continue
+		}
+		analysisFiles, _, err := p.analysisOutputs(a.ID, ExportRequest{Formats: []string{"package"}, Data: dopt}, plot.Preset(plot.PresetPrint), false)
+		if err != nil {
+			return nil, "", err
+		}
+		for _, f := range analysisFiles {
+			f.name = "statistics/analyses/" + a.ID + "/" + strings.TrimPrefix(f.name, "statistics/")
+			outs = append(outs, f)
+		}
+	}
 	var defs []graph.Definition
 	for _, param := range cy.Config.Params {
 		pd, err := export.ParameterData(T("param."+param), param, in, ci, T)

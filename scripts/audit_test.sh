@@ -63,16 +63,16 @@ for group in C-RT C-SR F-RT F-SR; do
 	mkdir "$repo/$group"
 	printf 'Synthetic placeholder, no experimental measurements.\n' >"$repo/$group/sample-record.txt"
 done
-for name in Zeta.xlsx AGENTS.md CLAUDE.md MASTER_CONTINUITY_RECOVERY_PROMPT.txt Codex_transcript.md PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip; do
+for name in Zeta.xlsx AGENTS.md CLAUDE.md MASTER_CONTINUITY_RECOVERY_PROMPT.txt Codex_transcript.md PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip MNE_Lab_Pacote_Implementacao_ATUALIZADO.zip Example_Results.dts; do
 	printf 'Synthetic private-category placeholder.\n' >"$repo/$name"
 done
 commit 'Synthetic private filename categories'
 run_audit
 expect_status 1 'tracked private filenames'
 expect_line 'FAIL  no private files tracked'
-for name in C-RT/sample-record.txt C-SR/sample-record.txt F-RT/sample-record.txt F-SR/sample-record.txt Zeta.xlsx AGENTS.md CLAUDE.md MASTER_CONTINUITY_RECOVERY_PROMPT.txt Codex_transcript.md PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip; do expect_line "$name"; done
+for name in C-RT/sample-record.txt C-SR/sample-record.txt F-RT/sample-record.txt F-SR/sample-record.txt Zeta.xlsx AGENTS.md CLAUDE.md MASTER_CONTINUITY_RECOVERY_PROMPT.txt Codex_transcript.md PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip MNE_Lab_Pacote_Implementacao_ATUALIZADO.zip Example_Results.dts; do expect_line "$name"; done
 pass 'all known data and coordination filename categories are rejected'
-git -C "$repo" rm -rq -- C-RT C-SR F-RT F-SR Zeta.xlsx AGENTS.md CLAUDE.md MASTER_CONTINUITY_RECOVERY_PROMPT.txt Codex_transcript.md PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip
+git -C "$repo" rm -rq -- C-RT C-SR F-RT F-SR Zeta.xlsx AGENTS.md CLAUDE.md MASTER_CONTINUITY_RECOVERY_PROMPT.txt Codex_transcript.md PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip MNE_Lab_Pacote_Implementacao_ATUALIZADO.zip Example_Results.dts
 commit 'Remove synthetic private fixtures'
 run_audit
 expect_status 1 'deleted private filenames remain in history'

@@ -9,11 +9,12 @@ package export
 
 // Content kinds the export dialog adapts to.
 const (
-	KindGraph   = "graph"   // a scientific figure and its underlying data
-	KindDataset = "dataset" // normalized measurements as tables
-	KindCycle   = "cycle"   // a cycle: results, data or the full package
-	KindFile    = "file"    // an imported original file
-	KindBatch   = "batch"   // several items at once
+	KindGraph    = "graph"    // a scientific figure and its underlying data
+	KindDataset  = "dataset"  // normalized measurements as tables
+	KindCycle    = "cycle"    // a cycle: results, data or the full package
+	KindFile     = "file"     // an imported original file
+	KindBatch    = "batch"    // several items at once
+	KindAnalysis = "analysis" // immutable statistical result and its audit data
 )
 
 // Format groups.
@@ -101,6 +102,10 @@ var (
 func For(kind string) Options {
 	o := Options{Kind: kind}
 	switch kind {
+	case KindAnalysis:
+		o.Sections = []Section{{"recommended", []string{"xlsx", "csv", "json", "pdf"}}, {"full", []string{"package"}}, {"all", []string{"xlsx", "csv", "tsv", "txt", "json", "pdf", "package"}}}
+		o.Presets = []string{PresetRawData, PresetPackage, PresetCustom}
+		o.Default = Choice{PresetRawData, []string{"xlsx", "csv"}}
 	case KindGraph:
 		o.Sections = []Section{
 			{"recommended", []string{"png", "svg", "pdf", "tiff"}},

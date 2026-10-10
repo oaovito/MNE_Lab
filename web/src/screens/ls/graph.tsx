@@ -3,12 +3,14 @@
 // the data.
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { get, post } from '../../lib/api';
+import { statisticsHeaders } from '../../lib/analyses';
 import { fmtDate, fmtNum, fmtQ, fmtTS } from '../../lib/format';
 import { errText, t } from '../../lib/i18n';
 import { measurementName, PARAMS, useCycles, useFiles, warnText, WEIGHTINGS } from '../../lib/library';
 import { navigate } from '../../lib/route';
 import { openPanel, run, toast } from '../../lib/state';
 import type { GraphDef, Series } from '../../lib/types';
+import type { StatisticalAnalysis } from '../../lib/statistics';
 import { FigureView, seriesLabel } from '../../plot/Figure';
 import { defaultVisual, useRendered, useSize, type Rendered } from '../../plot/useRender';
 import { Icon } from '../../ui/icons';
@@ -77,6 +79,7 @@ function Editor(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphDe
   const dirty = p.isNew || norm(def) !== norm(p.base);
   const cycles = useCycles();
   const cycle = cycles.data?.find((c) => c.id === def.cycleId);
+  const analysis = useAsync(() => def.analysisId ? get<StatisticalAnalysis>('/api/statistics/' + def.analysisId,{headers:statisticsHeaders()}) : Promise.resolve(null), [def.analysisId]);
   const series = r.data?.series || [];
 
   // Leaving with unsaved changes asks first.
@@ -126,7 +129,7 @@ function Editor(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphDe
     set({ series: { ...(def.series || {}), [id]: next } });
   };
 
-  const cycleKind = def.kind !== 'dls_distribution';
+  const cycleKind = def.kind === 'parameter_time' || def.kind === 'dls_by_time';
   return (
     <>
       <div class="page-head" style={{ minHeight: 0 }}>
@@ -162,11 +165,11 @@ function Editor(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphDe
             <Select
               value={def.kind}
               label={t('graph.type')}
-              onValue={(kind) => set({ kind })}
+              onValue={(kind) => set({ kind: kind as GraphDef['kind'] })}
               options={[
-                { value: 'dls_distribution', label: t('graph.kind.dls_distribution') },
-                { value: 'parameter_time', label: t('graph.kind.parameter_time'), disabled: !def.cycleId },
-                { value: 'dls_by_time', label: t('graph.kind.dls_by_time'), disabled: !def.cycleId },
+                ...(def.analysisId ? [{ value: 'statistical_groups', label: t('graph.kind.statistical_groups') }] : [{ value: 'dls_distribution', label: t('graph.kind.dls_distribution') }]),
+                ...(!def.analysisId ? [{ value: 'parameter_time', label: t('graph.kind.parameter_time'), disabled: !def.cycleId },
+                { value: 'dls_by_time', label: t('graph.kind.dls_by_time'), disabled: !def.cycleId }] : []),
               ]}
             />
             {!def.cycleId && <span class="xs faint">{t('graph.cycle_kinds_hint')}</span>}
@@ -175,6 +178,16 @@ function Editor(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphDe
                 {t('files.cycle')}
               </Button>
             )}
+            {def.kind === 'statistical_groups' && <Field label={t('stat.error_bars')}><Select label={t('stat.error_bars')} value={def.errorBars||'sd'} onValue={(errorBars)=>set({errorBars:errorBars as 'sd'|'sem'|'ci'})} options={[{value:'sd',label:'SD'},{value:'sem',label:'SEM'},{value:'ci',label:t('stat.confidence_interval')}]}/><Button size="sm" onClick={()=>navigate('/ls/statistics/'+def.analysisId)}>{t('stat.title')}</Button></Field>}
+            {def.kind === 'statistical_groups' && analysis.data && <div class="group">
+              <Field label={t('stat.annotation_style')}><Select label={t('stat.annotation_style')} value={def.annotationStyle||'exact'} onValue={(value)=>set({annotationStyle:value as 'exact'|'stars'})} options={[{value:'exact',label:t('stat.annotation_exact')},{value:'stars',label:t('stat.annotation_stars')}]}/></Field>
+              <span class="small muted">{t('stat.annotations_help')}</span>
+              {analysis.data.results.comparisons.map(c=><label class="row small" key={c.id}>
+                <input type="checkbox" checked={(def.annotations||[]).includes(c.id)} disabled={!(def.annotations||[]).includes(c.id)&&(def.annotations||[]).length>=8} onChange={e=>set({annotations:e.currentTarget.checked?[...(def.annotations||[]),c.id]:(def.annotations||[]).filter(id=>id!==c.id)})}/>
+                <span>{c.contrast}{c.context?' · '+c.context:''} · p(adj)={c.adjustedP===0?t('stat.p_underflow'):String(c.adjustedP)}</span>
+              </label>)}
+              {def.annotationStyle==='stars'&&<span class="xs faint">{t('stat.star_thresholds')}</span>}
+            </div>}
             {cycleKind && (
               <Field label={t('meta.cycle')}>
                 <Select value={def.cycleId || ''} onValue={(cycleId) => set({ cycleId })} options={(cycles.data || []).map((c) => ({ value: c.id!, label: c.config.name }))} />
@@ -185,7 +198,7 @@ function Editor(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphDe
                 <Select value={def.param || 'effective_diameter'} onValue={(param) => set({ param })} options={PARAMS.map((k) => ({ value: k, label: t('param.' + k) }))} />
               </Field>
             )}
-            {def.kind !== 'parameter_time' && (
+            {(def.kind === 'dls_distribution' || def.kind === 'dls_by_time') && (
               <>
                 <Field label={t('meta.weighting')}>
                   <Seg

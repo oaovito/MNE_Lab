@@ -6,7 +6,7 @@ import { t } from '../../lib/i18n';
 import { measurementName, useFiles } from '../../lib/library';
 import { Button, Check, Empty, Input, Modal, Skeleton } from '../../ui/kit';
 
-export function MeasurementPicker(p: { title: string; initial: string[]; onPick: (ids: string[]) => void; onClose: () => void; confirm?: string }) {
+export function MeasurementPicker(p: { title: string; initial: string[]; onPick: (ids: string[]) => void; onClose: () => void; confirm?: string; allowed?: string[] }) {
   const files = useFiles();
   const [q, setQ] = useState('');
   const [sel, setSel] = useState<string[]>(p.initial);
@@ -14,6 +14,7 @@ export function MeasurementPicker(p: { title: string; initial: string[]; onPick:
     const out: { id: string; name: string; file: string; when: string; ed: string; hay: string }[] = [];
     for (const f of files.data || [])
       for (const m of f.items || []) {
+        if (p.allowed && !p.allowed.includes(m.id)) continue;
         const name = measurementName(m, f);
         out.push({
           id: m.id,
@@ -25,7 +26,7 @@ export function MeasurementPicker(p: { title: string; initial: string[]; onPick:
         });
       }
     return out;
-  }, [files.data]);
+  }, [files.data, p.allowed]);
   const list = rows.filter((r) => !q || r.hay.includes(q.toLowerCase()));
   const toggle = (id: string, on: boolean) => setSel(on ? [...sel, id] : sel.filter((x) => x !== id));
   const allOn = list.length > 0 && list.every((r) => sel.includes(r.id));

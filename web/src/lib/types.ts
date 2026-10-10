@@ -113,7 +113,9 @@ export type StateView = {
 
 // ---- LIGHTSCATTERING ----
 
+export type SourceInfo = {vendor:string;container:string;support:string;scientificValidation:string;details?:unknown};
 export type SourceFile = {
+  sourceInfo?: SourceInfo;
   importSelection?: ImportSelection;
   id: string;
   blobId: string;
@@ -146,6 +148,7 @@ export type MeasurementSummary = {
   fileId: string;
   index: number;
   sampleId?: string;
+  experimentalUnitId?: string;
   measuredAt?: Timestamp;
   params: Record<string, Quantity>;
   weightings?: string[];
@@ -190,11 +193,12 @@ export type SheetSelection = { name: string; range?: string };
 export type ImportSelection = { sheets: SheetSelection[] };
 export type ImportProfile = { id: string; schema: number; name: string; format: string; selection?: ImportSelection; parser: string; spec: string; createdAt: string };
 export type ImportInspection = {
+  tabular?: { schema: number; format: string; delimiter?: string; truncated: boolean; error?: string; tables?: { sheet?: string; range?: string; rowCount: number; columnCount: number; columns?: { index: number; label: string }[]; rows?: { line: number; lastLine: number; cells: { column: number; line: number; byteColumn?: number; address?: string; value: string }[] }[] }[] };
   selection?: ImportSelection;
   name: string; sha256: string; format: string; module?: string;
   measurements: number; previewTruncated: boolean; needsDate: boolean;
   existing?: string; accountId: string; profileId: string; receipt?: string;
-  result: { sheets?: { name: string; rows: number; columns: number; headers?: string[]; selected: boolean; compatible: boolean }[]; status: 'parsed' | 'partial' | 'failed'; measurements: Measurement[];
+  result: { sourceInfo?:SourceInfo; sheets?: { name: string; rows: number; columns: number; headers?: string[]; selected: boolean; compatible: boolean }[]; status: 'parsed' | 'partial' | 'failed'; measurements: Measurement[];
     encoding: string; delimiter?: string; decimal?: string; recognized: string[];
     warnings?: string[]; error?: string; parser: string; spec: string };
 };
@@ -206,7 +210,11 @@ export type GraphDef = {
   schema?: number;
   id?: string;
   title: string;
-  kind: 'dls_distribution' | 'parameter_time' | 'dls_by_time';
+  kind: 'dls_distribution' | 'parameter_time' | 'dls_by_time' | 'statistical_groups';
+  analysisId?: string;
+  errorBars?: 'sd'|'sem'|'ci';
+  annotations?: string[];
+  annotationStyle?: 'exact'|'stars';
   measurements: string[];
   distributions?: Record<string, string>;
   weighting?: string;
@@ -310,7 +318,7 @@ export type CycleView = CycleDoc & {
 };
 
 export type Relations = {
-  files: Record<string, { graphs: string[] | null; cycles: string[] | null }>;
+  files: Record<string, { graphs: string[] | null; cycles: string[] | null; analyses?:string[] | null }>;
   graphs: Record<string, { files: string[] | null; cycle?: string }>;
-  cycles: Record<string, { files: string[] | null; graphs: string[] | null }>;
+  cycles: Record<string, { files: string[] | null; graphs: string[] | null; analyses?:string[] | null }>;
 };

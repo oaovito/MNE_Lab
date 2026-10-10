@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/oaovito/mne_lab/internal/science/ingest"
 	"github.com/oaovito/mne_lab/internal/science/lightscattering"
 	"github.com/oaovito/mne_lab/internal/science/model"
 	"github.com/oaovito/mne_lab/internal/secure"
@@ -24,19 +25,20 @@ var (
 
 // ImportInspection is an ephemeral, bounded preview. It has no record/blob ID.
 type ImportInspection struct {
-	Selection        *model.ImportSelection `json:"selection,omitempty"`
-	Name             string                 `json:"name"`
-	SHA256           string                 `json:"sha256"`
-	Format           string                 `json:"format"`
-	Module           string                 `json:"module,omitempty"`
-	Result           lightscattering.Result `json:"result"`
-	Measurements     int                    `json:"measurements"`
-	PreviewTruncated bool                   `json:"previewTruncated"`
-	NeedsDate        bool                   `json:"needsDate"`
-	Existing         string                 `json:"existing,omitempty"`
-	AccountID        string                 `json:"accountId"`
-	ProfileID        string                 `json:"profileId"`
-	Receipt          string                 `json:"receipt,omitempty"`
+	Tabular          *lightscattering.TabularPreview `json:"tabular,omitempty"`
+	Selection        *model.ImportSelection          `json:"selection,omitempty"`
+	Name             string                          `json:"name"`
+	SHA256           string                          `json:"sha256"`
+	Format           string                          `json:"format"`
+	Module           string                          `json:"module,omitempty"`
+	Result           ingest.Result                   `json:"result"`
+	Measurements     int                             `json:"measurements"`
+	PreviewTruncated bool                            `json:"previewTruncated"`
+	NeedsDate        bool                            `json:"needsDate"`
+	Existing         string                          `json:"existing,omitempty"`
+	AccountID        string                          `json:"accountId"`
+	ProfileID        string                          `json:"profileId"`
+	Receipt          string                          `json:"receipt,omitempty"`
 }
 
 type importClaim struct {
@@ -87,8 +89,8 @@ func (p *Profile) InspectImportSelection(name string, data []byte, selection *mo
 	if len(data) > lightscattering.MaxFileSize {
 		return ImportInspection{}, ErrFileTooLarge
 	}
-	r, format := lightscattering.ParseFileSelection(name, data, selection)
-	out := ImportInspection{Selection: selection, Name: name, SHA256: secure.HashHex(data), Format: format, Result: r, Measurements: len(r.Measurements), AccountID: p.acct.ID(), ProfileID: p.Entry.ID}
+	r, format, tabular := ingest.Inspect(name, data, selection)
+	out := ImportInspection{Tabular: tabular, Selection: selection, Name: name, SHA256: secure.HashHex(data), Format: format, Result: r, Measurements: len(r.Measurements), AccountID: p.acct.ID(), ProfileID: p.Entry.ID}
 	if format == "nanobrook-text" {
 		out.Format = "txt"
 		switch r.Delimiter {
@@ -98,6 +100,10 @@ func (p *Profile) InspectImportSelection(name string, data []byte, selection *mo
 			out.Format = "csv"
 		}
 	}
+	if tabular != nil {
+		out.Format = tabular.Format
+		out.PreviewTruncated = tabular.Truncated
+	}
 	for _, m := range r.Measurements {
 		if m.MeasuredAt == nil || m.MeasuredAt.Ambiguous {
 			out.NeedsDate = true
@@ -105,6 +111,9 @@ func (p *Profile) InspectImportSelection(name string, data []byte, selection *mo
 		if len(m.Params) > 0 || m.Dist != nil || len(m.Distributions) > 0 {
 			out.Module = "lightscattering"
 		}
+	}
+	if r.SourceInfo != nil && r.Status == "partial" {
+		out.Module = r.Module
 	}
 	if out.Module == "" && r.Status != "failed" {
 		out.Result.Status = "failed"
@@ -237,7 +246,8 @@ func (p *Profile) ConfirmImportSelection(name string, data []byte, receipt strin
 	if err != nil {
 		return ImportResult{}, err
 	}
-	if !sameImportSelection(claim.Selection, selection) || len(data) == 0 || len(data) > lightscattering.MaxFileSize || name != claim.Name || secure.HashHex(data) != claim.SHA256 || claim.Parser != lightscattering.Version || claim.Spec != lightscattering.Parse(nil).Spec {
+	parser, spec := ingest.Identity(name, data)
+	if !sameImportSelection(claim.Selection, selection) || len(data) == 0 || len(data) > lightscattering.MaxFileSize || name != claim.Name || secure.HashHex(data) != claim.SHA256 || claim.Parser != parser || claim.Spec != spec {
 		return ImportResult{}, ErrImportChanged
 	}
 	return p.importSelected(name, data, force, selection), nil

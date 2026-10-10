@@ -12,6 +12,7 @@ import { StorageLabel } from '../ui/common';
 import { Icon, type IconName } from '../ui/icons';
 import { Avatar, Button, Modal, Skeleton, useAsync } from '../ui/kit';
 import { providerName } from '../ui/providers';
+import { useAnalyses } from '../lib/analyses';
 
 type ExportRec = { id: string; at: string; formats: string[]; preset: string; names: string[] | null; folder: string };
 
@@ -21,6 +22,7 @@ export function MyStuff() {
   const files = useFiles();
   const graphs = useGraphs();
   const cycles = useCycles();
+  const analyses = useAnalyses();
   const tf = useFiles(true);
   const tg = useGraphs(true);
   const tc = useCycles(true);
@@ -53,6 +55,7 @@ export function MyStuff() {
           <Stat icon="table" v={files.data ? nMeas : undefined} k={t('my.measurements')} go={go(() => navigate('/ls/files'))} />
           <Stat icon="chart" v={graphs.data?.length} k={t('ls.tab.graphs')} go={go(() => navigate('/ls/graphs'))} />
           <Stat icon="cycle" v={cycles.data?.length} k={t('ls.tab.cycles')} go={go(() => navigate('/ls/cycles'))} />
+          <Stat icon="sigma" v={analyses.data?.length} k={t('ls.tab.statistics')} go={go(() => navigate('/ls/statistics'))} />
         </div>
 
         <div class="row gap4" style={{ alignItems: 'stretch', flexWrap: 'wrap' }}>

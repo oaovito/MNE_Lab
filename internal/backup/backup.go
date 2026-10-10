@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/atomicfile"
@@ -62,8 +61,9 @@ func Create(s *store.Store, key secure.Key, dir, reason string) (Entry, error) {
 	}
 	schema, _ := s.Schema()
 	now := time.Now().UTC()
-	name := now.Format("20060102T150405.000") + ".mnebak"
-	name = strings.ReplaceAll(name, ".000", fmt.Sprintf("-%03d", now.Nanosecond()/1e6))
+	// Multiple snapshots within a millisecond must not overwrite each other;
+	// rotation could otherwise delete a file still referenced by the manifest.
+	name := now.Format("20060102T150405.000") + "-" + secure.NewID() + ".mnebak"
 	p := filepath.Join(dir, name)
 	if err := atomicfile.WriteFile(p, buf.Bytes(), 0o600); err != nil {
 		return Entry{}, err

@@ -6,7 +6,10 @@
 // exact text it was read from, so no precision is lost in parsing.
 package model
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Quantity is a numeric value with its unit and original text.
 type Quantity struct {
@@ -127,6 +130,7 @@ type Measurement struct {
 	SourceSheet            string              `json:"sourceSheet,omitempty"` // original workbook sheet; Line fields refer to its rows
 	Index                  int                 `json:"index"`                 // position inside the file
 	SampleID               string              `json:"sampleId,omitempty"`
+	ExperimentalUnitID     string              `json:"experimentalUnitId,omitempty"`
 	MeasuredAt             *Timestamp          `json:"measuredAt,omitempty"`
 	Params                 map[string]Quantity `json:"params"`
 	Fields                 []Field             `json:"fields"`
@@ -164,6 +168,7 @@ type SheetSelection struct {
 // SourceFile describes an imported original file. The bytes live in the
 // profile's blob store under BlobID and are never modified.
 type SourceFile struct {
+	SourceInfo      *SourceInfo      `json:"sourceInfo,omitempty"`
 	ImportSelection *ImportSelection `json:"importSelection,omitempty"`
 	ID              string           `json:"id"`
 	BlobID          string           `json:"blobId"`
@@ -188,4 +193,14 @@ type SourceFile struct {
 	Notes           string           `json:"notes,omitempty"`
 	Origin          string           `json:"origin"` // import, sync, package
 	Trashed         bool             `json:"trashed,omitempty"`
+}
+
+// SourceInfo describes parser coverage independently from scientific validity.
+// Details are local source metadata, never executable code or assumed quantities.
+type SourceInfo struct {
+	Vendor               string          `json:"vendor"`
+	Container            string          `json:"container"`
+	Support              string          `json:"support"`
+	ScientificValidation string          `json:"scientificValidation"`
+	Details              json.RawMessage `json:"details,omitempty"`
 }
