@@ -167,7 +167,9 @@ func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
 	a, b, units := map[string]int{}, map[string]int{}, map[string]bool{}
 	cells, unitTime, unitGroup := map[string]int{}, map[string]bool{}, map[string]string{}
 	def := snapshot.Definition
+	mapped := false
 	for _, o := range snapshot.Observations {
+		mapped = mapped || (o.Quantity != nil && o.Quantity.UnitOrigin == "user_mapping")
 		if o.ExcludeReason != "" {
 			d.Excluded++
 			continue
@@ -197,6 +199,9 @@ func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
 		} else if def.Structure == "repeated" {
 			return d, analysis.ErrStructure
 		}
+	}
+	if mapped {
+		d.Warnings = append(d.Warnings, "ls.user_mapping_unvalidated")
 	}
 	for name := range a {
 		d.LevelsA = append(d.LevelsA, name)

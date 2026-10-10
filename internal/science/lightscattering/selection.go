@@ -17,6 +17,9 @@ func NormalizeSelection(in *model.ImportSelection) (*model.ImportSelection, erro
 	if in == nil {
 		return nil, nil
 	}
+	if in.Mapping != nil {
+		return normalizeMapping(in)
+	}
 	if len(in.Sheets) == 0 || len(in.Sheets) > 256 {
 		return nil, ErrImportSelection
 	}

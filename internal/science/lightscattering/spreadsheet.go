@@ -45,6 +45,10 @@ func ParseFileSelection(name string, data []byte, selection *model.ImportSelecti
 	if len(data) > MaxFileSize {
 		return spreadsheetFailure(ErrTooLarge), ""
 	}
+	if selection != nil && selection.Mapping != nil {
+		r, format, _ := parseMappedDelimited(name, data, selection.Mapping, false)
+		return r, format
+	}
 	if ext == ".ods" || IsODSPackage(data) {
 		return odsFailure(ErrSpreadsheetUnsupported), "ods"
 	}

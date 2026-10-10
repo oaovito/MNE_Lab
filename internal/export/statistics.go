@@ -8,6 +8,7 @@ import (
 	"github.com/go-pdf/fpdf"
 	"github.com/oaovito/mne_lab/internal/plot"
 	"github.com/oaovito/mne_lab/internal/science/analysis"
+	"github.com/oaovito/mne_lab/internal/science/model"
 )
 
 func statisticalTable(id, name string, keys ...string) Table {
@@ -44,6 +45,13 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 		groups.Rows = append(groups.Rows, []Cell{text(r.FactorA), text(r.FactorB), num(float64(r.N), 0), num(r.Mean, -1), optional(r.SD), optional(r.SEM), optional(r.CILower), optional(r.CIUpper)})
 	}
 	observations := statisticalTable("observations", "Observations", "measurement_id", "file_id", "sample_id", "factor_a", "factor_b", "unit_id", "value", "raw", "unit", "missing", "exclude_reason")
+	mapped := false
+	for _, o := range a.Snapshot.Observations {
+		mapped = mapped || (o.Quantity != nil && o.Quantity.UnitOrigin == "user_mapping")
+	}
+	if mapped {
+		observations.Columns = append(observations.Columns, mappingColumns("quantity")...)
+	}
 	for _, o := range a.Snapshot.Observations {
 		v, raw, unit := text(""), "", ""
 		if o.Quantity != nil {
@@ -51,7 +59,15 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 			raw = o.Quantity.Raw
 			unit = o.Quantity.Unit
 		}
-		observations.Rows = append(observations.Rows, []Cell{text(o.MeasurementID), text(o.FileID), text(o.SampleID), text(o.FactorA), text(o.FactorB), text(o.UnitID), v, text(raw), text(unit), text(fmt.Sprint(o.Missing)), text(o.ExcludeReason)})
+		row := []Cell{text(o.MeasurementID), text(o.FileID), text(o.SampleID), text(o.FactorA), text(o.FactorB), text(o.UnitID), v, text(raw), text(unit), text(fmt.Sprint(o.Missing)), text(o.ExcludeReason)}
+		if mapped {
+			q := model.Quantity{}
+			if o.Quantity != nil {
+				q = *o.Quantity
+			}
+			row = append(row, mappingCells(q)...)
+		}
+		observations.Rows = append(observations.Rows, row)
 	}
 	posthoc := statisticalTable("posthoc", "Multiple comparisons", "comparison_id", "left_a", "left_b", "right_a", "right_b", "contrast", "context", "difference", "CI_lower", "CI_upper", "adjusted_p", "correction")
 	for _, c := range a.Results.Comparisons {

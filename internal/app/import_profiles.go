@@ -73,17 +73,22 @@ func (p *Profile) SaveImportProfile(name, receipt string) (ImportProfile, error)
 	if err != nil {
 		return ImportProfile{}, err
 	}
-	if claim.Parser != lightscattering.Version || claim.Spec != lightscattering.Parse(nil).Spec {
+	manual := claim.Selection != nil && claim.Selection.Mapping != nil
+	if (!manual && (claim.Parser != lightscattering.Version || claim.Spec != lightscattering.Parse(nil).Spec)) || (manual && (claim.Parser != lightscattering.MappingVersion || claim.Spec != lightscattering.MappingSpec)) {
 		return ImportProfile{}, ErrImportChanged
 	}
-	if claim.Format != "xlsx" {
+	if (!manual && claim.Format != "xlsx") || (manual && claim.Format != "csv" && claim.Format != "tsv") {
 		return ImportProfile{}, ErrImportProfileFormat
 	}
 	selection, err := lightscattering.NormalizeSelection(claim.Selection)
 	if err != nil {
 		return ImportProfile{}, err
 	}
-	profile := ImportProfile{ID: secure.NewID(), Schema: 1, Name: name, Format: claim.Format, Selection: selection, Parser: claim.Parser, Spec: claim.Spec, CreatedAt: time.Now().UTC()}
+	schema := 1
+	if manual {
+		schema = 2
+	}
+	profile := ImportProfile{ID: secure.NewID(), Schema: schema, Name: name, Format: claim.Format, Selection: selection, Parser: claim.Parser, Spec: claim.Spec, CreatedAt: time.Now().UTC()}
 	done := p.app.begin("import-profile")
 	defer done()
 	err = p.St.Update(func(tx *store.Tx) error {

@@ -65,7 +65,11 @@ de conversão. A origem de cada medição inclui a planilha e as linhas do arqui
 Fórmulas e macros não são executadas nem interpretadas como medições; use uma
 cópia com os valores medidos. ODS 1.3 tem prévia literal somente leitura, preservando
 texto e valor declarado; mapeamento/importação científica ODS e leitura XLS seguem
-pendentes. Tabelas incompletas
+pendentes. CSV/TSV aceitam mapeamento explícito dos cinco campos escalares DLS,
+com unidade declarada pelo usuário, receita versionada e nova revisão antes de
+importar. O resultado permanece PARTIAL / UNVALIDATED; não há inferência de
+unidades, conversão nem validação do instrumento. A proveniência acompanha
+File Library, Graph, Cycle, Statistics e exportação. Tabelas incompletas
 ou com várias distribuições sem separação de medições são sinalizadas para revisão,
 sem gerar curvas de um trecho arbitrário. Relatórios nativos com alternativas
 Lognormal e Multimodal permitem revisar os valores e escolher a distribuição.

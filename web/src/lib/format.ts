@@ -23,7 +23,7 @@ export function decimalsOf(raw: string | undefined): number | undefined {
   return m ? m[1].length : 0;
 }
 
-export type Quantity = { value: number; raw: string; unit?: string; label?: string; line?: number };
+export type Quantity = { value: number; raw: string; unit?: string; label?: string; line?: number; unitOrigin?: string; sourceColumn?: number };
 
 export function fmtQ(q: Quantity | undefined, withUnit = true): string {
   if (!q) return '—';

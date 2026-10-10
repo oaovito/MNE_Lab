@@ -126,6 +126,9 @@ func InspectFileSelection(name string, data []byte, selection *model.ImportSelec
 	if err != nil {
 		return spreadsheetFailure(err), "", nil
 	}
+	if normalized != nil && normalized.Mapping != nil {
+		return parseMappedDelimited(name, data, normalized.Mapping, true)
+	}
 	ext := strings.ToLower(filepath.Ext(name))
 	if ext == ".ods" || IsODSPackage(data) {
 		if normalized != nil {
