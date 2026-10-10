@@ -128,5 +128,17 @@
  "unit.hours": "hours",
  "unit.months": "months",
  "unit.weeks": "weeks",
- "unit.years": "years"
+ "unit.years": "years",
+ "plot.stat.annotations": "Brackets use adjusted p-values: {correction}",
+ "plot.stat.stars": "Adjusted p: * <0.05; ** <0.01; *** <0.001; **** <0.0001; ns ≥0.05",
+ "stat.p_underflow": "Below engine precision",
+ "axis.statistical_group": "Experimental group",
+ "graph.kind.statistical_groups": "Statistical groups",
+ "series.stat_individual": "Individual observations",
+ "series.stat_mean_sd": "Mean ± SD",
+ "series.stat_mean_sem": "Mean ± SEM",
+ "series.stat_mean_ci": "Mean and confidence interval",
+ "series.stat_mean_only": "Mean; error not estimable",
+ "dts.no_scientific_results": "No supported scientific results are available. Export the original or JSON source metadata.",
+ "ls.invalid_delimited_table": "Malformed delimited source table."
 }

@@ -112,6 +112,7 @@ function Detail(p: { v: View; set: (v: View) => void }) {
         <Button size="sm" icon="download" onClick={() => openPanel('export', { items: [{ kind: 'cycle', id: v.id }] })}>
           {t('ui.export')}
         </Button>
+        <Button size="sm" icon="sigma" onClick={() => navigate('/ls/statistics/new?cycle=' + v.id)}>{t('stat.new')}</Button>
         <MenuButton size="sm" kind="primary" icon="chart" trail="down" items={graphItems} align="end">
           {t('cycle.create_graph')}
         </MenuButton>

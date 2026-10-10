@@ -11,13 +11,16 @@ import { CycleLibrary } from './cycles';
 import { FileLibrary } from './files';
 import { GraphView } from './graph';
 import { GraphLibrary } from './graphs';
+import { StatisticalModule } from './statistics';
+import { useAnalyses } from '../../lib/analyses';
 
 export function LsModule() {
   const { path } = useRoute();
   const files = useFiles();
   const graphs = useGraphs();
   const cycles = useCycles();
-  const tab = path.startsWith('/ls/graphs') ? 'graphs' : path.startsWith('/ls/cycles') ? 'cycles' : 'files';
+  const analyses = useAnalyses();
+  const tab = path.startsWith('/ls/statistics') ? 'statistics' : path.startsWith('/ls/graphs') ? 'graphs' : path.startsWith('/ls/cycles') ? 'cycles' : 'files';
 
   useEffect(() => {
     if (!seen('ls')) openPanel('ls-intro');
@@ -25,14 +28,16 @@ export function LsModule() {
 
   const g = match('/ls/graphs/:id', path);
   const c = match('/ls/cycles/:id', path);
+  const a = match('/ls/statistics/:id', path);
   let body;
-  if (g) body = <GraphView id={g.id} />;
+  if (tab === 'statistics') body = <StatisticalModule id={a?.id} />;
+  else if (g) body = <GraphView id={g.id} />;
   else if (c) body = <CycleView id={c.id} />;
   else if (tab === 'graphs') body = <GraphLibrary />;
   else if (tab === 'cycles') body = <CycleLibrary />;
   else body = <FileLibrary />;
 
-  const detail = !!(g || c);
+  const detail = !!(g || c || a);
   return (
     <div class="page" style={{ paddingTop: 'var(--s3)', gap: 'var(--s3)' }}>
       {!detail && (
@@ -49,6 +54,7 @@ export function LsModule() {
               { value: 'files', label: t('ls.tab.files'), icon: 'files', count: files.data?.length },
               { value: 'graphs', label: t('ls.tab.graphs'), icon: 'chart', count: graphs.data?.length },
               { value: 'cycles', label: t('ls.tab.cycles'), icon: 'cycle', count: cycles.data?.length },
+              { value: 'statistics', label: t('ls.tab.statistics'), icon: 'sigma', count: analyses.data?.length },
             ]}
           />
         </div>

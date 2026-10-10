@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/science/graph"
+	"github.com/oaovito/mne_lab/internal/science/ingest"
 	"github.com/oaovito/mne_lab/internal/science/lightscattering"
 	"github.com/oaovito/mne_lab/internal/science/model"
 	"github.com/oaovito/mne_lab/internal/secure"
@@ -35,24 +36,25 @@ type ImportResult struct {
 
 // MeasurementSummary is a compact view for libraries and pickers.
 type MeasurementSummary struct {
-	ID             string                    `json:"id"`
-	FileID         string                    `json:"fileId"`
-	SourceRange    string                    `json:"sourceRange,omitempty"`
-	SourceSheet    string                    `json:"sourceSheet,omitempty"`
-	Index          int                       `json:"index"`
-	SampleID       string                    `json:"sampleId,omitempty"`
-	MeasuredAt     *model.Timestamp          `json:"measuredAt,omitempty"`
-	Params         map[string]model.Quantity `json:"params"`
-	Weightings     []string                  `json:"weightings,omitempty"`
-	Bins           int                       `json:"bins"`
-	DistributionID string                    `json:"distributionId,omitempty"`
-	Label          string                    `json:"label,omitempty"`
-	Replicate      int                       `json:"replicate,omitempty"`
-	Condition      string                    `json:"condition,omitempty"`
-	Experiment     string                    `json:"experiment,omitempty"`
-	Group          string                    `json:"group,omitempty"`
-	Tags           []string                  `json:"tags,omitempty"`
-	Notes          string                    `json:"notes,omitempty"`
+	ExperimentalUnitID string                    `json:"experimentalUnitId,omitempty"`
+	ID                 string                    `json:"id"`
+	FileID             string                    `json:"fileId"`
+	SourceRange        string                    `json:"sourceRange,omitempty"`
+	SourceSheet        string                    `json:"sourceSheet,omitempty"`
+	Index              int                       `json:"index"`
+	SampleID           string                    `json:"sampleId,omitempty"`
+	MeasuredAt         *model.Timestamp          `json:"measuredAt,omitempty"`
+	Params             map[string]model.Quantity `json:"params"`
+	Weightings         []string                  `json:"weightings,omitempty"`
+	Bins               int                       `json:"bins"`
+	DistributionID     string                    `json:"distributionId,omitempty"`
+	Label              string                    `json:"label,omitempty"`
+	Replicate          int                       `json:"replicate,omitempty"`
+	Condition          string                    `json:"condition,omitempty"`
+	Experiment         string                    `json:"experiment,omitempty"`
+	Group              string                    `json:"group,omitempty"`
+	Tags               []string                  `json:"tags,omitempty"`
+	Notes              string                    `json:"notes,omitempty"`
 }
 
 // FileView is a library entry.
@@ -65,6 +67,7 @@ func summarize(m model.Measurement) MeasurementSummary {
 	s := MeasurementSummary{ID: m.ID, FileID: m.FileID, SourceSheet: m.SourceSheet, SourceRange: m.SourceRange, Index: m.Index, SampleID: m.SampleID, MeasuredAt: m.MeasuredAt, Params: map[string]model.Quantity{},
 		Label: m.Label, Replicate: m.Replicate, Condition: m.Condition, Experiment: m.Experiment, Group: m.Group, Tags: m.Tags, Notes: m.Notes}
 	s.DistributionID = m.DistributionID
+	s.ExperimentalUnitID = m.ExperimentalUnitID
 	for _, k := range []string{model.EffectiveDiameter, model.Polydispersity, model.CountRate, model.AverageCountRate, model.BaselineIndex} {
 		if q, ok := m.Params[k]; ok {
 			s.Params[k] = q
@@ -116,9 +119,9 @@ func (p *Profile) importSelected(name string, data []byte, force bool, selection
 			return res
 		}
 	}
-	r, format := lightscattering.ParseFileSelection(name, data, selection)
+	r, format := ingest.Parse(name, data, selection)
 	f := model.SourceFile{ID: secure.NewID(), Name: name, Format: format, Size: int64(len(data)), SHA256: sum, ImportedAt: time.Now().UTC(),
-		Module: "lightscattering", Parser: r.Parser, Spec: r.Spec, Status: r.Status, Encoding: r.Encoding, Delimiter: r.Delimiter, Decimal: r.Decimal,
+		Module: r.Module, SourceInfo: r.SourceInfo, Parser: r.Parser, Spec: r.Spec, Status: r.Status, Encoding: r.Encoding, Delimiter: r.Delimiter, Decimal: r.Decimal,
 		Warnings: r.Warnings, Error: r.Error, Origin: "import", ImportSelection: selection}
 	var ms []model.Measurement
 	for i, m := range r.Measurements {
@@ -286,17 +289,18 @@ func (p *Profile) UpdateFile(id string, patch FilePatch) (model.SourceFile, erro
 // MeasurementPatch edits identification and organization. A corrected
 // date is recorded as the person's decision; the file keeps its original.
 type MeasurementPatch struct {
-	DistributionID *string    `json:"distributionId"`
-	Label          *string    `json:"label"`
-	SampleID       *string    `json:"sampleId"`
-	Replicate      *int       `json:"replicate"`
-	Condition      *string    `json:"condition"`
-	Experiment     *string    `json:"experiment"`
-	Group          *string    `json:"group"`
-	Tags           *[]string  `json:"tags"`
-	Notes          *string    `json:"notes"`
-	MeasuredAt     *time.Time `json:"measuredAt"`
-	ConfirmDate    bool       `json:"confirmDate"`
+	ExperimentalUnitID *string    `json:"experimentalUnitId"`
+	DistributionID     *string    `json:"distributionId"`
+	Label              *string    `json:"label"`
+	SampleID           *string    `json:"sampleId"`
+	Replicate          *int       `json:"replicate"`
+	Condition          *string    `json:"condition"`
+	Experiment         *string    `json:"experiment"`
+	Group              *string    `json:"group"`
+	Tags               *[]string  `json:"tags"`
+	Notes              *string    `json:"notes"`
+	MeasuredAt         *time.Time `json:"measuredAt"`
+	ConfirmDate        bool       `json:"confirmDate"`
 }
 
 // UpdateMeasurement applies a patch.
@@ -324,6 +328,14 @@ func (p *Profile) UpdateMeasurement(id string, patch MeasurementPatch) (Measurem
 		}
 		if patch.Label != nil {
 			m.Label = clean(*patch.Label, 120)
+		}
+		if patch.ExperimentalUnitID != nil {
+			if *patch.ExperimentalUnitID != "" {
+				if _, err := t.GetRecord(CollUnits, *patch.ExperimentalUnitID); err != nil {
+					return err
+				}
+			}
+			m.ExperimentalUnitID = *patch.ExperimentalUnitID
 		}
 		if patch.SampleID != nil {
 			m.SampleID = clean(*patch.SampleID, 120)

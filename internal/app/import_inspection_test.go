@@ -62,6 +62,22 @@ func profileFingerprint(t *testing.T, p *Profile) map[string]string {
 	return out
 }
 
+func TestLiteralUnknownTableIsReadOnlyAndCannotBeConfirmed(t *testing.T) {
+	_, _, p := inspectionProfile(t)
+	before := profileFingerprint(t, p)
+	b := []byte("unknown,value\nInvented,12.3400\n")
+	r, err := p.InspectImport("invented.csv", b)
+	if err != nil || r.Tabular == nil || r.Receipt != "" || r.Result.Status != "failed" || r.Measurements != 0 {
+		t.Fatal("unknown scientific table misrepresented", err)
+	}
+	if _, err := p.ConfirmImport("invented.csv", b, r.Receipt, false); err == nil {
+		t.Fatal("unknown table confirmed without scientific mapping")
+	}
+	if !reflect.DeepEqual(before, profileFingerprint(t, p)) {
+		t.Fatal("literal preview persisted scientific or profile data")
+	}
+}
+
 func TestImportInspectionHasNoPersistentEffects(t *testing.T) {
 	_, c, p := inspectionProfile(t)
 	before := profileFingerprint(t, p)

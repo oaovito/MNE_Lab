@@ -117,6 +117,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.Set("X-Frame-Options", "DENY")
 	h.Set("Cross-Origin-Opener-Policy", "same-origin")
 	h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+	if strings.HasPrefix(r.URL.Path, "/statistics-engine/") {
+		// WebAssembly compilation is permitted only in the local statistical
+		// worker assets. The main UI keeps its existing script restrictions.
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'")
+		if r.URL.Path == "/statistics-engine/webr-worker.js" {
+			// Emscripten also generates JS function wrappers while linking R.
+			// Permit that only in this isolated, ephemeral local worker. The UI
+			// retains its original CSP, and worker network access remains local.
+			h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-eval'; connect-src 'self'; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+		}
+	}
 	switch {
 	case r.URL.Path == "/auth":
 		s.handleAuth(w, r)
@@ -188,6 +199,10 @@ func (s *Server) serveUI(w http.ResponseWriter, r *http.Request) {
 		p = "index.html"
 	}
 	if st, err := fs.Stat(s.ui, p); err != nil || st.IsDir() {
+		if strings.HasPrefix(p, "statistics-engine/") {
+			http.NotFound(w, r)
+			return
+		}
 		p = "index.html" // client-side routes
 	}
 	if strings.HasPrefix(p, "assets/") {

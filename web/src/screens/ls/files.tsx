@@ -61,7 +61,7 @@ export function importFiles() {
   const input = document.createElement('input');
   input.type = 'file';
   input.multiple = true;
-  input.accept = '.txt,.csv,.tsv,.xlsx,.dat,.asc,.dls,text/plain,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  input.accept = '.txt,.csv,.tsv,.xlsx,.dat,.asc,.dls,.dts,text/plain,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   input.onchange = () => importFileList([...(input.files || [])]);
   input.click();
 }
@@ -154,6 +154,7 @@ function ImportItem(p: { row: ImportRow }) {
           </>
         )}
       </div>
+      {preview?.result.sourceInfo && <Notice kind="warning">{t('dts.partial')} · {preview.result.sourceInfo.support} / {preview.result.sourceInfo.scientificValidation}</Notice>}
       {!!preview?.result.sheets?.length && !r.result?.fileId && <div class="col gap2" style={{ marginTop: 10 }}>
         <b class="xs">{t('imp.sheets')}</b>
         {preview.result.sheets.map((sheet) => {
@@ -174,8 +175,20 @@ function ImportItem(p: { row: ImportRow }) {
         {r.state === 'editing' && <Button size="sm" onClick={() => inspectOne(r)}>{t('imp.update_preview')}</Button>}
       </div>}
       {preview?.format === 'xlsx' && !r.result?.fileId && <ImportProfilePicker row={r} />}
+      {preview?.tabular && <details class="xs" style={{marginTop:10}}>
+        <summary>{t('imp.literal_table')}</summary>
+        <p>{t('imp.literal_table_hint')}</p>
+        {preview.tabular.error && <Notice kind="warning">{errText(preview.tabular.error)}</Notice>}
+        {preview.tabular.tables?.map(table => <div class="col gap2">
+          <b>{table.sheet || preview.tabular!.format.toUpperCase()}{table.range ? ' · '+table.range : ''} · {t('imp.sheet_size',{rows:table.rowCount,cols:table.columnCount})}</b>
+          <div style={{overflow:'auto',maxHeight:280}}><table><thead><tr><th>{t('imp.source_row')}</th>{table.columns?.map(c=><th>{c.label}</th>)}</tr></thead><tbody>
+            {table.rows?.map(row=><tr><th>{row.line}{row.lastLine!==row.line?'–'+row.lastLine:''}</th>{table.columns?.map(col=>{const cell=row.cells.find(c=>c.column===col.index);return <td style={{whiteSpace:'pre-wrap',minWidth:70,maxWidth:240,overflowWrap:'anywhere'}} title={cell?.address || (cell?`${cell.line}:${cell.byteColumn || col.index}`:'')}>{cell?.value ?? ''}</td>;})}</tr>)}
+          </tbody></table></div>
+        </div>)}
+        {preview.tabular.truncated && <p>{t('imp.truncated')}</p>}
+      </details>}
       {preview && <details class="xs" style={{ marginTop: 10 }}>
-        <summary>{t('imp.detected')} · {preview.format.toUpperCase()}{preview.module ? ' · LIGHTSCATTERING' : ''}</summary>
+        <summary>{t('imp.detected')} · {preview.format.toUpperCase()}{preview.module ? ' · ' + (preview.module === 'lightscattering' ? 'LIGHTSCATTERING' : t('module.' + preview.module)) : ''}</summary>
         <p>{t('imp.encoding')}: {preview.result.encoding}{preview.result.delimiter ? ' · ' + t('imp.delimiter') + ': ' + JSON.stringify(preview.result.delimiter) : ''}</p>
         {(preview.result.measurements || []).map((m) => <div class="col gap1">
           <b>{m.sampleId || t('imp.measurement')}{m.sourceSheet ? ' · ' + m.sourceSheet : ''}{m.sourceRange ? ' · ' + m.sourceRange : ''}</b>
@@ -612,18 +625,18 @@ function LsEmpty() {
 
 // ---- file detail ----
 
-function FileDetail(p: { file: FileView; trash: boolean; rel?: { files: Record<string, { graphs: string[] | null; cycles: string[] | null }> } | null; onClose: () => void }) {
+function FileDetail(p: { file: FileView; trash: boolean; rel?: { files: Record<string, { graphs: string[] | null; cycles: string[] | null; analyses?:string[]|null }> } | null; onClose: () => void }) {
   const f = p.file;
   const [tab, setTab] = useState<'overview' | 'measurements' | 'original'>('overview');
   const rev = useStore(app, (s) => s.libraryRev);
   const full = useAsync(() => get<{ file: SourceFile; measurements: Measurement[] | null }>('/api/files/' + f.id), [f.id, rev]);
   const r = p.rel?.files[f.id];
-  const used = (r?.graphs?.length || 0) + (r?.cycles?.length || 0);
+  const used = (r?.graphs?.length || 0) + (r?.cycles?.length || 0) + (r?.analyses?.length || 0);
   const sel = useStore(selection, (s) => s.ids);
 
   const trash = async () => {
     if (used) {
-      const ok = await confirmDialog({ title: t('files.trash.q', { name: f.name }), body: t('files.trash.used', { g: r?.graphs?.length || 0, c: r?.cycles?.length || 0 }), confirm: t('files.trash.go'), danger: true, icon: 'trash' });
+      const ok = await confirmDialog({ title: t('files.trash.q', { name: f.name }), body: t('files.trash.used', { g: r?.graphs?.length || 0, c: r?.cycles?.length || 0 })+(r?.analyses?.length?' '+t('stat.source_delete_warning',{n:r.analyses.length}):''), confirm: t('files.trash.go'), danger: true, icon: 'trash' });
       if (!ok) return;
     }
     const done = await run(() => post(`/api/files/${f.id}/trash`, { trashed: true }));
@@ -641,7 +654,7 @@ function FileDetail(p: { file: FileView; trash: boolean; rel?: { files: Record<s
     }
   };
   const destroy = async () => {
-    const ok = await confirmDialog({ title: t('files.delete.q'), body: used ? t('files.delete.used', { g: r?.graphs?.length || 0, c: r?.cycles?.length || 0 }) : t('files.delete.body'), confirm: t('files.delete.go'), danger: true });
+    const ok = await confirmDialog({ title: t('files.delete.q'), body: used ? t('files.delete.used', { g: r?.graphs?.length || 0, c: r?.cycles?.length || 0 })+(r?.analyses?.length?' '+t('stat.source_delete_warning',{n:r.analyses.length}):'') : t('files.delete.body'), confirm: t('files.delete.go'), danger: true });
     if (!ok) return;
     const done = await run(() => api('DELETE', `/api/files/${f.id}`));
     if (done !== undefined) p.onClose();
@@ -704,11 +717,13 @@ function FileDetail(p: { file: FileView; trash: boolean; rel?: { files: Record<s
                   {f.sha256.slice(0, 16)}…
                 </dd>
               </dl>
+              {f.sourceInfo && <div class="col gap2"><Notice kind="warning">{t('dts.partial')}</Notice><dl class="kv"><dt>{t('dts.source_info')}</dt><dd>{f.sourceInfo.vendor} · {f.sourceInfo.container}</dd><dt>{t('dts.coverage')}</dt><dd>{f.sourceInfo.support} / {f.sourceInfo.scientificValidation}</dd></dl><details><summary>{t('dts.inspect_metadata')}</summary><pre class="mono xs" style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(f.sourceInfo.details,null,2)}</pre></details></div>}
             </div>
             {r && used > 0 && (
               <div class="col gap2">
                 <span class="section-title">{t('files.used_by')}</span>
                 <UsedBy graphs={r.graphs || []} cycles={r.cycles || []} />
+                {(r.analyses||[]).map(id=><Button size="sm" icon="sigma" onClick={()=>{p.onClose();navigate('/ls/statistics/'+id);}}>{t('stat.title')} · {id.slice(0,8)}</Button>)}
               </div>
             )}
           </div>
@@ -1025,7 +1040,8 @@ function DateConfirm(p: { m: MeasurementSummary; onClose: () => void }) {
 
 function OriginalViewer(p: { file: SourceFile }) {
   const workbook = p.file.format === 'xlsx';
-  const text = useAsync(() => workbook ? Promise.resolve('') : get<string>(`/api/files/${p.file.id}/original`, { text: true }), [p.file.id, workbook]);
+  const compound = p.file.format === 'dts' || p.file.format === 'compound';
+  const text = useAsync(() => workbook || compound ? Promise.resolve('') : get<string>(`/api/files/${p.file.id}/original`, { text: true }), [p.file.id, workbook,compound]);
   const lines = useMemo(() => (text.data || '').split(/\r?\n/), [text.data]);
   return (
     <div class="col gap3" style={{ height: '100%' }}>
@@ -1036,7 +1052,7 @@ function OriginalViewer(p: { file: SourceFile }) {
           {t('orig.download')}
         </a>
       </div>
-      {workbook ? (
+      {compound ? <Notice>{t('dts.original_binary')}</Notice> : workbook ? (
         <Notice>{t('orig.workbook')}</Notice>
       ) : text.loading ? (
         <Spinner label={t('ui.loading')} />

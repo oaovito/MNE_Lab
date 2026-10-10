@@ -7,9 +7,9 @@ const out = path.join(outRoot, 'inspection');
 fs.mkdirSync(out, { recursive: true });
 const report = new Report('import-inspection');
 const labels = {
-  en: { pick: 'Import files', confirm: 'Import reviewed files', cancel: 'Cancel', done: 'Done', detected: 'Detected data' },
-  'pt-BR': { pick: 'Importar arquivos', confirm: 'Importar arquivos revisados', cancel: 'Cancelar', done: 'Concluído', detected: 'Dados detectados' },
-  es: { pick: 'Importar archivos', confirm: 'Importar archivos revisados', cancel: 'Cancelar', done: 'Listo', detected: 'Datos detectados' },
+  en: { pick: 'Import files', confirm: 'Import reviewed files', cancel: 'Cancel', done: 'Done', detected: 'Detected data', literal: 'Literal source table' },
+  'pt-BR': { pick: 'Importar arquivos', confirm: 'Importar arquivos revisados', cancel: 'Cancelar', done: 'Concluído', detected: 'Dados detectados', literal: 'Tabela literal da fonte' },
+  es: { pick: 'Importar archivos', confirm: 'Importar archivos revisados', cancel: 'Cancelar', done: 'Listo', detected: 'Datos detectados', literal: 'Tabla literal de origen' },
 };
 const browser = await launchBrowser();
 try {
@@ -40,6 +40,14 @@ try {
   await page.screenshot({ path: path.join(out, `preview-${lang}.png`) });
   await page.getByRole('button', { name: l.cancel, exact: true }).click();
   report.check(`${lang}: cancel leaves library unchanged`, JSON.stringify(before) === JSON.stringify(await api(page, 'GET', '/api/files')) && confirmations === 0);
+  await choose(`literal-unknown-${lang}.csv`, Buffer.from('unknown,value\nInvented,1.2300\n'));
+  await page.getByRole('button', { name: l.done, exact: true }).waitFor();
+  await page.locator('summary').filter({ hasText: l.literal }).click();
+  report.check(`${lang}: literal unknown table is visible without units or scientific import`, (await page.locator('.overlay').innerText()).includes('1.2300') && await page.getByRole('button', { name: l.confirm, exact: true }).count() === 0 && JSON.stringify(before) === JSON.stringify(await api(page, 'GET', '/api/files')));
+  const literalProblems = await layoutProblems(page, translationKeys());
+  report.check(`${lang}: literal table localized layout`, literalProblems.length === 0, literalProblems.join('; '));
+  await page.screenshot({ path: path.join(out, `literal-table-${lang}.png`) });
+  await page.getByRole('button', { name: l.done, exact: true }).click();
   await choose(`invalid-${lang}.txt`, Buffer.from('Unrecognized synthetic report'));
   await page.getByRole('button', { name: l.done, exact: true }).waitFor();
   report.check(`${lang}: invalid preview cannot be confirmed`, await page.getByRole('button', { name: l.confirm, exact: true }).count() === 0 && JSON.stringify(before) === JSON.stringify(await api(page, 'GET', '/api/files')));

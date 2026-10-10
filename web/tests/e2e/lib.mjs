@@ -60,7 +60,7 @@ export function translationKeys() {
   const dir = path.join(root, 'src', 'i18n');
   for (const f of fs.readdirSync(dir)) {
     if (!f.endsWith('.ts')) continue;
-    for (const m of fs.readFileSync(path.join(dir, f), 'utf8').matchAll(/^\s*'([a-z0-9_.-]+)':/gm)) keys.add(m[1]);
+    for (const m of fs.readFileSync(path.join(dir, f), 'utf8').matchAll(/^\s*['"]([a-z0-9_.-]+)['"]:/gm)) keys.add(m[1]);
   }
   const go = JSON.parse(fs.readFileSync(path.join(root, '..', 'internal', 'i18n', 'locales', 'en.json'), 'utf8'));
   for (const k of Object.keys(go)) keys.add(k);

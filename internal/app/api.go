@@ -18,6 +18,7 @@ import (
 	"github.com/oaovito/mne_lab/internal/science/graph"
 	"github.com/oaovito/mne_lab/internal/science/lightscattering"
 	"github.com/oaovito/mne_lab/internal/science/model"
+	"github.com/oaovito/mne_lab/internal/science/module"
 	"github.com/oaovito/mne_lab/internal/science/reference"
 	"github.com/oaovito/mne_lab/internal/update"
 	"github.com/oaovito/mne_lab/internal/vault"
@@ -82,6 +83,7 @@ func (a *App) State() StateView {
 func pathID(r *http.Request) string { return r.PathValue("id") }
 
 func (s *Server) routes() {
+	s.statisticsRoutes()
 	a := s.app
 	ctxT := func(r *http.Request, d time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithTimeout(r.Context(), d)
@@ -687,6 +689,12 @@ func (s *Server) routes() {
 		}
 		return p.Relations()
 	})
+	s.handle("GET /api/science/capabilities", func(w http.ResponseWriter, r *http.Request) (any, error) {
+		if _, err := prof(); err != nil {
+			return nil, err
+		}
+		return module.Capabilities(), nil
+	})
 
 	// ---- graphs ----
 	s.handle("GET /api/graphs", func(w http.ResponseWriter, r *http.Request) (any, error) {
@@ -843,11 +851,26 @@ func (s *Server) routes() {
 			prefs = p.Settings().Export
 		}
 		opts := export.For(kind)
+		metadataOnly := false
+		if kind == export.KindFile && r.URL.Query().Get("file") != "" {
+			p, err := prof()
+			if err != nil {
+				return nil, err
+			}
+			f, _, err := p.File(r.URL.Query().Get("file"))
+			if err != nil {
+				return nil, err
+			}
+			metadataOnly = f.SourceInfo != nil && len(f.Measurements) == 0
+			if metadataOnly {
+				opts.Sections = []export.Section{{ID: "original", Formats: []string{"original"}}, {ID: "all", Formats: []string{"original", "json"}}}
+			}
+		}
 		defaults := map[string]export.Choice{}
 		for _, ps := range opts.Presets {
 			defaults[ps] = export.SmartDefault(opts.Kind, ps)
 		}
-		return map[string]any{"options": opts, "defaults": defaults, "formats": export.Formats, "destinations": a.ExportDestinations(), "prefs": prefs,
+		return map[string]any{"options": opts, "defaults": defaults, "formats": export.Formats, "destinations": a.ExportDestinations(), "prefs": prefs, "metadataOnly": metadataOnly,
 			"presets": map[string]plot.Spec{"screen": plot.Preset(plot.PresetScreen), "presentation": plot.Preset(plot.PresetPresentation),
 				"print": plot.Preset(plot.PresetPrint), "publication": plot.Preset(plot.PresetPublication)}}, nil
 	})

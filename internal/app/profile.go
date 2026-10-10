@@ -32,6 +32,8 @@ const (
 	CollExports        = "export.history"
 	CollRecent         = "recent"
 	CollImportProfiles = "import.profile"
+	CollAnalyses       = "science.analysis"
+	CollUnits          = "science.experimental_unit"
 )
 
 // ProfileSettings are the preferences of one profile (synchronized).

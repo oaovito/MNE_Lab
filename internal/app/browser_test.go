@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/paths"
+	"github.com/oaovito/mne_lab/internal/testfixtures"
 	"github.com/oaovito/mne_lab/web"
 	"github.com/xuri/excelize/v2"
 )
@@ -67,6 +68,9 @@ func TestBrowserHarness(t *testing.T) {
 	res.Body.Close()
 	if os.Getenv("MNELAB_E2E_EMPTY") == "" {
 		seed(t, c)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "synthetic-compound.dts"), testfixtures.CompoundDTS("5.10"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 	workbook := excelize.NewFile()
 	workbook.SetSheetName("Sheet1", "Synthetic sheet")

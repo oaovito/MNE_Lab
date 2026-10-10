@@ -175,6 +175,10 @@ func sourceSheetRow(spans []sheetRowSpan, line int) int {
 
 func parseXLSX(data []byte) Result { return parseXLSXSelection(data, nil) }
 func parseXLSXSelection(data []byte, selection *model.ImportSelection) Result {
+	return parseXLSXSelectionPreview(data, selection, nil)
+}
+
+func parseXLSXSelectionPreview(data []byte, selection *model.ImportSelection, preview *TabularPreview) Result {
 	if len(data) == 0 {
 		return spreadsheetFailure(ErrEmpty)
 	}
@@ -216,6 +220,15 @@ func parseXLSXSelection(data []byte, selection *model.ImportSelection) Result {
 		if choice.Range != "" {
 			bounds, _ = selectionBounds(choice.Range)
 		}
+		var table *PreviewTable
+		if preview != nil && selected {
+			if len(preview.Tables) < previewTableLimit {
+				preview.Tables = append(preview.Tables, PreviewTable{Sheet: sheet, Range: choice.Range})
+				table = &preview.Tables[len(preview.Tables)-1]
+			} else {
+				preview.Truncated = true
+			}
+		}
 		rows, err := f.Rows(sheet)
 		if err != nil {
 			return spreadsheetFailure(ErrSpreadsheet)
@@ -246,6 +259,9 @@ func parseXLSXSelection(data []byte, selection *model.ImportSelection) Result {
 			// Remove padding cells without changing meaningful values.
 			for len(row) > 0 && row[len(row)-1] == "" {
 				row = row[:len(row)-1]
+			}
+			if table != nil {
+				preview.workbookRow(table, row, n, bounds)
 			}
 			for column, value := range row {
 				if value != "0" && value != "1" {

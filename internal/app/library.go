@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/plot"
+	"github.com/oaovito/mne_lab/internal/science/analysis"
 	"github.com/oaovito/mne_lab/internal/science/cycle"
 	"github.com/oaovito/mne_lab/internal/science/graph"
 	"github.com/oaovito/mne_lab/internal/science/model"
@@ -29,6 +30,16 @@ var (
 // series, parameters, scale and visual configuration — never just an image).
 func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 	switch def.Kind {
+	case graph.KindStatistical:
+		if def.AnalysisID == "" {
+			return def, analysis.ErrDefinition
+		}
+		if def.ErrorBars == "" {
+			def.ErrorBars = "sd"
+		}
+		if def.ErrorBars != "sd" && def.ErrorBars != "sem" && def.ErrorBars != "ci" {
+			return def, analysis.ErrDefinition
+		}
 	case graph.KindDistribution:
 		if len(def.Measurements) == 0 {
 			return def, graph.ErrNoData
@@ -49,6 +60,24 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 		def.Visual = graph.DefaultVisual()
 	}
 	err := p.St.Update(func(t *store.Tx) error {
+		if def.Kind == graph.KindStatistical {
+			var saved analysis.StatisticalAnalysis
+			if _, err := t.Get(CollAnalyses, def.AnalysisID, &saved); err != nil {
+				return err
+			}
+			if len(saved.Results.Groups) > 30 {
+				return analysis.ErrDefinition
+			}
+			if err := graph.ValidateAnnotations(def, saved); err != nil {
+				return err
+			}
+			def.Param = saved.Snapshot.Definition.Variable
+			def.CycleID = saved.Snapshot.Definition.CycleID
+			def.Measurements = []string{}
+			for _, o := range saved.Snapshot.Observations {
+				def.Measurements = append(def.Measurements, o.MeasurementID)
+			}
+		}
 		if def.ID == "" {
 			def.ID, def.Created = secure.NewID(), now
 		} else {
@@ -160,6 +189,12 @@ func (p *Profile) DeleteGraph(id string) error {
 // Compute recalculates a graph from its definition and the current data.
 func (p *Profile) Compute(def graph.Definition) (graph.Result, error) {
 	switch def.Kind {
+	case graph.KindStatistical:
+		saved, err := p.Analysis(def.AnalysisID)
+		if err != nil {
+			return graph.Result{}, err
+		}
+		return graph.StatisticalGroups(def, saved)
 	case graph.KindDistribution:
 		in, err := p.Input(def.Measurements)
 		if err != nil {
@@ -490,8 +525,9 @@ type Relations struct {
 
 // FileRel lists what uses a file.
 type FileRel struct {
-	Graphs []string `json:"graphs"`
-	Cycles []string `json:"cycles"`
+	Graphs   []string `json:"graphs"`
+	Cycles   []string `json:"cycles"`
+	Analyses []string `json:"analyses"`
 }
 
 // GraphRel lists what a graph uses.
@@ -502,8 +538,9 @@ type GraphRel struct {
 
 // CycleRel lists what a cycle uses and what uses it.
 type CycleRel struct {
-	Files  []string `json:"files"`
-	Graphs []string `json:"graphs"`
+	Files    []string `json:"files"`
+	Graphs   []string `json:"graphs"`
+	Analyses []string `json:"analyses"`
 }
 
 // Relations computes the relation index (trashed objects included, so the
@@ -592,5 +629,31 @@ func (p *Profile) Relations() (Relations, error) {
 			addFile(f, func(fr *FileRel) { fr.Graphs = append(fr.Graphs, g.ID) })
 		}
 	}
-	return r, nil
+	// Snapshots retain original file identities after source deletion.
+	err = p.St.View(func(tx *store.Tx) error {
+		rows, err := tx.List(CollAnalyses)
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			var a analysis.StatisticalAnalysis
+			if err := decodeRecord(row, &a); err != nil {
+				return err
+			}
+			seen := map[string]bool{}
+			for _, o := range a.Snapshot.Observations {
+				if !seen[o.FileID] {
+					seen[o.FileID] = true
+					addFile(o.FileID, func(fr *FileRel) { fr.Analyses = append(fr.Analyses, a.ID) })
+				}
+			}
+			if id := a.Snapshot.Definition.CycleID; id != "" {
+				cr := r.Cycles[id]
+				cr.Analyses = append(cr.Analyses, a.ID)
+				r.Cycles[id] = cr
+			}
+		}
+		return nil
+	})
+	return r, err
 }

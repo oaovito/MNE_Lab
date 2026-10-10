@@ -425,6 +425,55 @@ formula are neutralized. The research package for a cycle is one ZIP with a
 README, a manifest with checksums, the original files, normalized data,
 statistics, graphs (SVG, PDF, PNG) and provenance.
 
+### Statistical analyses
+
+LIGHTSCATTERING includes profile-scoped, reviewed ANOVA definitions and
+immutable source/result snapshots. Bundled webR/R runs offline in a disposable
+worker: One-Way, Welch, complete Two-Way interaction and balanced complete
+repeated measures, with Tukey/simple effects and Mauchly/GG/HF. The shared
+graph engine renders original observations, explicit SD/SEM/CI and selected
+adjusted comparisons. Smart Export and cycle research packages retain
+statistical tables, diagnostics, snapshots and graph annotations.
+
+See [STATISTICAL_ANALYSIS.md](STATISTICAL_ANALYSIS.md) for numerical oracles,
+source/experimental-unit review, supported designs and limits. Mixed effects,
+Dunnett, effect-size confidence intervals, global export signatures and clean
+Windows installation validation remain pending. Runtime acquisition is local
+to the build; users need no R/Python/Excel. ZETA/NTA variables are rejected
+until their own scientific definitions and exports are validated.
+
+### Scientific capability status
+
+Validation means adequate field/method documentation, reproducible numerical
+results and comparison with an independent reliable reference. Opening a
+file or drawing a graph does not establish scientific validity.
+
+| FEATURE | IMPLEMENTED | TESTED | SCIENTIFICALLY VALIDATED | BLOCKER |
+|---|---|---|---|---|
+| Statistical Analysis: One-Way / Welch / complete Two-Way / balanced complete repeated | Yes | Backend, independent R vs SciPy/statsmodels/Pingouin, offline browser | Yes, within these documented designs and tolerances | No claim for unsupported methods/designs |
+| Tukey / conditional simple effects / Mauchly / GG / HF | Yes | Independent numeric fixtures, explicit pair identities | Yes, within documented scope | Broader instrument/design fixtures remain useful; R quantile precision is documented |
+| Mixed effects / Dunnett / effect-size confidence intervals | No | No | No | Acquire compatible mature WASM libraries and sources; implement and compare reliable independent references |
+| LIGHTSCATTERING / NanoBrook DLS | Yes, continuing | Synthetic and private export corpus | PARTIAL; parser rules remain provisional | Finish instrument field/method documentation cross-check and quantitative reference comparisons |
+| ZETA | Implementation allowed; scientific parser pending | Private workbook structure reviewed | PENDING / UNVALIDATED | Official potential/mobility/quality documentation; raw instrument exports with matching reference results; units, timestamps, settings and methodology provenance; independent parser/numerical comparisons |
+| NTA | Architecture/preparation allowed | No real NTA result fixture | PENDING / UNVALIDATED | Official NanoSight export/software schema and settings documentation; real tracking/summary/distribution exports with corresponding trusted results; independent field/unit/numerical comparisons |
+| Malvern DTS | PARTIAL: bounded container/record metadata, reviewed import, File Library, original/metadata export | Independent stream inventory/hash comparison, malformed cases/fuzzing, scoped import/export | UNVALIDATED scientific semantics; no normalized quantities | Identify version-aware field serialization and authoritative field meanings; reproduce summaries/distributions against official exports; ZETA requires its own matching real evidence |
+| Literal CSV/TSV/XLSX review | PARTIAL: bounded read-only cells/physical positions; no manual mapping yet | Quoted/multiline/ragged cells, truncation, workbook selections, persistence rejection | Not a scientific calculation | Versioned manual mapping with explicit field/unit choices and provenance remains pending |
+| Shared storage / File Library / Graph / Cycle / Statistics / Export | Yes for existing supported data | Isolation, receipts, snapshots, native rendering and exports | Per scientific adapter; never inherited by a new module | New adapters must supply documented quantity and provenance contracts |
+| Sign Export / Verify Signature | No | No | Not applicable | Implement global signing/verification, canonical manifest, certificate/key handling and integrity tests |
+
+The existing Zeta spreadsheet and DTS sample are private development corpora.
+No real fixture, identifier, original binary or screenshot belongs in a public
+repository or shipped product. Missing docs are explicitly unavailable:
+MAN0485/MAN0486 and NanoSight MAN0514/Pro manuals are currently catalog links,
+not acquired complete manuals. ISO full standards listed in the catalog are
+not supplied. No purchase, paid API or official-software dependency is assumed.
+The supplied “Zetasizer Nano Analysis Methods Explained” technical note is a
+DLS/size reference, not potential-Zeta documentation. It distinguishes
+cumulants from inverse-distribution results and does not identify unknown
+DTS field codes. Custom workbook mV columns do not prove a native instrument
+schema, acquisition settings, independence or a distribution. Preserve such
+uncertainty rather than inventing a field or an algorithm.
+
 ## 18. Scientific references
 
 `internal/science/reference` lists the specifications rules come from:
@@ -497,3 +546,20 @@ statistics, graphs (SVG, PDF, PNG) and provenance.
    them in release builds.
 3. Generate the release signing key offline, set the public key, and publish
    the first signed Stable build.
+
+
+### Exact remaining evidence blockers: ZETA and NTA
+
+| Module / capability | Missing documentation | Missing real files and trusted reference | Required validation |
+|---|---|---|---|
+| ZETA native result parser | Complete official Zetasizer Zeta-potential/mobility/quality field and unit definitions for the actual export/software version; timestamp, settings and selected calculation model definitions. Catalog URLs MAN0485/MAN0486 are not complete acquired manuals. | Native Zeta summary/quality/settings exports for the same measurements, with source version and official numerical results. The compiled private workbook supplies neither native schema nor complete acquisition provenance. | Reproduce each documented summary field and unit against the paired official result; preserve source precision and missing/unknown fields. |
+| ZETA distributions / DTS | Version-specific binary field serialization, or unambiguous paired native exports; documented distribution axis/weighting and record identity. | Native mobility/potential distribution exports paired with the corresponding private DTS records and trusted values/arrays. | Verify record identity, summary/peak distinction, axes/units, arrays and tolerances. No guessed field code or SOP-path classification. |
+| NTA summary / distribution parser | Complete NanoSight software/export schema and field/unit/settings definitions for the actual source version; MAN0514/Pro catalog links alone do not supply this. | Real native NTA summary/distribution exports with documented preparation/dilution/settings and matching official results. No such fixture is currently available. | Reproduce the documented summary and bin values/units, including missing data and relevant correction provenance, against the paired trustworthy result. |
+| NTA tracking calculations, if implemented | Documented trajectory/timebase/calibration and calculation rules; an authoritative algorithm reference with assumptions. | Real trajectories and the associated native summary/settings plus a trustworthy numeric reference. | Independently reproduce the calculation with stated tolerances and assumptions; summary import alone does not validate tracking algorithms. |
+
+These are evidence blockers, not a prohibition on modular infrastructure.
+Each capability can advance independently when its own evidence is sufficient.
+Neither module borrows validation from DLS, ANOVA, a working file reader or a
+rendered graph. No unit, calculation model, quality threshold or missing value
+is supplied by inference. See [DTS_FORMAT.md](DTS_FORMAT.md) for implemented
+partial binary interoperability and its separate technical/scientific status.
