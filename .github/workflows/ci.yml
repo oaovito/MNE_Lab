@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/mne-lab-checkpoint-20261008]
   pull_request:
 
 permissions:
@@ -14,7 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # the audit reads the whole history
+          fetch-depth: 1
+      - name: Fetch complete history of the checked-out revision
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: git fetch --no-tags --unshallow origin "$SOURCE_SHA"
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26' # latest patch release, with its security fixes
