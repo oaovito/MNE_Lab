@@ -438,8 +438,10 @@ statistical tables, diagnostics, snapshots and graph annotations.
 See [STATISTICAL_ANALYSIS.md](STATISTICAL_ANALYSIS.md) for numerical oracles,
 source/experimental-unit review, supported designs and limits. ML random
 intercepts for explicit repeated units add marginal Wald F tests with both
-degrees of freedom, model variances and coefficients. Effect-size confidence intervals for other designs/effect sizes, global export signatures and clean
-Windows installation validation remain pending. Runtime acquisition is local
+degrees of freedom, model variances and coefficients. Effect-size confidence
+intervals for other designs/effect sizes, Smart Export signing integration and
+clean Windows installation validation remain pending. Detached CMS signing and
+global detached verification are PARTIAL; see CMS_SIGNATURES.md. Runtime acquisition is local
 to the build; users need no R/Python/Excel. ZETA/NTA variables are rejected
 until their own scientific definitions and exports are validated.
 
@@ -522,8 +524,10 @@ uncertainty rather than inventing a field or an algorithm.
 - Cloud export writes to the desktop client's folder only (no direct upload
   of exports).
 - EPS and Parquet are not offered.
-- XLS and scientific ODS import, distribution column mapping, and export signing with
-  certificates/PFX/P12 (including PDF/CMS verification) are not implemented.
+- XLS and scientific ODS import, distribution column mapping, Smart Export
+  signing integration, local PFX/P12 credential handling and PDF/PAdES
+  verification are not implemented. Native detached CMS signing and the global
+  detached Verify panel are PARTIAL; see CMS_SIGNATURES.md.
 - The desktop window still needs a supported installed Chromium browser and
   normal operating-system services. Native science/render/export tests can run
   without development runtimes; this does not validate a clean desktop launch.
