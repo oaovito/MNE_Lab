@@ -64,9 +64,9 @@ const onboarding = async (patch) => {
   await page.waitForLoadState('networkidle');
   await sleep(500);
 };
-const menu = async (i) => {
+const menu = async (name) => {
   await click('button.avatar-btn');
-  await page.locator('button.menu-item').nth(i).click({ timeout: 3000 });
+  await page.getByRole('menuitem', { name, exact: true }).click({ timeout: 3000 });
   await sleep(400);
 };
 
@@ -84,10 +84,11 @@ const exportLabel = label({ en: 'Export', 'pt-BR': 'Exportar', es: 'Exportar' })
 if (graphs[0]) await screen('export-graph', async () => (await go('/ls/graphs/' + graphs[0].id), await click(`button:has-text("${exportLabel}")`), await sleep(800)));
 if (cycles[0]) await screen('export-cycle', async () => (await go('/ls/cycles/' + cycles[0].id), await click(`button:has-text("${exportLabel}")`), await sleep(800)));
 const tabs = ['general', 'profile', 'account', 'storage', 'backups', 'updates', 'mobile', 'privacy', 'about'];
-for (const [i, tab] of tabs.entries()) await screen('settings-' + tab, async () => (await go('/'), await menu(1), await page.locator('.modal nav button').nth(i).click({ timeout: 3000 })));
-await screen('mystuff', async () => (await go('/'), await menu(0)));
+const settingsLabel = label({ en: 'Settings', 'pt-BR': 'Configurações', es: 'Configuración' });
+for (const [i, tab] of tabs.entries()) await screen('settings-' + tab, async () => (await go('/'), await menu(settingsLabel), await page.locator('.modal nav button').nth(i).click({ timeout: 3000 })));
+await screen('mystuff', async () => (await go('/'), await menu(label({ en: 'My Stuff', 'pt-BR': 'Minhas coisas', es: 'Mis cosas' }))));
 await screen('help', () => page.keyboard.press('F1'));
-await screen('whatsnew', async () => (await go('/'), await menu(3)));
+await screen('whatsnew', async () => (await go('/'), await menu(label({ en: "What's New", 'pt-BR': 'Novidades', es: 'Novedades' }))));
 
 // The command palette finds features by everyday words (spec examples).
 const finds = { backup: ['f.backups', 'f.recovery'], mobile: ['f.mobile', 'f.viewer', 'f.controller'], dls: ['f.ls', 'p.graphs', 'p.cycles'] };
