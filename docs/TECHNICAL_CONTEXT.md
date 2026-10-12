@@ -121,7 +121,7 @@ interface translates.
   registry; the PDFs are not shipped with the product. The specification
   remains provisional (`ls-spec/0.3-provisional`) until instrument layouts,
   algorithm selection, units and scientific explanations are validated.
-- **Real instrument files.** All test files are synthetic and are labeled as
+- **Real instrument files.** Public repository fixtures are synthetic and labeled as
   such (`testdata/lightscattering/README.md`). No real NanoBrook export has
   been scientifically validated against the owner's reference document yet.
   Experimental development data must stay outside the public checkout and
@@ -470,7 +470,7 @@ file or drawing a graph does not establish scientific validity.
 | File producer origin | Yes: unknown or explicit user-declared instrument export/user-created table, separate from transport and parser | Scoped API rejection/isolation/reopen, immutable originals and statistics, graph snapshots, JSON/TXT/XLSX and localized browser | Not applicable; declaration remains UNVERIFIED and never promotes scientific status | Genuine native authenticity/reference evidence still required; see FILE_PRODUCER_ORIGIN.md |
 | Shared storage / File Library / Graph / Cycle / Statistics / Export | Yes for existing supported data | Isolation, receipts, snapshots, native rendering and exports | Per scientific adapter; never inherited by a new module | New adapters must supply documented quantity and provenance contracts |
 | Export file collisions | Yes: atomic exclusive publication; explicit replacement only | Concurrent keep-both/ask, payload preservation, existing files and symlinks; local Linux and hosted Windows/macOS checks tracked separately | Not applicable | Clean-system/FAT32/exFAT USB runtime tests still required |
-| Research package checksum verification | Partial backend; package /2 covers README; /1 reports uncovered README | Independent invented ZIP/JSON fixtures, altered payload/index/CRC, unsafe paths and bounds; current checkpoint records completed checks | Not applicable; Authenticated=false, no signature or scientific validation | Global UI, canonical signed-manifest integration and standard CMS/PDF/certificate support remain pending |
+| Research package checksum verification | Partial backend; package /2 covers README; /1 reports uncovered README | Independent invented ZIP/JSON fixtures, altered payload/index/CRC, unsafe paths and bounds; current checkpoint records completed checks | Not applicable; Authenticated=false, no signature or scientific validation | Package-integrity UI and authenticated manifest integration remain pending. Detached CMS backend/global Verify already exist separately; PFX/Smart Export/PDF integration is still pending |
 | Sign Export / Verify Signature | PARTIAL: native detached CMS signer/verifier; global read-only detached Verify panel | Independent OpenSSL RSA/ECDSA bidirectional comparisons and public invented fixture; trust/time/content/structure tests, authenticated upload and localized browser workflow | Not applicable; no scientific validation, revocation or trusted timestamp claim | Smart Export integration, Profile identity/local credentials/PFX/P12, Visible/Complete ordering, PDF/PAdES, trust selection, revocation/timestamps and signed research packages; see CMS_SIGNATURES.md |
 | LIGHTSCATTERING format discovery | PARTIAL: source registry, format/content matrix, external research log and scientific decision records | Five official Brookhaven PDFs retrieved/hash-pinned; PS2.3/4.0 and family/SOP/setup references cross-checked with private corpus and current reader contracts | No validation promotion; observed extraction and documented export capability remain separate | Exact90Plus configuration/build, legacy/historical/independent corroboration, native CSV/Excel/distribution/archive/SOP/layout fixtures and serialization; native authenticity is not established by the separately recorded user declaration; see LIGHTSCATTERING_FORMAT_MATRIX.md |
 
@@ -558,14 +558,22 @@ checkout and rejects shallow histories:
 
 ## 22. Next step
 
-1. Validate the parser, help and graph rules against the recovered private
-   references. Preserve Lognormal and Multimodal results separately and require
-   confirmation when a report offers several methods. Remove "provisional"
-   only after the scientific validation is complete.
-2. Register the official apps with Google, Microsoft and Apple and inject
-   them in release builds.
-3. Generate the release signing key offline, set the public key, and publish
-   the first signed Stable build.
+1. Review [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) and
+   [READINESS.md](READINESS.md) against the current source and requirements.
+   Preserve supported Statistical Analysis and the existing DLS workflow.
+2. Implement bounded credential handling before Smart Export signing:
+   [CMS_SIGNATURES.md](CMS_SIGNATURES.md). Detached CMS verification is already
+   PARTIAL; PFX/P12, final-byte ordering and PDF/PAdES still need their own work.
+3. Complete safe XLS/ODS/distribution adapters only with sufficient contracts,
+   and continue version-aware format research. Preserve Lognormal/Multimodal
+   choices and unknown units; remove provisional status only after adequate
+   documentation, reproducibility and trustworthy reference comparisons.
+4. Complete corresponding-source reconstruction, distribution licensing,
+   bootstrap/offline USB and clean desktop validation. Verify real providers
+   after owner-controlled registrations are available.
+5. A release key alone does not establish readiness. Publish a signed Stable
+   build only after all scientific, privacy, security, source, distribution and
+   platform gates pass and the required owner authorization is available.
 
 
 ### Exact remaining evidence blockers: ZETA and NTA

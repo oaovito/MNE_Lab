@@ -156,8 +156,10 @@ are included. A cycle research package includes every saved analysis linked
 to that cycle in its own eight-folder subtree. Source dependency warnings
 include analyses, whose original snapshots survive source deletion.
 
-Sign Export / Verify Signature remain unimplemented global features. These
-new exports are unsigned; there is no misleading signature placeholder.
+The global read-only detached CMS Verify panel and signing backend are
+PARTIAL; see [CMS_SIGNATURES.md](CMS_SIGNATURES.md). Smart Export signing
+integration, PFX/P12 credentials, visible/complete signatures and PDF/PAdES
+remain unimplemented. Statistical exports are unsigned at this stage.
 No Stable or complete Statistical Analysis claim is justified by this stage.
 
 ## Independent validation
