@@ -128,6 +128,8 @@ push, mais auditoria de dependências e de segredos.
 
 ## Documentação
 
+- [Estado do desenvolvimento](docs/DEVELOPMENT_STATUS.md): funcionalidades,
+  limites de validação, mapa do código, verificações e trabalho pendente.
 - [Contexto técnico](docs/TECHNICAL_CONTEXT.md) (em inglês): arquitetura,
   decisões, chaves e criptografia, sincronização, atualizações, estado de cada
   parte e próximos passos.
