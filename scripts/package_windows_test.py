@@ -1,5 +1,5 @@
 from pathlib import Path
-import hashlib,json,struct,subprocess,zipfile
+import hashlib,json,struct,subprocess,sys,zipfile
 import argparse
 parser=argparse.ArgumentParser(description='Package a private owner-test Windows x64 build; no publishing.')
 parser.add_argument('--repo',type=Path,default=Path.cwd());parser.add_argument('--out',type=Path,required=True)
@@ -19,6 +19,9 @@ for raw in (app,launcher):
  assert struct.unpack_from('<H',raw,optional+68)[0]==2
 # Snapshot contains only the clean current tree, not historical refs/corpus.
 source=subprocess.check_output(['git','archive','--format=zip','--prefix=MNE_Lab-source/','HEAD'],cwd=repo)
+# Attributes must exclude the Git-only handoff from the actual distributed
+# snapshot, not merely from a directory listing or a future working-tree rule.
+subprocess.run([sys.executable,str(Path(__file__).resolve().with_name('check_development_boundary.py')),'--archive-stdin'],input=source,check=True,capture_output=True)
 readme=f"""MNE LAB - TESTE PRIVADO DE DESENVOLVIMENTO - WINDOWS x64
 
 Versao: {version}; canal dev; source HEAD: {head}
@@ -67,6 +70,7 @@ with zipfile.ZipFile(archive) as z:
  assert z.testzip() is None
  assert len(z.namelist())==len(files)
  for name,raw in files.items(): assert z.read(root+'/'+name)==raw
+subprocess.run([sys.executable,str(Path(__file__).resolve().with_name('check_development_boundary.py')),'--archive-stdin'],input=archive.read_bytes(),check=True,capture_output=True)
 receipt={'path':str(archive),'size':archive.stat().st_size,'sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),'source_head':head,'files':len(files),'zip_CRC_and_all_member_bytes_verified':True,'PE_machine_amd64_gui_verified':True,'publicly_uploaded':False,'native_windows_GUI_tested':False}
 (out/(archive.name+'.sha256')).write_text(receipt['sha256']+'  '+archive.name+'\n')
 (out/'windows-test-package.json').write_text(json.dumps(receipt,indent=2)+'\n')

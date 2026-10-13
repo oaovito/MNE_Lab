@@ -1,0 +1,168 @@
+{
+  "development_only": "MNE_LAB_DEVELOPMENT_ONLY",
+  "schema_version": 1,
+  "recorded_utc": "2026-10-13T19:55:23.305073+00:00",
+  "phase": "repository-continuity-bridge",
+  "repository": "https://github.com/oaovito/MNE_Lab",
+  "branch": "codex/mne-lab-checkpoint-20261008",
+  "checkout_head_authority": "Use git rev-parse HEAD and git log -1; this record does not embed the hash of its own commit.",
+  "prior_documentation_checkpoint": "4b6fd314d0d0d809f2911720ce7e0e67162c1dff",
+  "functional_validation_head": "7985a57ff835699f2643687b2a80bbceb9b5e779",
+  "functional_validation_tree": "b14ff9c50687565e42d72e010cdb0bbaa264c14d",
+  "main_observed": "9c5a06f3122a89a4e47d707a77043b1a8da3d53d",
+  "main_direct_changes_authorized": false,
+  "private_history_integration_authorized": false,
+  "application_source_changed_by_bridge": false,
+  "science_promoted_by_bridge": false,
+  "change_scope": [
+    "Agent entry files",
+    "Complete master requirements with identifier minimization",
+    "Current directives and detailed context",
+    "Task/validation/material/requirements records",
+    "Distribution export exclusions and audit/packager/CI guards"
+  ],
+  "project_complete": false,
+  "stable": false,
+  "paid_api_used": false,
+  "native_automatic_resumption_available_and_tested": false,
+  "next_exact_action": "Read MASTER_SPECIFICATION.md entirely and USER_DIRECTIVES.md; review CONTEXT/TASKS/VALIDATION/requirements against current code and GitHub. Record discrepancies; then design/test bounded PFX isolation before HTTP/UI integration, preserving existing CMS/global Verify.",
+  "current_handoff_state": "Continuity records and local distribution/audit contracts ready; verify actual HEAD/readback and any new CI via Git/VALIDATION.",
+  "master": {
+    "path": "development/continuity/MASTER_SPECIFICATION.md",
+    "original_sha256": "c43e35335bac42cf2201ac4db71c67aa05b7914ded7fdb3235e55d6f84502578",
+    "source_bytes": 55041,
+    "main_sections": 44,
+    "source_is_not_complete_chat_transcript": true,
+    "repository_copy_sha256": "af9b8ca140a61dda92e73fdf947c884ebd454038c6d3508bc43d825c6ff117ac",
+    "identifier_minimization_only": true
+  },
+  "historical_material": {
+    "private_Claude_commits_preserved": 10,
+    "private_stash_preserved": true,
+    "private_integration_proposals_preserved": true,
+    "apply_or_publish_automatically": false,
+    "complete_old_chat_available": false,
+    "legacy_main_privacy_requires_separate_scope": true
+  },
+  "scientific_status": {
+    "STATISTICAL_ANALYSIS": "IMPLEMENTED / TESTED / VALIDATED within documented scope",
+    "DLS": "PARTIAL / PROVISIONAL",
+    "ZETA": "IMPLEMENTATION ALLOWED / SCIENTIFIC VALIDATION PENDING",
+    "NTA": "ARCHITECTURE / PREPARATION ALLOWED / SCIENTIFIC VALIDATION PENDING",
+    "DTS": "PARTIAL CONTAINER / SCIENTIFIC FIELDS UNVALIDATED"
+  },
+  "public_chronology_through_prior_checkpoint": [
+    {
+      "commit": "c7273d33c30980e5fc173a0f1597d019acd16d67",
+      "change": "Save tested MNE Lab development checkpoint"
+    },
+    {
+      "commit": "5dffbfd6b8cff0d24ac00c6ea46c4a8a98cd109e",
+      "change": "Save reviewed XLSX selections within each profile"
+    },
+    {
+      "commit": "dc6023177993bfde9393cf8c119bbd6fed1168df",
+      "change": "Implement scoped offline ANOVA and partial native DTS interoperability"
+    },
+    {
+      "commit": "ac194c9a80015f7fdcf990c11a34298194acae09",
+      "change": "Add reproducible offline Dunnett comparisons with explicit controls"
+    },
+    {
+      "commit": "e8324ba4467fb714f80e3baa564284983ce3b16c",
+      "change": "Translate statistical precision diagnostics and verify engine label coverage"
+    },
+    {
+      "commit": "76bbbd5b97643722ee19424bf73001035e98f6f9",
+      "change": "Implement scoped ML random-intercept statistics with independent validation"
+    },
+    {
+      "commit": "f7a9f3b95cad41b443b2f3899ed9998fbcf1b38a",
+      "change": "Add documented population eta squared intervals using pinned MBESS source"
+    },
+    {
+      "commit": "7b609628bc1c689efef47361eea10359c5c19e8e",
+      "change": "Report approximate fixed-coefficient intervals for scoped mixed models"
+    },
+    {
+      "commit": "9649b6385a5efeedb6dd53825abb22fd72a7b3d1",
+      "change": "Record independent DLS extraction evidence and remaining scientific blockers"
+    },
+    {
+      "commit": "d7a949e241ec80013fbe022fc100afbe43b9eb12",
+      "change": "Add bounded native ODS literal review without scientific inference"
+    },
+    {
+      "commit": "54cdef509885178d015e7f0f0d18fed616f483d8",
+      "change": "Add explicitly reviewed CSV/TSV DLS mappings with declared-unit provenance"
+    },
+    {
+      "commit": "7dff6c6c7ba86c44edc9a618a238ac06623a483d",
+      "change": "Add explicitly reviewed XLSX DLS mappings and record release readiness blockers"
+    },
+    {
+      "commit": "14e1a510bb6c272726b26b51e8610b0f61f4d794",
+      "change": "Create release keys exclusively without following existing symlinks"
+    },
+    {
+      "commit": "1ef3ac85ed90f53c9505383b8fdfac82eb6ddc77",
+      "change": "Run CI on the clean development branch with complete scoped history"
+    },
+    {
+      "commit": "c32e924009dd93cc2b324ddeef7429e74a3fd94b",
+      "change": "Keep reviewed import recipes selected independently of JSON field order"
+    },
+    {
+      "commit": "c9df8ac3e729211e883fcfbea495d7e64cc3846b",
+      "change": "Bound mapped XLSX payloads and build runtime before CI tests"
+    },
+    {
+      "commit": "531279bb107560db5bb2c39ca0d7be3a5a44e00b",
+      "change": "Preserve concurrent exports with exclusive file publication"
+    },
+    {
+      "commit": "8a12ff636f867e89f84b1db0bf3db14e8c4da9cf",
+      "change": "Verify research package checksums and cover README in version 2"
+    },
+    {
+      "commit": "685e2cfce3ebd395f45a9a43cf843a63f85c239f",
+      "change": "Add bounded detached CMS verification and deliver Windows owner test [windows-test]"
+    },
+    {
+      "commit": "dec5c0a4565bd3fb4e70324d52bc868e676a7571",
+      "change": "Check app version and verify launcher PE in owner-test package [windows-test]"
+    },
+    {
+      "commit": "732ce39e0e30af891457d43d299e6597f88cd398",
+      "change": "Record acquired R release source and current environment configuration"
+    },
+    {
+      "commit": "779bb1f138f06ef259a13f7379fabbe6849c7be6",
+      "change": "Reject unavailable signer public keys before encoding credentials"
+    },
+    {
+      "commit": "e486a2332c25d031e0564636c96c35f064ed645a",
+      "change": "Select desktop menu actions by accessible name"
+    },
+    {
+      "commit": "374822b23f5bc7ec2e50d649ae77d28dbcbdc994",
+      "change": "Match menu labels independently of optional badges"
+    },
+    {
+      "commit": "43bda5c5e5add371da74bd16e2f5358047fd0633",
+      "change": "Document versioned NanoBrook output evidence and research gaps [skip ci]"
+    },
+    {
+      "commit": "d08f11b4cac3b966510c93d71d1809b1913ca4d4",
+      "change": "Record unverified file producer declarations independently of import transport"
+    },
+    {
+      "commit": "7985a57ff835699f2643687b2a80bbceb9b5e779",
+      "change": "Align source metadata export formatting with gofmt"
+    },
+    {
+      "commit": "4b6fd314d0d0d809f2911720ce7e0e67162c1dff",
+      "change": "Document current development status and remaining release blockers [skip ci]"
+    }
+  ]
+}

@@ -19,7 +19,8 @@
 release-signing*
 /secrets/
 *.syso
-# Private development data and coordination stay outside the public checkout.
+# Experimental originals remain private. The approved Git-only continuity
+# documents are tracked and excluded from distributions by .gitattributes.
 /C-RT/
 /C-SR/
 /F-RT/
@@ -28,6 +29,8 @@ release-signing*
 MNE_Lab-master-prompt.md
 AGENTS.md
 CLAUDE.md
+!/AGENTS.md
+!/CLAUDE.md
 
 /PROMPT_MESTRE_MNE_LAB_CURRENT.md
 /MNE_Lab_Pacote_Mestre*/

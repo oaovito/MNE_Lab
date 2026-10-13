@@ -134,5 +134,7 @@ push, mais auditoria de dependências e de segredos.
   decisões, chaves e criptografia, sincronização, atualizações, estado de cada
   parte e próximos passos.
 - [Avisos de terceiros](THIRD_PARTY_NOTICES.md) (em inglês).
+- [Continuidade do desenvolvimento](development/continuity/README.md): requisitos,
+  checkpoints e tarefas compartilhados entre sessões, excluídos da distribuição.
 
 made by oaovito

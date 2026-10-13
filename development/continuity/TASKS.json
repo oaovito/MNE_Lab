@@ -1,0 +1,293 @@
+{
+  "development_only": "MNE_LAB_DEVELOPMENT_ONLY",
+  "schema_version": 1,
+  "updated_utc": "2026-10-13T19:55:23.305073+00:00",
+  "project_complete": false,
+  "current_handoff": "Repository bridge prepared; next agent must review current implementation before engineering.",
+  "next_exact_action": "Read master and later directives entirely; check current Git/CI, requirements matrix, code and tests. Record discrepancies and choose bounded next implementation. Do not recreate architecture or apply historical stash.",
+  "next_engineering_task": "bounded_pfx_signing",
+  "scientific_validation_rule": "Adequate documentation + reproducible result + trusted reference comparison with scope/tolerances; opening/plot/CMS/checksum insufficient.",
+  "tasks": [
+    {
+      "id": "review_existing_work",
+      "priority": 0,
+      "status": "next_session_required",
+      "responsibility": "agent",
+      "next_action": "Read master and later directives entirely; check current Git/CI, requirements matrix, code and tests. Record discrepancies and choose bounded next implementation. Do not recreate architecture or apply historical stash.",
+      "acceptance": "Review summary + requirement/evidence gaps + exact next action; proceed with authorized engineering after review.",
+      "blockers": [],
+      "references": [
+        "MASTER_SPECIFICATION.md",
+        "USER_DIRECTIVES.md",
+        "REQUIREMENTS_REVIEW.md",
+        "CONTEXT.md"
+      ]
+    },
+    {
+      "id": "bounded_pfx_signing",
+      "priority": 1,
+      "status": "preparation_only_not_production",
+      "responsibility": "agent",
+      "next_action": "Review pinned PKCS12 v0.7.3 and reproduce ephemeral high-iteration probe. Design complete cost preflight or native isolated worker with lifetime/cancellation, bounded frames/I-O, resource controls and worker identity before API/UI. Cover PBMAC1/PBES2/nested KDFs, not just outer MAC.",
+      "acceptance": "Wrong password/malformed/oversized/cost/cancel/timeout/worker spoofing tests; secrets RAM/pipes only; no credential storage/export/log/args; Account/Profile/install isolation and OpenSSL interop. No raw DecodeChain in HTTP.",
+      "blockers": [],
+      "references": [
+        "CONTEXT.md#próxima-ação-de-engenharia-pfxp12-bounded",
+        "../../docs/CMS_SIGNATURES.md",
+        "../../internal/signature/cms.go",
+        "../../internal/app/signature.go"
+      ]
+    },
+    {
+      "id": "smart_export_signing",
+      "priority": 2,
+      "status": "partial_cms_backend_verify_exists",
+      "responsibility": "agent",
+      "next_action": "After bounded credential access, integrate Profile-scoped identity preferences and None/Visible/Digital/Complete. Final scientific bytes after overlays, then hash/sign/verify. PDF/PAdES/revocation/trusted timestamps require independent contracts/interop.",
+      "acceptance": "Immutable originals; keys/password/PFX never sync/backups/recovery/package; detached standards and trust/time/digest explicit; cross-tool verified final bytes.",
+      "blockers": [
+        "bounded_pfx_signing",
+        "Legitimate local identity/access for owner tests"
+      ],
+      "references": [
+        "../../docs/CMS_SIGNATURES.md",
+        "../../docs/PACKAGE_INTEGRITY.md"
+      ]
+    },
+    {
+      "id": "authenticated_research_packages",
+      "priority": 2,
+      "status": "checksum_backend_exists_authentication_pending",
+      "responsibility": "agent",
+      "next_action": "Integrate canonical signed research manifest and read-only global package-integrity UI, reusing existing package/2 verifier and detached CMS. Preserve legacy/1 README coverage warnings; do not confuse existing global CMS Verify with package-integrity UI. Authenticate exact finalized manifest/content under a documented signature/coverage contract.",
+      "acceptance": "Independent tamper/wrong signer/coverage/legacy/bounds tests; explicit integrity versus authenticity/trust; immutable originals; signed package bytes and cross-tool verification; no keys/password/PFX in package.",
+      "blockers": [
+        "Legitimate bounded local signing access for product workflow"
+      ],
+      "references": [
+        "../../docs/PACKAGE_INTEGRITY.md",
+        "../../docs/CMS_SIGNATURES.md",
+        "../../internal/export/verify_package.go"
+      ]
+    },
+    {
+      "id": "xls_reader",
+      "priority": 3,
+      "status": "pending",
+      "responsibility": "agent",
+      "next_action": "Select a mature legally usable bounded BIFF/XLS reader; define independent synthetic format fixtures and preserve source positions/provenance. Do not claim native scientific meaning from extension.",
+      "acceptance": "Reader limits and malformed/unsupported rejection; no formula execution; scoped readonly review before supported import.",
+      "blockers": [
+        "Adequate versioned contract/reference for scientific mapping"
+      ],
+      "references": [
+        "../../docs/IMPORT_REVIEW.md"
+      ]
+    },
+    {
+      "id": "ods_scientific_mapping",
+      "priority": 3,
+      "status": "literal_preview_only",
+      "responsibility": "agent",
+      "next_action": "Build explicit supported scientific mapping on safe ODS 1.3 literal review, with versioned recipes and independent bounds/reference checks. Preserve display/source value and physical positions.",
+      "acceptance": "Full-source validation, Account/Profile/content-bound receipt, immutable originals and tested Graph/Cycle/Statistics/export; unresolved units/fields remain UNVALIDATED.",
+      "blockers": [
+        "Adequate documented mapping contract and fixtures"
+      ],
+      "references": [
+        "../../docs/IMPORT_REVIEW.md",
+        "../../internal/science/lightscattering/ods_preview.go"
+      ]
+    },
+    {
+      "id": "distribution_time_mapping",
+      "priority": 3,
+      "status": "pending",
+      "responsibility": "agent",
+      "next_action": "Define explicit distribution/time mapping contracts backed by adequate evidence. Separate method/transform/axis/source/time semantics; retain current five-scalar recipes.",
+      "acceptance": "No intensity-volume-number conversion or invented time/units; scoped parse/review/receipt/export and comparability tests.",
+      "blockers": [
+        "Scientific references and representative supported fixtures"
+      ],
+      "references": [
+        "../../docs/SCIENTIFIC_RULES.md",
+        "../../docs/LIGHTSCATTERING_FORMAT_MATRIX.md"
+      ]
+    },
+    {
+      "id": "dls_validation_research",
+      "priority": 3,
+      "status": "partial_provisional",
+      "responsibility": "agent_and_owner_evidence",
+      "next_action": "Continue official version/model-specific research, native serialization contracts and paired-reference comparisons; preserve observed 54-report extraction and distinguish syntax from science.",
+      "acceptance": "Source registry/conflict/confidence updated; quantities and method semantics reproduced within documented tolerances before promotion.",
+      "blockers": [
+        "Exact installed 90Plus configuration/build",
+        "Legacy/historical manuals and independent corroboration",
+        "Genuine paired CSV/Excel/distribution/archive/SOP/layout and reference results",
+        "Field/unit/acquisition/G-C/method definitions"
+      ],
+      "references": [
+        "MATERIALS.md",
+        "../../docs/DLS_VALIDATION.md",
+        "../../docs/LIGHTSCATTERING_SOURCE_REGISTRY.md",
+        "../../docs/LIGHTSCATTERING_WEB_RESEARCH.md"
+      ]
+    },
+    {
+      "id": "zeta_supported_infrastructure",
+      "priority": 4,
+      "status": "implementation_allowed_scientific_validation_pending",
+      "responsibility": "agent_and_owner_evidence",
+      "next_action": "Continue safe modular parser/provenance/library/integration infrastructure only where documentation/real files support it. Do not infer potential semantics from DLS note or compiled workbook.",
+      "acceptance": "Partial support marked PARTIAL/UNVALIDATED; document + reproducible result + trusted paired comparison required for scientific promotion.",
+      "blockers": [
+        "Version-specific potential/mobility/quality/units/settings/model definitions",
+        "Native summaries/distributions with official paired results",
+        "DTS record identity/serialization if used"
+      ],
+      "references": [
+        "../../docs/TECHNICAL_CONTEXT.md",
+        "../../docs/DTS_FORMAT.md",
+        "MATERIALS.md"
+      ]
+    },
+    {
+      "id": "nta_preparation",
+      "priority": 4,
+      "status": "architecture_preparation_allowed_scientific_validation_pending",
+      "responsibility": "agent_and_owner_evidence",
+      "next_action": "Prepare module registration/schema boundaries/provenance only from adequate evidence. Decide exported-results scope before raw tracking implementation.",
+      "acceptance": "No invented NTA fields/algorithm/units; partial architecture labeled; independent reference required for validation.",
+      "blockers": [
+        "Actual NanoSight version/schema/settings and real exports",
+        "Summary/distribution/concentration calibration/dilution references",
+        "Trajectories/timebase/algorithm only if raw tracking calculation is required"
+      ],
+      "references": [
+        "../../docs/TECHNICAL_CONTEXT.md",
+        "MATERIALS.md"
+      ]
+    },
+    {
+      "id": "bootstrap_clean_distribution",
+      "priority": 3,
+      "status": "pending_clean_gui_usb",
+      "responsibility": "agent_and_owner_hardware",
+      "next_action": "Implement/test application-local browser/runtime/bootstrap/offline USB and supported clean-system startup. Acquire components legally from verified official sources; no fixed drive/path or dev runtime assumption.",
+      "acceptance": "GUI/storage/import/Graph/Cycle/Stats/export/signature/offline pass on supported clean systems, FAT32/exFAT/USB and interruption cases.",
+      "blockers": [
+        "Real target OS/USB tests",
+        "Licensing of bundled components"
+      ],
+      "references": [
+        "../../docs/READINESS.md",
+        "MASTER_SPECIFICATION.md"
+      ]
+    },
+    {
+      "id": "complete_corresponding_source",
+      "priority": 3,
+      "status": "r_source_obtained_rebuild_pending",
+      "responsibility": "agent_and_owner_license",
+      "next_action": "Complete linked runtime/package/toolchain inputs and reproducible source/build deliverable. R4.6.0 mirror byte equality is acquisition evidence, not full rebuild.",
+      "acceptance": "Exact source/toolchain inputs, integrity/license inventory, reproducible rebuild and lawful distribution method.",
+      "blockers": [
+        "Project license/distribution decision",
+        "Missing linked sources/exact LLVM/image toolchain"
+      ],
+      "references": [
+        "../../docs/STATISTICAL_RUNTIME_LICENSES.md",
+        "../../docs/STATISTICAL_PACKAGES_LICENSES.md",
+        "../../docs/READINESS.md"
+      ]
+    },
+    {
+      "id": "real_cloud_providers",
+      "priority": 4,
+      "status": "infrastructure_partial_owner_registration_pending",
+      "responsibility": "agent_and_owner_registration",
+      "next_action": "Use official Google/iCloud/Microsoft mechanisms; test real provider auth/scopes/readback/conflicts/migration after secure registration. Folder transport/local servers are not proof of real cloud.",
+      "acceptance": "Least privilege, namespace/install isolation, confirmation before deleting local copy, migration preserves source until target confirms.",
+      "blockers": [
+        "Official app registrations/configuration from owner via secure channel",
+        "Platform-specific iCloud constraints"
+      ],
+      "references": [
+        "../../docs/READINESS.md",
+        "../../internal/provider",
+        "../../internal/syncer"
+      ]
+    },
+    {
+      "id": "full_master_ux_review",
+      "priority": 3,
+      "status": "review_required",
+      "responsibility": "agent",
+      "next_action": "Review every master section and subrequirement, Help/discovery/command palette/locale/DPI/accessibility/performance/export options. Existing E2E screenshots are scoped evidence, not all requirements met.",
+      "acceptance": "Requirements matrix expanded with implementation/tests/gaps; supported states/locales/sizes verified and placeholders removed.",
+      "blockers": [],
+      "references": [
+        "REQUIREMENTS_REVIEW.md",
+        "../../docs/DEVELOPMENT_STATUS.md",
+        "MASTER_SPECIFICATION.md"
+      ]
+    },
+    {
+      "id": "stable_release",
+      "priority": 5,
+      "status": "blocked_by_release_gates",
+      "responsibility": "agent_and_owner_release",
+      "next_action": "Prepare official authenticated artifacts/manifests only after scientific-scope, distribution, source/licensing, privacy/security/visual and clean-target gates.",
+      "acceptance": "Release identity legitimate; source complete; scoped science accurate; validated supported platforms/USB; keys excluded; Stable approval scope clear.",
+      "blockers": [
+        "Remaining engineering/evidence/clean-system gates",
+        "Official release identity and license decision"
+      ],
+      "references": [
+        "../../docs/READINESS.md"
+      ]
+    },
+    {
+      "id": "main_history_integration",
+      "priority": 5,
+      "status": "owner_scope_pending_no_action_authorized",
+      "responsibility": "owner",
+      "next_action": "Review integration and historical private data scope separately. Main/checkpoint lack common ancestor; do not push private proposals or weaken privacy gate.",
+      "acceptance": "Explicit owner integration/privacy scope and reviewable safe result before irreversible action.",
+      "blockers": [
+        "Explicit integration/privacy authorization"
+      ],
+      "references": [
+        "../../docs/READINESS.md",
+        "CONTEXT.md"
+      ]
+    }
+  ],
+  "owner_interventions": [
+    {
+      "id": "scientific_documents",
+      "needed": "Exact version/build/settings and genuine paired DLS/ZETA/NTA/DTS exports/reference results; safely provide private corpus only for dependent tasks."
+    },
+    {
+      "id": "clean_hardware_tests",
+      "needed": "Actual GUI/USB/offline clean Windows first, then supported macOS/Linux/filesystems."
+    },
+    {
+      "id": "provider_registrations",
+      "needed": "Official Google/Microsoft/Apple apps and configuration through secure channel, never secrets in Git/chat."
+    },
+    {
+      "id": "license_source_distribution",
+      "needed": "Choose project license and lawful complete Corresponding Source method after engineering review."
+    },
+    {
+      "id": "release_identity",
+      "needed": "Official public identity and secure private signing/notarization management where required."
+    },
+    {
+      "id": "main_integration_scope",
+      "needed": "Explicit scope for integration/remediation of original private-data history; direct main changes remain forbidden."
+    }
+  ]
+}

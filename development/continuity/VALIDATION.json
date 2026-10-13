@@ -1,0 +1,121 @@
+{
+  "development_only": "MNE_LAB_DEVELOPMENT_ONLY",
+  "schema_version": 1,
+  "updated_utc": "2026-10-13T20:08:56.124315+00:00",
+  "separate_scopes_required": true,
+  "inherited_functional_evidence": {
+    "head": "7985a57ff835699f2643687b2a80bbceb9b5e779",
+    "hosted_ci": {
+      "run_id": 38091538654,
+      "url": "https://github.com/oaovito/MNE_Lab/actions/runs/38091538654",
+      "conclusion": "success",
+      "jobs": [
+        "check",
+        "macos",
+        "windows-export",
+        "e2e"
+      ]
+    },
+    "go": {
+      "top_level_pass": 249,
+      "cases_pass": 554,
+      "packages_pass": 27,
+      "skipped": 4,
+      "race": true,
+      "vet": true
+    },
+    "frontend": {
+      "tests_pass": 52,
+      "typecheck": true,
+      "build": true
+    },
+    "local_browser": {
+      "reports": 26,
+      "checks_pass": 699,
+      "failed": 0,
+      "local_source": "d08f11b4cac3b966510c93d71d1809b1913ca4d4",
+      "successor_difference": "One gofmt alignment; hosted CI executed exact final798"
+    },
+    "producer_origin_targeted": {
+      "passed": 42,
+      "failed": 0
+    }
+  },
+  "this_bridge": {
+    "source_base": "4b6fd314d0d0d809f2911720ce7e0e67162c1dff",
+    "application_source_changed": false,
+    "functional_suite_rerun_locally": false,
+    "checks": [
+      {
+        "name": "master_and_continuity_review",
+        "passed": true,
+        "scope": "Bridge files before publication; master body preserves all 44 sections with only six identifier substitutions. JSON/links checked; no functional application tests claimed.",
+        "master_sections": 44,
+        "requirements_rows": 44,
+        "markdown_links_checked": 69,
+        "private_originals_fingerprinted": 240,
+        "private_source_matches": 0
+      },
+      {
+        "name": "audit_boundary_regressions",
+        "passed": true,
+        "checks_passed": 50,
+        "scope": "Synthetic security/publication cases. Includes marked documents, historical/index-only secrets and custom confidentiality terms, forbidden corpus paths, export-ignore, renamed/UTF16/nested ZIP leaks.",
+        "tested_sources_sha256": {
+          ".gitattributes": "e2c383fb2c782c4ea5383fd56ee973c4d9f95b26b1692f43c220360c126a4bf5",
+          ".gitignore": "3659af0d6278f34cc4e26126145b5a62874c06ae61c07a26c9b2f9c5516d42ce",
+          "scripts/audit.sh": "b4f34461970ffecae828678336232255fc5d07318d665ade5163701d62c690dd",
+          "scripts/audit_test.sh": "0d227f61f56dd7b009462b53164ed7ee4b0c0bbdf954285c9ae16f2a15d2e72f",
+          "scripts/package_windows_test.py": "84e4437ece4620cc1fe546994613bb615a0164e546f88e676cd2c2897736739f",
+          "scripts/check_development_boundary.py": "8de61be2d280775b480dab8f7badc34dde0127f9f03b863b81a047755b22567a",
+          ".github/workflows/ci.yml": "5580d2193f6988271c88eedc46679c7ceee7364ac1dddb79029edde4a525bdf2"
+        }
+      },
+      {
+        "name": "packager_serialization",
+        "passed": true,
+        "checks_passed": 2,
+        "scope": "Synthetic PE headers/version bytes only; actual source ZIP exclusions and marked-byte rejection before receipt. Not a runnable Windows application or GUI test."
+      },
+      {
+        "name": "prepared_isolated_tree_boundary",
+        "passed": true,
+        "scope": "Prior staged candidate with same master and exclusion/checker contract; isolated 28-commit public history plus index documents. Final published tree will be checked separately.",
+        "document_versions_checked": 24,
+        "artifact_files_checked": 577,
+        "actual_source_archive_members_checked": 463
+      },
+      {
+        "name": "fresh_linux_compile",
+        "passed": true,
+        "scope": "Application and launcher compiled with unchanged application source and current bridge present. ELF/product-content boundary checked; no GUI/USB/business-flow execution.",
+        "artifacts": [
+          {
+            "name": "mnelab-linux-amd64",
+            "size": 92504226,
+            "sha256": "a49276caf2bd57ae13a5cf5bd633832bc2083c7be11ad0e5e67dee6c32faf2e0",
+            "compile_only_not_GUI_or_functional_test": true
+          },
+          {
+            "name": "mnelab-launcher-linux-amd64",
+            "size": 4276386,
+            "sha256": "c3bd70bb836651d94dff9d4b8fbe55bd304539243f5a9067e470e65d8cd3d0fd",
+            "compile_only_not_GUI_or_functional_test": true
+          }
+        ]
+      }
+    ],
+    "state": "local_contracts_passed_final_commit_readback_pending",
+    "limitations": [
+      "Git check-attr --source required; tested Git2.52.0/Python on Linux, not Windows checker execution",
+      "Optional non-branding terms remain global, including marked documents; only exact known tool-name patterns are source-branding exceptions",
+      "Final published tree/history, remote readback and any new hosted CI must be attributed separately"
+    ]
+  },
+  "limits": [
+    "Historical scratch/startup probes are not current clean GUI/USB proof",
+    "No ZETA/NTA scientific validation promotion",
+    "Bridge verification is not product completion or scientific validation",
+    "New CI must be attributed to its actual SHA, separately from inherited evidence"
+  ]
+}

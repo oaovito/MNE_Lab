@@ -5,6 +5,7 @@
 # Usage: scripts/audit.sh [artifact-file-or-dir ...]
 set -u
 export LC_ALL=C.UTF-8
+boundary=$(cd "$(dirname "$0")" && pwd)/check_development_boundary.py
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 fail=0
@@ -35,9 +36,23 @@ PATTERNS
 # Even an identifier can itself contain a credential-shaped value.
 sed -e 's|^|s~|' -e 's|$|~[redacted]~gI|' "$secrets" >"$scratch/redactions"
 
-# Private categories are rejected regardless of their contents. Generic public
-# documentation such as recovery.md is intentionally outside these categories.
+# Confidential categories remain forbidden. Only a fixed, separately checked
+# Git-only continuity contract permits coordination documents in source.
+# Artifacts use the original strict categories plus the entire context folder.
 private_re='(^|/)(\.env(\..*)?|[^/]*\.pem|[^/]*\.key|release-signing[^/]*|providers\.json|AGENTS\.md|CLAUDE\.md|Zeta\.xlsx)$|(^|/)(C-(RT|SR)|F-(RT|SR)|\.private-fixtures|\.dev-data)(/|$)|(^|/)[^/]*pacote[-_ .]*mestre[^/]*(/|$)|(^|/)[^/]*(prompt[-_ .]*mestre|mestre[-_ .]*prompt)[^/]*$|(^|/)[^/]*(master[-_ .]*(continuity|recovery|prompt)|continuity[-_ .]*(recovery[-_ .]*)?prompt|recovery[-_ .]*prompt)[^/]*$|(^|/)[^/]*((claude|codex)[-_ .]*(coordination|transcript|conversation|handoff|chat|session|prompt)|(coordination|transcript|conversation|handoff|chat|session|prompt)[-_ .]*(claude|codex))[^/]*$|(^|/)[^/]*(claude[-_ .]*codex|codex[-_ .]*claude)[^/]*$|(^|/)example[-_ .]*results\.dts$|(^|/)[^/]*pacote[-_ .]*implementa(cao|ção)[^/]*(/|$)'
+allowed_development='(AGENTS\.md|CLAUDE\.md|development/continuity/(README\.md|MASTER_SPECIFICATION\.md|USER_DIRECTIVES\.md|CONTEXT\.md|CHECKPOINT\.json|TASKS\.json|MATERIALS\.md|PROMPT\.md|REQUIREMENTS_REVIEW\.md|VALIDATION\.json))'
+source_paths() { grep -v -E "^([a-f0-9]{40,64}:)?$allowed_development$"; }
+development_marker='MNE_LAB_'
+development_marker+='DEVELOPMENT_ONLY'
+if command -v python3 >/dev/null 2>&1 && [ -f "$boundary" ]; then
+	if python3 "$boundary" --repo "$PWD" >"$scratch/boundary" 2>&1; then
+		report "development continuity is marked and excluded in every Git tree/index" ""
+	else
+		report "development continuity is marked and excluded in every Git tree/index" "$(cat "$scratch/boundary")"
+	fi
+else
+	report "development continuity inspection is available" "Python and the boundary checker are required"
+fi
 private_content=$scratch/private-content
 cat >"$private_content" <<'PATTERNS'
 ^#{1,6}[[:space:]]+.*master[[:space:]_-]+continuity[[:space:][:punct:]]+recovery[[:space:]_-]+prompt
@@ -56,10 +71,10 @@ fi
 : >"$scratch/private-content-paths"
 while IFS= read -r rev; do
 	git ls-tree -r --name-only "$rev" >>"$scratch/history-names" || exit 1
-	git grep -I -l -i -E -f "$private_content" "$rev" 2>/dev/null | sed "s/^$rev://" >>"$scratch/private-content-paths"
+	git grep -I -l -i -E -f "$private_content" "$rev" 2>/dev/null | sed "s/^$rev://" | source_paths >>"$scratch/private-content-paths"
 done <"$scratch/revisions"
 sort -u "$scratch/history-names" >"$scratch/all-names"
-grep -i -E "$private_re" "$scratch/all-names" >"$scratch/private-paths" || :
+grep -i -E "$private_re" "$scratch/all-names" | source_paths >"$scratch/private-paths" || :
 # Retain historical basenames even after deletion from the current branch.
 cat "$scratch/private-paths" "$scratch/private-content-paths" | sed 's|.*/||' | sort -u >"$scratch/private-names"
 
@@ -86,11 +101,49 @@ scan_history_meta() {
 		fi
 	done <"$scratch/revisions"
 }
+term_config_content() { # exact structural boundary declarations are not branding
+	local path=$1
+	if [ "$path" = .gitattributes ]; then
+		sed -E '/^\/(AGENTS|CLAUDE)\.md[[:space:]]+export-ignore[[:space:]]*$/d'
+	else
+		sed -E '/^(AGENTS\.md|CLAUDE\.md|!\/(AGENTS|CLAUDE)\.md)[[:space:]]*$/d'
+	fi
+}
+scan_terms_tree() {
+	[ -s "$branding_terms" ] || return 0
+	scan_tree "$branding_terms" | source_paths | while IFS= read -r path; do
+		case "$path" in
+			.gitattributes|.gitignore)
+				if ! git show ":$path" >"$scratch/term-config" 2>/dev/null; then
+					printf '%s: [file content inspection failed]\n' "$path"; continue
+				fi
+				if term_config_content "$path" <"$scratch/term-config" | grep -i -q -E -f "$branding_terms"; then printf '%s\n' "$path"; continue; fi
+				if [ -f "$path" ] && term_config_content "$path" <"$path" | grep -i -q -E -f "$branding_terms"; then printf '%s\n' "$path"; fi
+				;;
+			*) printf '%s\n' "$path" ;;
+		esac
+	done
+}
+scan_terms_history() {
+	[ -s "$branding_terms" ] || return 0
+	scan_history_files "$branding_terms" | source_paths | while IFS= read -r item; do
+		local path=${item#*:} revision=${item%%:*}
+		case "$path" in
+			.gitattributes|.gitignore)
+				if ! git show "$revision:$path" >"$scratch/term-config" 2>/dev/null; then
+					printf '%s: [file content inspection failed]\n' "$revision"; continue
+				fi
+				if term_config_content "$path" <"$scratch/term-config" | grep -i -q -E -f "$branding_terms"; then printf '%s\n' "$item"; fi
+				;;
+			*) printf '%s\n' "$item" ;;
+		esac
+	done
+}
 
-report "no private files tracked" "$(git ls-files | grep -i -E "$private_re")"
+report "no private files tracked" "$(git ls-files | grep -i -E "$private_re" | source_paths)"
 report "no private file names in history" "$(cat "$scratch/private-paths")"
-report "no private coordination content tracked" "$(scan_tree "$private_content")"
-report "no private coordination content in history" "$(scan_history_files "$private_content")"
+report "no private coordination content tracked" "$(scan_tree "$private_content" | source_paths)"
+report "no private coordination content in history" "$(scan_history_files "$private_content" | source_paths)"
 report "secrets: tracked files" "$(scan_tree "$secrets")"
 report "secrets: tracked file names" "$(scan_names "$secrets")"
 report "secrets: history" "$(scan_history_files "$secrets")"
@@ -108,10 +161,25 @@ if [ -n "${AUDIT_TERMS_FILE:-}" ]; then
 			report "unwanted term expressions are valid" "$AUDIT_TERMS_FILE"
 		else
 			terms=$AUDIT_TERMS_FILE
-			report "terms: tracked files (1)" "$(scan_tree "$terms")"
-			report "terms: file names (1)" "$(scan_names "$terms")"
-			report "terms: every revision (2)" "$(scan_history_files "$terms")"
-			report "terms: historical file names (2)" "$(grep -i -E -f "$terms" "$scratch/all-names")"
+			# Only complete literal tool names or a simple alternation of those
+			# names are branding patterns. Arbitrary confidentiality regexes,
+			# including mixed alternatives, retain their full source/history
+			# coverage even inside the authorized continuity documents.
+			branding_terms=$scratch/branding-terms
+			confidential_terms=$scratch/confidential-terms
+			: >"$branding_terms"
+			: >"$confidential_terms"
+			while IFS= read -r expression || [ -n "$expression" ]; do
+				if printf '%s\n' "$expression" | grep -i -q -E '^(Claude|Codex|Anthropic|OpenAI)(\|(Claude|Codex|Anthropic|OpenAI))*$'; then
+					printf '%s\n' "$expression" >>"$branding_terms"
+				else
+					printf '%s\n' "$expression" >>"$confidential_terms"
+				fi
+			done <"$terms"
+			report "terms: tracked files (1)" "$( { if [ -s "$confidential_terms" ]; then scan_tree "$confidential_terms"; fi; scan_terms_tree; } | sort -u)"
+			report "terms: file names (1)" "$( { scan_names "$confidential_terms"; scan_names "$branding_terms" | source_paths; } | sort -u)"
+			report "terms: every revision (2)" "$( { if [ -s "$confidential_terms" ]; then scan_history_files "$confidential_terms"; fi; scan_terms_history; } | sort -u)"
+			report "terms: historical file names (2)" "$( { grep -i -E -f "$confidential_terms" "$scratch/all-names"; grep -i -E -f "$branding_terms" "$scratch/all-names" | source_paths; } | sort -u)"
 			report "terms: commit metadata and trailers (2)" "$(scan_history_meta "$terms")"
 		fi
 	fi
@@ -162,6 +230,7 @@ private_basename_text() {
 }
 private_entry_names() {
 	if grep -a -i -q -E "$private_re" "$1"; then return 0; fi
+	if grep -a -i -q -E '(^|/)development/continuity(/|$)' "$1"; then return 0; fi
 	private_basename_text "$1"
 }
 known='GetLargePage[M]inimum'
@@ -172,6 +241,13 @@ fi
 
 private_artifacts="" secret_artifacts="" term_artifacts="" path_artifacts="" unreadable_artifacts=""
 if [ "$#" -gt 0 ]; then
+	if command -v python3 >/dev/null 2>&1 && [ -f "$boundary" ]; then
+		if python3 "$boundary" --artifacts-only --artifacts "$@" >"$scratch/artifact-boundary" 2>&1; then
+			report "development context is absent from product artifacts" ""
+		else
+			report "development context is absent from product artifacts" "$(cat "$scratch/artifact-boundary")"
+		fi
+	fi
 	if ! command -v strings >/dev/null 2>&1; then
 		report "artifact text inspection is available" "strings is required"
 		exit "$fail"
@@ -197,7 +273,7 @@ if [ "$#" -gt 0 ]; then
 					fi
 					;;
 			esac
-			if private_entry_names "$scratch/entry-names" || private_basename_text "$scratch/artifact-text" || grep -a -i -q -E -f "$private_content" "$scratch/artifact-text"; then private_artifacts+="$f"$'\n'; fi
+			if private_entry_names "$scratch/entry-names" || private_basename_text "$scratch/artifact-text" || grep -a -i -q -E -f "$private_content" "$scratch/artifact-text" || grep -a -q -F "$development_marker" "$scratch/artifact-text"; then private_artifacts+="$f"$'\n'; fi
 			if grep -a -i -q -E -f "$secrets" "$scratch/artifact-text" || grep -a -i -q -E -f "$secrets" "$scratch/entry-names"; then secret_artifacts+="$f"$'\n'; fi
 			if [ -n "$terms" ] && sed -E "s/($known)//g" "$scratch/artifact-text" | grep -a -i -q -E -f "$scratch/artifact-terms"; then term_artifacts+="$f"$'\n'; fi
 			if grep -a -q -F "$build_home/" "$f"; then path_artifacts+="$f"$'\n'; fi
