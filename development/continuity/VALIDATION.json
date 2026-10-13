@@ -1,7 +1,7 @@
 {
   "development_only": "MNE_LAB_DEVELOPMENT_ONLY",
   "schema_version": 1,
-  "updated_utc": "2026-10-13T20:08:56.124315+00:00",
+  "updated_utc": "2026-10-13T20:29:11.793100+00:00",
   "separate_scopes_required": true,
   "inherited_functional_evidence": {
     "head": "7985a57ff835699f2643687b2a80bbceb9b5e779",
@@ -103,19 +103,88 @@
             "compile_only_not_GUI_or_functional_test": true
           }
         ]
+      },
+      {
+        "name": "committed_source_archive",
+        "passed": true,
+        "head": "666db11a3613f357c009a8f4d73a20e92f6b946d",
+        "members_checked": 464,
+        "development_documents_absent": true,
+        "scope": "Actual git archive of committed implementation checkpoint, with source prefix; not just working-tree attributes."
+      },
+      {
+        "name": "published_clone_and_reachable_history",
+        "passed": true,
+        "head": "666db11a3613f357c009a8f4d73a20e92f6b946d",
+        "tree": "dd252a0c6ff7bb7f5181a68ac9a834abfe174c23",
+        "reachable_commits": 29,
+        "document_versions_checked": 36,
+        "objects_scanned": 1007,
+        "private_source_matches": 0,
+        "clone_fsck_head_tree_clean_readback": true,
+        "main_unchanged": true
+      },
+      {
+        "name": "cold_frontend_install_build",
+        "passed": true,
+        "head": "666db11a3613f357c009a8f4d73a20e92f6b946d",
+        "npm_ci": true,
+        "frontend_build": true,
+        "packages": 11,
+        "all_pinned_checks_preserved": true,
+        "scope": "Fresh isolated clone, with explicit writable npm cache; first local npm attempt used an unwritable cache, corrected without changing lockfile/checksums. Does not establish cause of hosted failure."
       }
     ],
-    "state": "local_contracts_passed_final_commit_readback_pending",
+    "state": "verified_and_published_at_implementation_checkpoint",
     "limitations": [
       "Git check-attr --source required; tested Git2.52.0/Python on Linux, not Windows checker execution",
       "Optional non-branding terms remain global, including marked documents; only exact known tool-name patterns are source-branding exceptions",
-      "Final published tree/history, remote readback and any new hosted CI must be attributed separately"
-    ]
+      "Documentation-only follow-up does not rerun application suites; it changes no tested gate/application/workflow source. Resolve current Git HEAD separately from the immutable CI SHA."
+    ],
+    "implementation_checkpoint": "666db11a3613f357c009a8f4d73a20e92f6b946d",
+    "record_scope": "Final follow-up edits only continuation records. Actual checkout HEAD is obtained through Git; source boundary and CI evidence identify the earlier immutable implementation checkpoint."
   },
   "limits": [
     "Historical scratch/startup probes are not current clean GUI/USB proof",
     "No ZETA/NTA scientific validation promotion",
     "Bridge verification is not product completion or scientific validation",
     "New CI must be attributed to its actual SHA, separately from inherited evidence"
-  ]
+  ],
+  "latest_hosted_ci": {
+    "run_id": 38460579580,
+    "head": "666db11a3613f357c009a8f4d73a20e92f6b946d",
+    "attempt": 2,
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/oaovito/MNE_Lab/actions/runs/38460579580",
+    "observed_utc": "2026-10-13T20:27:06.105211+00:00",
+    "jobs": [
+      {
+        "name": "check",
+        "conclusion": "success"
+      },
+      {
+        "name": "e2e",
+        "conclusion": "success"
+      },
+      {
+        "name": "windows-export",
+        "conclusion": "success"
+      },
+      {
+        "name": "macos",
+        "conclusion": "success"
+      }
+    ],
+    "rerun_scope": "Only failed check job rerun; e2e/macOS/windows-export retained successful first-attempt results at the identical source SHA.",
+    "first_attempt": {
+      "conclusion": "failure",
+      "failed_step": "Interface — build",
+      "failed_job": "check",
+      "cause": "unknown; detailed log redirect inaccessible from this environment",
+      "checksums_or_source_changed_to_pass": false,
+      "all_later_steps_initially_skipped": true
+    },
+    "numeric_counts_scope": "The numerical test counts in inherited_functional_evidence belong to 7985a57/local d08f11b. New exact-SHA job/step success verified; hosted log counts were not extracted."
+  }
 }

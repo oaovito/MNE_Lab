@@ -1,14 +1,14 @@
 {
   "development_only": "MNE_LAB_DEVELOPMENT_ONLY",
   "schema_version": 1,
-  "recorded_utc": "2026-10-13T19:55:23.305073+00:00",
-  "phase": "repository-continuity-bridge",
+  "recorded_utc": "2026-10-13T20:29:11.793100+00:00",
+  "phase": "repository_continuity_ready",
   "repository": "https://github.com/oaovito/MNE_Lab",
   "branch": "codex/mne-lab-checkpoint-20261008",
   "checkout_head_authority": "Use git rev-parse HEAD and git log -1; this record does not embed the hash of its own commit.",
   "prior_documentation_checkpoint": "4b6fd314d0d0d809f2911720ce7e0e67162c1dff",
-  "functional_validation_head": "7985a57ff835699f2643687b2a80bbceb9b5e779",
-  "functional_validation_tree": "b14ff9c50687565e42d72e010cdb0bbaa264c14d",
+  "functional_validation_head": "666db11a3613f357c009a8f4d73a20e92f6b946d",
+  "functional_validation_tree": "dd252a0c6ff7bb7f5181a68ac9a834abfe174c23",
   "main_observed": "9c5a06f3122a89a4e47d707a77043b1a8da3d53d",
   "main_direct_changes_authorized": false,
   "private_history_integration_authorized": false,
@@ -26,7 +26,7 @@
   "paid_api_used": false,
   "native_automatic_resumption_available_and_tested": false,
   "next_exact_action": "Read MASTER_SPECIFICATION.md entirely and USER_DIRECTIVES.md; review CONTEXT/TASKS/VALIDATION/requirements against current code and GitHub. Record discrepancies; then design/test bounded PFX isolation before HTTP/UI integration, preserving existing CMS/global Verify.",
-  "current_handoff_state": "Continuity records and local distribution/audit contracts ready; verify actual HEAD/readback and any new CI via Git/VALIDATION.",
+  "current_handoff_state": "Master/directives/context/tasks/materials/review and entry points published; source/product boundary and full hosted CI passed at implementation checkpoint. Follow-up only records proof; get actual HEAD from Git.",
   "master": {
     "path": "development/continuity/MASTER_SPECIFICATION.md",
     "original_sha256": "c43e35335bac42cf2201ac4db71c67aa05b7914ded7fdb3235e55d6f84502578",
@@ -164,5 +164,19 @@
       "commit": "4b6fd314d0d0d809f2911720ce7e0e67162c1dff",
       "change": "Document current development status and remaining release blockers [skip ci]"
     }
-  ]
+  ],
+  "handoff_ready": true,
+  "bridge_implementation_checkpoint": "666db11a3613f357c009a8f4d73a20e92f6b946d",
+  "historical_inherited_count_reference_head": "7985a57ff835699f2643687b2a80bbceb9b5e779",
+  "latest_hosted_ci": {
+    "run_id": 38460579580,
+    "attempt": 2,
+    "head": "666db11a3613f357c009a8f4d73a20e92f6b946d",
+    "conclusion": "success"
+  },
+  "documentation_only_followup_since_ci": true,
+  "published_bridge_change": {
+    "commit": "666db11a3613f357c009a8f4d73a20e92f6b946d",
+    "change": "Shared development continuity and verified distribution/audit guards"
+  }
 }

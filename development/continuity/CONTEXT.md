@@ -9,7 +9,9 @@ evidências antes de alterar a implementação.
 ## Estado, bases e autoridade
 
 - Branch de desenvolvimento: `codex/mne-lab-checkpoint-20261008`.
-- Último código funcional com CI completo: `7985a57ff835699f2643687b2a80bbceb9b5e779`.
+- Base histórica de código funcional e contagens: `7985a57ff835699f2643687b2a80bbceb9b5e779`.
+- CI completo da ponte em `666db11a3613f357c009a8f4d73a20e92f6b946d`, run `38460579580`,
+  final success no attempt 2; follow-up desta prova é somente documental.
 - Checkpoint documental anterior: `4b6fd314d0d0d809f2911720ce7e0e67162c1dff`.
 - `main` observada em `9c5a06f3122a89a4e47d707a77043b1a8da3d53d`; permanece protegida.
 - Esta mudança adiciona ponte e controles de distribuição/auditoria, sem alterar
@@ -135,7 +137,7 @@ confiável, com tolerâncias; abrir arquivo ou desenhar gráfico não satisfaz i
 
 ## Evidências existentes e o que não demonstram
 
-CI funcional exato: [run 38091538654](https://github.com/oaovito/MNE_Lab/actions/runs/38091538654),
+Referência funcional histórica: [run 38091538654](https://github.com/oaovito/MNE_Lab/actions/runs/38091538654),
 commit `7985a57`, jobs check/macos/windows-export/e2e aprovados.
 
 - Go: 249 testes principais, 554 casos/subcasos, 27 pacotes, quatro skips;
@@ -160,6 +162,27 @@ Os logs privados e arquivos reais não estão no Git. Evidências independentes
 públicas, scripts/oráculos, fixture manifests e testes estão nas áreas indicadas
 por DEVELOPMENT_STATUS. Os checks novos desta ponte são registrados separadamente
 em VALIDATION.json; não assumir nova execução das 699 verificações locais.
+
+## Prova da ponte publicada
+
+Commit de implementação: `666db11a3613f357c009a8f4d73a20e92f6b946d`.
+[CI 38460579580](https://github.com/oaovito/MNE_Lab/actions/runs/38460579580)
+terminou com check/e2e/macOS/windows-export SUCCESS. Só check foi reexecutado
+após falha inicial no build frontend; source/checksums não foram alterados.
+A causa inicial não foi confirmada porque os logs detalhados não eram acessíveis.
+As contagens anteriores não foram extraídas novamente dos logs hosted.
+
+50 regressões dos gates e duas serializações de packager com PE sintético
+passaram. Isso não é GUI Windows. ZIP source real do commit: 464 membros,
+sem ponte; 577 arquivos de produto, incluindo dois Linux ELF recém-compilados,
+sem contexto. Clone remoto/fsck/HEAD/tree/estado limpo e 1.007 objetos da história
+pública isolada auditados, zero matches privados; `main` intacta. Um clone frio
+instalou/buildou frontend com cache npm gravável e os 11 pins verificados.
+VALIDATION.json guarda hashes dos scripts testados, escopos e limites.
+
+O follow-up que registra esses resultados só altera documentação da ponte;
+não atribuir a ele uma nova execução de suites. Para o HEAD corrente, usar Git.
+Nenhuma validação científica ou conclusão Stable foi promovida por estes checks.
 
 ## Próxima ação de engenharia: PFX/P12 bounded
 
@@ -223,6 +246,12 @@ plataforma; upgrades deliberados exigem revalidação. No cloud original, ativa�
 em `/workspace/toolchains/mnelab-env.sh`; um clone em outra máquina não recebe
 esse script ou configuração automaticamente. Instalação/registro do cloud salvo
 não demonstra sua publicação ou validação em nova instância.
+
+Em cloud com filesystem restrito, o cache padrão do npm pode não ser gravável.
+Use `npm --cache /workspace/cache/npm ci` ou `npm_config_cache` apontando a um
+diretório gravável antes de instalar. Não alterar HOME nem desabilitar checksums.
+Um clone frio desta ponte instalou/buildou com cache gravável e os 11 pins R
+verificados; isso não explica sozinho uma falha de build em outro runner.
 
 ```sh
 set -euo pipefail
