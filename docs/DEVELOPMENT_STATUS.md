@@ -65,6 +65,9 @@ ainda não foram publicados.
 
 A interface tem português do Brasil, inglês e espanhol, temas claro/escuro,
 Turbo, descoberta de recursos, Help, command palette, onboarding e Presentation.
+A paleta do proprietário (#F4F8FA base, #2C7FB8 destaque, #143A52 destaque
+escuro) vale desde 2026-10-15: tema claro padrão com as três cores exatas e
+tema escuro derivado; detalhes em TECHNICAL_CONTEXT, seção Design.
 O acesso móvel usa pairing QR e comunicação cifrada/autenticada para viewer e
 controle de apresentação na rede local.
 

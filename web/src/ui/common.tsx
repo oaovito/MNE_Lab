@@ -2,7 +2,7 @@
 import { setLanguage, setTheme } from '../lib/actions';
 import { fmtRel } from '../lib/format';
 import { errText, LANG_NAMES, LANGS, t, type Lang } from '../lib/i18n';
-import { app, run } from '../lib/state';
+import { app, defaultTheme, run } from '../lib/state';
 import { useStore } from '../lib/store';
 import type { StateView, SyncStatus } from '../lib/types';
 import { useState } from 'preact/hooks';
@@ -31,7 +31,7 @@ export function LangSelect(p: { compact?: boolean }) {
 
 export function ThemeToggle() {
   const s = useStore(app, (x) => x.s)!;
-  const theme = s.profile?.settings.theme || s.settings.theme || 'system';
+  const theme = s.profile?.settings.theme || s.settings.theme || defaultTheme;
   const icon: IconName = theme === 'light' ? 'sun' : theme === 'dark' ? 'moon' : 'monitor';
   return (
     <MenuButton

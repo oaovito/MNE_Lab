@@ -516,7 +516,10 @@ function Loading(p: { error?: string }) {
 }
 
 const dark = matchMedia('(prefers-color-scheme: dark)');
-const applyTheme = () => (document.documentElement.dataset.theme = dark.matches ? 'dark' : 'light');
+const applyTheme = () => {
+  document.documentElement.dataset.theme = dark.matches ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark.matches ? '#091A24' : '#F4F8FA');
+};
 dark.addEventListener('change', applyTheme);
 applyTheme();
 render(<App />, document.getElementById('app')!);

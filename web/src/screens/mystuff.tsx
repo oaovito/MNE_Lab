@@ -6,7 +6,7 @@ import { fmtDate, fmtRel } from '../lib/format';
 import { LANG_NAMES, t, type Lang } from '../lib/i18n';
 import { useCycles, useFiles, useGraphs } from '../lib/library';
 import { navigate } from '../lib/route';
-import { app, closePanel, openPanel, run } from '../lib/state';
+import { app, closePanel, defaultTheme, openPanel, run } from '../lib/state';
 import { useStore } from '../lib/store';
 import { StorageLabel } from '../ui/common';
 import { Icon, type IconName } from '../ui/icons';
@@ -91,7 +91,7 @@ export function MyStuff() {
           </Card>
           <Card title={t('my.prefs')} icon="sliders" class="grow">
             <Line icon="globe" k={t('set.language')} v={LANG_NAMES[s.lang as Lang] || s.lang} go={go(() => openPanel('settings', 'general'))} />
-            <Line icon="palette" k={t('set.theme')} v={t('set.theme.' + (p.settings.theme || 'system'))} go={go(() => openPanel('settings', 'general'))} />
+            <Line icon="palette" k={t('set.theme')} v={t('set.theme.' + (p.settings.theme || defaultTheme))} go={go(() => openPanel('settings', 'general'))} />
             <Line icon="gauge" k="Turbo" v={s.settings.turbo ? t('ui.on') : t('ui.off')} go={go(() => openPanel('settings', 'general'))} />
           </Card>
         </div>

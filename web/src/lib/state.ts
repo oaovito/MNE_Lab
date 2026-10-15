@@ -30,19 +30,22 @@ export function toast(kind: Toast['kind'], text: string, action?: Toast['action'
 }
 export const dismiss = (id: number) => app.set((st) => ({ toasts: st.toasts.filter((t) => t.id !== id) }));
 
+// The light theme is the default: the owner's base color is #F4F8FA.
+export const defaultTheme = 'light';
+
 export const openPanel = (panel: string, arg: any = null) => app.set({ panel, panelArg: arg });
 export const closePanel = () => app.set({ panel: null, panelArg: null });
 
 function applyState(s: StateView) {
   setLang(s.lang);
   setDecimal(s.decimal);
-  const theme = s.profile?.settings.theme || s.settings.theme || 'system';
+  const theme = s.profile?.settings.theme || s.settings.theme || defaultTheme;
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.classList.toggle('turbo', !!s.settings.turbo);
   root.dataset.mode = s.mode;
   const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0B0F14' : '#F4F6F9');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#091A24' : '#F4F8FA');
 }
 
 let pending: Promise<void> | null = null;

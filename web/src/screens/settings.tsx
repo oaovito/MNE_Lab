@@ -7,7 +7,7 @@ import { api, get, post } from '../lib/api';
 import { fmtBytes, fmtDate, fmtRel } from '../lib/format';
 import { errText, lang, LANG_NAMES, LANGS, t } from '../lib/i18n';
 import { navigate } from '../lib/route';
-import { app, closePanel, openPanel, refresh, run, toast } from '../lib/state';
+import { app, closePanel, defaultTheme, openPanel, refresh, run, toast } from '../lib/state';
 import { useStore } from '../lib/store';
 import type { Choice, StateView } from '../lib/types';
 import { StorageLabel, syncView } from '../ui/common';
@@ -97,7 +97,7 @@ function General(p: { s: StateView }) {
         <Row title={t('set.theme')}>
           <Seg
             size="sm"
-            value={st.theme || 'system'}
+            value={st.theme || defaultTheme}
             onValue={(th) => run(() => setTheme(th))}
             options={(['system', 'light', 'dark'] as const).map((th) => ({ value: th, label: t('set.theme.' + th), icon: th === 'light' ? 'sun' : th === 'dark' ? 'moon' : 'monitor' }))}
           />

@@ -74,8 +74,8 @@ const page = (title, base, files, extra = '') => `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#0B0F14">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F4F8FA">
 <meta name="referrer" content="no-referrer">
 <title>${title}</title>
 <link rel="icon" href="${base}icon.svg" type="image/svg+xml">
@@ -90,7 +90,7 @@ fs.writeFileSync(path.join(dist, 'm.html'), page('MNE Lab', '/m/', mob,
   '<link rel="apple-touch-icon" href="/m/apple-touch-icon.png">\n<link rel="manifest" href="/m/manifest.webmanifest">\n<meta name="apple-mobile-web-app-capable" content="yes">\n'));
 fs.writeFileSync(path.join(dist, 'manifest.webmanifest'), JSON.stringify({
   name: 'MNE Lab', short_name: 'MNE Lab', start_url: '/m', display: 'standalone',
-  background_color: '#0B0F14', theme_color: '#0B0F14',
+  background_color: '#F4F8FA', theme_color: '#F4F8FA',
   icons: [{ src: '/m/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/m/icon-512.png', sizes: '512x512', type: 'image/png' }],
 }));
 const size = (f) => (fs.statSync(path.join(dist, f)).size / 1024).toFixed(0) + ' KiB';

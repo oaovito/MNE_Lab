@@ -52,15 +52,21 @@ type Opener func(string) error
 
 // callbackPage is the refined page shown in the browser after sign-in.
 const callbackPage = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MNE Lab</title>
-<style>:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#0b1220;color:#e7ecf5}
-.c{max-width:420px;padding:40px 36px;border-radius:18px;background:#121b2e;border:1px solid #23314d;box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center}
+<style>:root{color-scheme:light}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f4f8fa;color:#143a52}
+.c{max-width:420px;padding:40px 36px;border-radius:18px;background:#fff;border:1px solid #dee5e9;box-shadow:0 20px 60px rgba(20,58,82,.12);text-align:center}
 .m{width:44px;height:44px;margin:0 auto 18px;border-radius:12px;display:grid;place-items:center;background:%s}
-h1{font-size:19px;margin:0 0 8px;font-weight:600}p{margin:0;color:#9fb0cc}</style></head>
+h1{font-size:19px;margin:0 0 8px;font-weight:600}p{margin:0;color:#33556a}</style></head>
 <body><div class="c"><div class="m">%s</div><h1>%s</h1><p>%s</p></div></body></html>`
 
 var (
-	okMark  = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0b1220" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`
-	errMark = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0b1220" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>`
+	okMark  = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`
+	errMark = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>`
+)
+
+// Mark backgrounds of the callback page: the brand accent, or the danger red.
+const (
+	okColor  = "#2c7fb8"
+	errColor = "#dc2626"
 )
 
 // Authorize runs the authorization code flow with PKCE (RFC 7636) on a
@@ -121,9 +127,9 @@ func Authorize(ctx context.Context, cfg OAuthConfig, open Opener) (Token, error)
 			res.code = v.Get("code")
 		}
 		if res.err == nil {
-			fmt.Fprintf(w, callbackPage, "#5eead4", okMark, "Connected", "You can close this tab and return to MNE Lab.")
+			fmt.Fprintf(w, callbackPage, okColor, okMark, "Connected", "You can close this tab and return to MNE Lab.")
 		} else {
-			fmt.Fprintf(w, callbackPage, "#fca5a5", errMark, "Not connected", html.EscapeString("Authorization was not completed. Return to MNE Lab to try again."))
+			fmt.Fprintf(w, callbackPage, errColor, errMark, "Not connected", html.EscapeString("Authorization was not completed. Return to MNE Lab to try again."))
 		}
 		select {
 		case done <- res:

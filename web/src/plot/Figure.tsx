@@ -224,7 +224,7 @@ export function FigureView(p: Props) {
         <title>{f.title}</title>
         {body}
         {hover && <circle cx={hover.x} cy={hover.y} r={Math.max(4, f.width / 220)} fill="none" stroke="#111827" stroke-width={1.4} pointer-events="none" />}
-        {drag && <rect x={Math.min(drag.x0, drag.x1)} y={Math.min(drag.y0, drag.y1)} width={Math.abs(drag.x1 - drag.x0)} height={Math.abs(drag.y1 - drag.y0)} fill="rgba(13,148,136,0.10)" stroke="#0d9488" stroke-width={1} stroke-dasharray="4 3" pointer-events="none" />}
+        {drag && <rect x={Math.min(drag.x0, drag.x1)} y={Math.min(drag.y0, drag.y1)} width={Math.abs(drag.x1 - drag.x0)} height={Math.abs(drag.y1 - drag.y0)} fill="rgba(44,127,184,0.10)" stroke="#2C7FB8" stroke-width={1} stroke-dasharray="4 3" pointer-events="none" />}
       </svg>
       {tip}
     </div>

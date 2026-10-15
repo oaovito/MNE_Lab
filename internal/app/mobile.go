@@ -282,7 +282,7 @@ func qrSVG(text string) string {
 	bm := q.Bitmap()
 	n := len(bm)
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" shape-rendering="crispEdges"><rect width="%d" height="%d" fill="#fff"/><path fill="#0E1116" d="`, n, n, n, n)
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" shape-rendering="crispEdges"><rect width="%d" height="%d" fill="#fff"/><path fill="#143A52" d="`, n, n, n, n)
 	for y, row := range bm {
 		for x := 0; x < len(row); x++ {
 			if !row[x] {
