@@ -25,7 +25,7 @@ The project is not yet a complete signed Stable release.
 | Target-system validation access | Provide Windows/macOS runners or machines and representative clean-system/USB conditions for final installation and launch tests | Actual target-platform runtime validation. Cross-compilation and headless browser tests do not prove clean desktop installation |
 | Distribution licensing decision | Choose the project's distribution license and a compatible method for providing the statistical runtime's complete Corresponding Source | An authorized public distribution after complete source/reconstruction and other release gates. The private Windows test draft is not Stable or a public release |
 | Historical private Git data, if remediation is desired | Decide the permitted remediation scope for the pre-existing remote private-data history separately; current instruction continues to prohibit direct modification of main | Authorized history remediation. Development proceeds on the audited isolated branch; no force-push or main change is authorized here |
-| Original ferramenta continuity material, if available | Supply the missing original checkpoint/transcripts privately | More complete historical recovery. Preserved Git commits remain available; absent transcripts are not fabricated and this does not block current development |
+| Original continuity material from earlier sessions, if available | Supply the missing original checkpoint/transcripts privately | More complete historical recovery. Preserved Git commits remain available; absent transcripts are not fabricated and this does not block current development |
 
 The scientific reference files should remain private development material.
 Validation requires adequate documentation, reproducible extraction/calculation
@@ -53,10 +53,10 @@ and comparison with a trustworthy reference, with stated tolerances.
 - Live cloud-provider verification once owner-controlled registrations are
   configured, and a signed Stable artifact/manifest only after these gates.
 
-No paid ferramenta API is used. No native persistent goal/scheduler has been found
+No paid external API is used. No native persistent goal/scheduler has been found
 and tested in the available tools; automatic restart after quota renewal is not
 promised. Every published development checkpoint must retain a verified private
-handoff and an exact next action. Main and the preserved ferramenta history remain
+handoff and an exact next action. Main and the preserved earlier history remain
 unchanged.
 
 The current configuration readback reports an active base containing the saved
