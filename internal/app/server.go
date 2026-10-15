@@ -165,7 +165,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// The interface itself is only served to the authorized window.
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusUnauthorized)
-		io.WriteString(w, "<!doctype html><meta charset=utf-8><title>MNE Lab</title><body style=\"font-family:system-ui;background:#0E1116;color:#C9D1DB;display:grid;place-items:center;height:100vh;margin:0\">MNE Lab")
+		io.WriteString(w, "<!doctype html><meta charset=utf-8><title>MNE Lab</title><body style=\"font-family:system-ui;background:#F4F8FA;color:#143A52;display:grid;place-items:center;height:100vh;margin:0\">MNE Lab")
 		return
 	}
 	s.serveUI(w, r)

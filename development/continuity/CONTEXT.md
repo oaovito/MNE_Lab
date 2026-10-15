@@ -35,6 +35,35 @@ O trabalho histórico do Claude, stash e propostas de integração foram preserv
 privadamente. Não publicar essas referências nem usá-las sem revisar estado e
 escopo de privacidade. A ponte pública não replica esse histórico privado.
 
+## Paleta do proprietário (2026-10-15)
+
+Diretriz em USER_DIRECTIVES.md, seção Design. Implementação na branch, sem
+alterar ciência, dados ou dependências:
+
+- `web/src/styles/tokens.css`: tema claro passa a ser o `:root` padrão, com
+  `--bg` #F4F8FA, `--accent` #2C7FB8 e `--text`/`--accent-deep`/tooltip #143A52.
+  Tema escuro (`data-theme='dark'` e `system` em SO escuro) derivado de #143A52.
+  Novos tokens `--accent-text` (#21608A claro, #7CAFD2 escuro) para texto
+  pequeno em destaque e `--accent-fill` (#2A78AE) para controles preenchidos
+  com rótulo branco: branco sobre #2C7FB8 dá 4,34:1, abaixo de AA 4,5:1.
+  `--panel-*` (painel da tela inicial) e `--stage-*` (Presentation) substituem
+  cores fixas; os dois overrides `data-theme='light'` foram removidos.
+- Tema padrão sem escolha salva: `defaultTheme = 'light'` em `web/src/lib/state.ts`
+  (antes `system`). Escolhas salvas `system`/`light`/`dark` são preservadas.
+  O celular continua seguindo o modo do aparelho, com a nova paleta.
+- Ícones: masters SVG em `assets/brand` recoloridos; PNG/ICO e cópias de
+  `internal/brand` regenerados por `scripts/brand_icons.mjs` (Chromium via
+  playwright-core). Com os masters anteriores o script reproduz os PNGs pixel a
+  pixel e o ICO da bandeja byte a byte; os PNGs passam a ser recomprimidos.
+- Páginas do Go (retorno OAuth/iCloud, fallback não autorizado) e QR com a paleta.
+- Mantidos de propósito: paleta das séries científicas, tintas e papel branco
+  das figuras (`internal/plot`), cor padrão de série #0072B2, cores semânticas
+  de sucesso/aviso/erro e cores de avatar além de `--pc0`.
+
+Provas e limites: VALIDATION.json, `palette_2026_10_15`. A captura visual usou
+build parcial da interface sem o runtime estatístico, porque este ambiente não
+alcança repo.r-wasm.org; a CI hospedada do novo SHA é a prova do build completo.
+
 ## Produto e arquitetura que já existem
 
 Nome visual **MNE Lab**, linha `0.1.0` em desenvolvimento. Núcleo Go, interface

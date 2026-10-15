@@ -1,8 +1,8 @@
 {
   "development_only": "MNE_LAB_DEVELOPMENT_ONLY",
   "schema_version": 1,
-  "recorded_utc": "2026-10-13T20:29:11.793100+00:00",
-  "phase": "repository_continuity_ready",
+  "recorded_utc": "2026-10-15T01:02:39+00:00",
+  "phase": "owner_palette_applied",
   "repository": "https://github.com/oaovito/MNE_Lab",
   "branch": "codex/mne-lab-checkpoint-20261008",
   "checkout_head_authority": "Use git rev-parse HEAD and git log -1; this record does not embed the hash of its own commit.",
@@ -26,7 +26,7 @@
   "paid_api_used": false,
   "native_automatic_resumption_available_and_tested": false,
   "next_exact_action": "Read MASTER_SPECIFICATION.md entirely and USER_DIRECTIVES.md; review CONTEXT/TASKS/VALIDATION/requirements against current code and GitHub. Record discrepancies; then design/test bounded PFX isolation before HTTP/UI integration, preserving existing CMS/global Verify.",
-  "current_handoff_state": "Master/directives/context/tasks/materials/review and entry points published; source/product boundary and full hosted CI passed at implementation checkpoint. Follow-up only records proof; get actual HEAD from Git.",
+  "current_handoff_state": "Bridge as before, plus the owner palette commit (UI tokens, theme default, Go pages, brand icons, docs/records). Application source changed for colors only; no science, data, dependency or algorithm change. Get actual HEAD from Git; hosted CI of that SHA pending at record time.",
   "master": {
     "path": "development/continuity/MASTER_SPECIFICATION.md",
     "original_sha256": "c43e35335bac42cf2201ac4db71c67aa05b7914ded7fdb3235e55d6f84502578",
@@ -178,5 +178,14 @@
   "published_bridge_change": {
     "commit": "666db11a3613f357c009a8f4d73a20e92f6b946d",
     "change": "Shared development continuity and verified distribution/audit guards"
-  }
+  },
+  "application_source_changed_after_bridge": true,
+  "changes_after_bridge": [
+    {
+      "date": "2026-10-15",
+      "change": "Owner palette: light default theme, derived dark theme, AA accent shades, Go pages, regenerated brand icons, scripts/brand_icons.mjs",
+      "science_changed": false,
+      "dependencies_changed": false
+    }
+  ]
 }

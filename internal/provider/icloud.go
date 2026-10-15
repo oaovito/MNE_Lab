@@ -92,14 +92,14 @@ func awaitCloudKitToken(ctx context.Context, signIn string, open Opener) (string
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			tok := r.URL.Query().Get("ckWebAuthToken")
 			if tok == "" {
-				fmt.Fprintf(w, callbackPage, "#fca5a5", errMark, "Not connected", "Sign-in was not completed. Return to MNE Lab to try again.")
+				fmt.Fprintf(w, callbackPage, errColor, errMark, "Not connected", "Sign-in was not completed. Return to MNE Lab to try again.")
 				select {
 				case done <- res{err: ErrCanceled}:
 				default:
 				}
 				return
 			}
-			fmt.Fprintf(w, callbackPage, "#5eead4", okMark, "Connected", "You can close this tab and return to MNE Lab.")
+			fmt.Fprintf(w, callbackPage, okColor, okMark, "Connected", "You can close this tab and return to MNE Lab.")
 			select {
 			case done <- res{tok: tok}:
 			default:

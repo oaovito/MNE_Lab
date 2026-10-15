@@ -63,6 +63,14 @@ proíbe infraestrutura segura ZETA/NTA; ciência só avança com evidências ade
    não comprova autenticidade nativa.
 10. Não bloquear módulos e trabalhos independentes pela falta de ciência ZETA/NTA.
 
+## Design
+
+- 2026-10-15: “A base e cores complementares da aplicação nessa ordem devem ser:
+  #F4F8FA #2C7FB8 e #143A52”. Base #F4F8FA, destaque #2C7FB8 e destaque escuro
+  #143A52. Complementa §5 do mestre; contraste/acessibilidade de §5/§28 continuam
+  obrigatórios, então tons derivados do mesmo azul são usados onde a cor exata
+  não atinge WCAG AA. Cores de figuras científicas não fazem parte da paleta da UI.
+
 ## Entrega
 
 - O proprietário quer executável Windows acessível para teste. Draft `8a12ff6`

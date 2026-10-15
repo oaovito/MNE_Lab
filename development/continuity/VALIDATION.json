@@ -1,7 +1,7 @@
 {
   "development_only": "MNE_LAB_DEVELOPMENT_ONLY",
   "schema_version": 1,
-  "updated_utc": "2026-10-13T20:29:11.793100+00:00",
+  "updated_utc": "2026-10-15T01:02:39+00:00",
   "separate_scopes_required": true,
   "inherited_functional_evidence": {
     "head": "7985a57ff835699f2643687b2a80bbceb9b5e779",
@@ -186,5 +186,74 @@
       "all_later_steps_initially_skipped": true
     },
     "numeric_counts_scope": "The numerical test counts in inherited_functional_evidence belong to 7985a57/local d08f11b. New exact-SHA job/step success verified; hosted log counts were not extracted."
+  },
+  "palette_2026_10_15": {
+    "base": "f54a410cec367c6be19233d5dc0b693c279f462f",
+    "scope": "Uncommitted palette working tree checked before the commit that records it; get the commit SHA from Git. Hosted CI of that SHA is the full-build proof.",
+    "checks": [
+      {
+        "name": "frontend_typecheck",
+        "passed": true
+      },
+      {
+        "name": "frontend_unit_tests",
+        "passed": false,
+        "pass": 20,
+        "fail": 2,
+        "cause": "Both failures need the R package cache/dist that this environment cannot download (repo.r-wasm.org denied); the same 2 fail at unchanged base f54a410 in the same environment."
+      },
+      {
+        "name": "gofmt_vet",
+        "passed": true,
+        "packages": [
+          "internal/provider",
+          "internal/brand",
+          "internal/app"
+        ]
+      },
+      {
+        "name": "go_test_internal_provider_race",
+        "passed": true
+      },
+      {
+        "name": "go_test_internal_app",
+        "passed": false,
+        "only_failure": "TestFailedRestoreDoesNotPublishPartialAccount: running as root, a 0o000 directory stays readable; environment, not palette"
+      },
+      {
+        "name": "browser_visual_partial_build",
+        "passed": true,
+        "desktop": [
+          "en light 1366x768 30/0",
+          "pt-BR dark 1024x600 30/0",
+          "pt-BR light 1366x768 30/0"
+        ],
+        "phone": "pt-BR 9/0",
+        "extra": "start screen light/dark screenshots",
+        "limit": "Scratch interface build without the statistics runtime and R package image; screenshots reviewed visually. Not the product build, not GUI/USB/clean-machine evidence."
+      },
+      {
+        "name": "brand_icon_reproduction",
+        "passed": true,
+        "scope": "scripts/brand_icons.mjs on the previous SVG masters reproduced every committed PNG pixel for pixel and mnelab-tray.ico byte for byte (PNG bytes differ only by recompression). New rasters rendered with Chromium 141.0.7390.37."
+      },
+      {
+        "name": "contrast_review",
+        "passed": true,
+        "scope": "Computed WCAG ratios for text/accent/tooltip/panel/stage tokens in both themes; independent multi-agent review found 6 issues (start-panel wordmark, palette row icon, stacked accent-soft badge, figure tooltip muted line, PWA theme_color, icon script setup), all fixed and rechecked."
+      }
+    ],
+    "tested_sources_sha256": {
+      "web/src/styles/tokens.css": "e52dfb0e901e748caad62668186a5c558db82e2e570dca86add8d5146dea963c",
+      "web/src/styles/app.css": "baf940067508df670bd4659ceb7b65d64190f71aeec07ab0e1436de94f18e841",
+      "web/src/styles/base.css": "14ead246345e7650b64310426ef36fbd9d493d7eb16bf122be578535e277412b",
+      "web/src/styles/mobile.css": "b9bbe0d34caccf1b822b6e873d789840997d74a6760b031b2d45757be75ddcee",
+      "scripts/brand_icons.mjs": "e5b93c44580c67c5bb607e915801f44e2996f4aba6fecf1a62fb5758979f31a5"
+    },
+    "limits": [
+      "No scientific behavior, data, dependency or algorithm changed",
+      "Clean Windows/USB GUI not tested",
+      "Mobile companion follows the phone light/dark mode"
+    ]
   }
 }

@@ -237,8 +237,8 @@ button {
   width: 100%;
 }
 .m-btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
   color: var(--accent-ink);
 }
 .m-btn.danger {
@@ -309,7 +309,7 @@ button {
 .m-seg button.on {
   background: var(--accent-soft);
   border-color: var(--accent-line);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .m-pt {
   font-weight: 600;
@@ -350,8 +350,8 @@ button {
   height: 34px;
 }
 .m-big.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
   color: var(--accent-ink);
 }
 .m-big:disabled {
@@ -407,7 +407,7 @@ button {
   font-weight: 560;
 }
 .m-nav button.on {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .m-nav .ic {
   position: relative;

@@ -66,22 +66,22 @@ function Art() {
         <path d="M400 256 L400 40" stroke="url(#a3)" stroke-width="8" stroke-linecap="round" />
         {[-58, -34, 34, 58, 150, 128, -150, -128].map((deg, i) => {
           const r = (deg * Math.PI) / 180;
-          return <line x1={400 + Math.sin(r) * 70} y1={300 - Math.cos(r) * 70} x2={400 + Math.sin(r) * 300} y2={300 - Math.cos(r) * 300} stroke="#5eead4" stroke-opacity={i < 4 ? 0.22 : 0.1} stroke-width="5" stroke-linecap="round" />;
+          return <line x1={400 + Math.sin(r) * 70} y1={300 - Math.cos(r) * 70} x2={400 + Math.sin(r) * 300} y2={300 - Math.cos(r) * 300} stroke="#86B5D6" stroke-opacity={i < 4 ? 0.22 : 0.1} stroke-width="5" stroke-linecap="round" />;
         })}
-        <path d="M330 26 A300 300 0 0 1 470 26" stroke="#5eead4" stroke-opacity="0.55" stroke-width="10" stroke-linecap="round" />
+        <path d="M330 26 A300 300 0 0 1 470 26" stroke="#86B5D6" stroke-opacity="0.55" stroke-width="10" stroke-linecap="round" />
         <defs>
           <linearGradient id="a1" x1="0" x2="1">
-            <stop offset="0" stop-color="#2dd4bf" stop-opacity="0" />
-            <stop offset="1" stop-color="#ccfbf1" />
+            <stop offset="0" stop-color="#2C7FB8" stop-opacity="0" />
+            <stop offset="1" stop-color="#F4F8FA" />
           </linearGradient>
           <radialGradient id="a2" cx="0.38" cy="0.34" r="0.75">
             <stop offset="0" stop-color="#fff" />
-            <stop offset="0.45" stop-color="#a7f3e9" />
-            <stop offset="1" stop-color="#0fa394" />
+            <stop offset="0.45" stop-color="#A4C8E0" />
+            <stop offset="1" stop-color="#2C7FB8" />
           </radialGradient>
           <linearGradient id="a3" x1="0" x2="0" y1="1" y2="0">
-            <stop offset="0" stop-color="#ccfbf1" />
-            <stop offset="1" stop-color="#5eead4" stop-opacity="0.2" />
+            <stop offset="0" stop-color="#F4F8FA" />
+            <stop offset="1" stop-color="#86B5D6" stop-opacity="0.2" />
           </linearGradient>
         </defs>
       </svg>
@@ -109,7 +109,7 @@ function Art() {
           </div>
         </div>
       </div>
-      <div class="xs" style={{ position: 'relative', color: '#566272' }}>
+      <div class="xs" style={{ position: 'relative', color: 'var(--panel-text-3)' }}>
         {t('start.version', { v: s.version })}
       </div>
     </aside>

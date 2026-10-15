@@ -309,11 +309,23 @@ the first start of mobile access may show the system firewall prompt.
 ## 15. Design
 
 Dark and light themes with tokens in `web/src/styles/tokens.css`; Inter and
-JetBrains Mono embedded (no network fonts). Layouts are checked at
-1366×768 and 1024×600 and on a 390×844 phone. Below 1180 px the graph
-editor's inspector becomes a drawer opened by the Details button, so the
-graph keeps the full width. Turbo turns off cosmetic animations and smooth
-scrolling for older computers.
+JetBrains Mono embedded (no network fonts). The brand palette, set by the
+owner on 2026-10-15, is #F4F8FA (base), #2C7FB8 (primary accent) and #143A52
+(deep accent). Light is the default theme and uses the three colors exactly:
+base background, accent for selection, focus, icons, toggles and bars, deep
+accent for text, tooltips and the start-screen panel. The dark theme is
+derived from #143A52. Small accent text (`--accent-text`) and filled controls
+with white labels (`--accent-fill`) use slightly deeper shades of the accent,
+because white on #2C7FB8 is 4.3:1, below WCAG AA for normal text. Scientific
+figures keep their own colorblind-safe series palette and white paper. The
+raster icons (PNG/ICO and the copies in `internal/brand`) are regenerated
+from the SVG masters with `node ../scripts/brand_icons.mjs` from `web/`,
+after `npm ci` and `npx playwright-core install chromium` (or with
+`MNELAB_CHROMIUM` pointing to a Chromium build).
+Layouts are checked at 1366×768 and 1024×600 and on a 390×844 phone. Below
+1180 px the graph editor's inspector becomes a drawer opened by the Details
+button, so the graph keeps the full width. Turbo turns off cosmetic
+animations and smooth scrolling for older computers.
 
 ## 16. Feature discovery and onboarding
 

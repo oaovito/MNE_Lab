@@ -63,7 +63,7 @@ h4 {
   color: var(--text-2);
 }
 a {
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: none;
 }
 a:hover {
@@ -215,7 +215,7 @@ kbd {
   transform: none;
 }
 .btn.primary {
-  background: var(--accent);
+  background: var(--accent-fill);
   border-color: transparent;
   color: var(--accent-ink);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 6px 16px -8px var(--accent);
@@ -272,7 +272,7 @@ kbd {
 .btn.selected {
   background: var(--accent-soft);
   border-color: var(--accent-line);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* ---------- form controls ---------- */
@@ -592,7 +592,7 @@ kbd {
 }
 .badge.accent {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .badge.success {
   background: var(--success-soft);
@@ -637,7 +637,7 @@ kbd {
 .chip.on {
   border-color: var(--accent-line);
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .chip .icon {
   width: 14px;
@@ -802,16 +802,13 @@ kbd {
   max-width: 280px;
   padding: 6px 9px;
   border-radius: var(--r-sm);
-  background: #0a0e13;
-  color: #eef2f6;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
   font-size: var(--fs-xs);
   line-height: 1.35;
   pointer-events: none;
   box-shadow: var(--shadow-2);
   animation: fade-in var(--t1) var(--ease);
-}
-:root[data-theme='light'] .tooltip {
-  background: #1b222c;
 }
 
 /* toasts */
