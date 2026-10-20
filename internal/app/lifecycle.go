@@ -329,8 +329,9 @@ func (a *App) saveAccountRecovery(accountID, src string) error {
 		return err
 	}
 	if err := copyTree(src, tmp, func(rel string) bool {
-		// Verified backups may be needed if the current database is damaged.
-		return true
+		// Verified backups may be needed if the current database is damaged,
+		// but a superseded key file must not outlive its replacement.
+		return !supersededKey(src, rel)
 	}); err != nil {
 		return err
 	}
@@ -470,7 +471,7 @@ func (a *App) RestoreRecovery(accountID string) error {
 	if err != nil {
 		return err
 	}
-	if err := copyTree(src, tmp, recoveryFile); err != nil {
+	if err := copyTree(src, tmp, recoveryFiles(src)); err != nil {
 		return err
 	}
 	// A partially copied account must never become an "already present"
@@ -574,14 +575,34 @@ func (a *App) recoveryPackages(accountID string) []string {
 	return out
 }
 
-func recoveryFile(rel string) bool {
-	return rel != "recovery.json" && rel != "recovery.json.prev" && rel != "recovery-origin.json" && rel != "recovery-origin.json.prev"
+// recoveryFiles selects the files of root that a recovery copy carries.
+func recoveryFiles(root string) func(rel string) bool {
+	return func(rel string) bool {
+		return rel != "recovery.json" && rel != "recovery.json.prev" && rel != "recovery-origin.json" && rel != "recovery-origin.json.prev" && !supersededKey(root, rel)
+	}
+}
+
+// supersededKey reports a previous version of a key file kept by earlier
+// builds. It still opens with an old passphrase or, for a profile that has
+// since been given a password, with the account key alone. While the
+// current file next to it is damaged or missing, it may hold the only
+// intact recovery wrapping and is kept; a drive key never is.
+func supersededKey(root, rel string) bool {
+	switch filepath.Base(rel) {
+	case "drive.key.prev":
+		return true
+	case "account.json.prev", "profile.key.json.prev":
+		_, err := atomicfile.ReadSecret(filepath.Join(root, strings.TrimSuffix(rel, ".prev")))
+		return err == nil
+	}
+	return false
 }
 
 // recoveryDigest covers relative names and encrypted file contents, so a
 // source that changed since restore cannot be discarded as verified.
 func recoveryDigest(root string) (string, error) {
 	h := sha256.New()
+	keep := recoveryFiles(root)
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -590,7 +611,7 @@ func recoveryDigest(root string) (string, error) {
 		if err != nil {
 			return err
 		}
-		if !info.Mode().IsRegular() || !recoveryFile(rel) {
+		if !info.Mode().IsRegular() || !keep(rel) {
 			return nil
 		}
 		file, err := os.Open(path)

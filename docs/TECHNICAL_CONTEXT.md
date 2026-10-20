@@ -171,7 +171,10 @@ can establish remote confirmation.
 Each profile store is a bbolt file. Every value is sealed with the profile
 data key and bound to its record key as associated data; the file reveals
 only random identifiers and sizes. Critical files are written with
-`atomicfile`.
+`atomicfile`, which keeps the previous version to recover from damage. Key
+files (account header, profile key files, drive key) keep no previous version
+and are never read from one: a superseded wrapping would still open with an
+old passphrase or, for a profile given a password since, with the Account Key.
 
 ## 5. Authentication and keys
 
@@ -190,6 +193,22 @@ Argon2id parameters: 64 MiB, 2 passes, 2 lanes (sized for inexpensive
 computers). A profile with a password cannot be opened with the Account Key:
 isolation lives in the key material, not in the interface. The recovery key
 is shown once at account creation and never stored in readable form.
+
+Each passphrase change increases the header's generation, which AK seals
+together with the new wrapping and which travels inside the sealed index.
+A machine that still holds an earlier header adopts the later one from the
+index when it unlocks or synchronizes, before it publishes a header, so the
+earlier passphrase stops opening the account everywhere. Two changes made
+from the same generation on different machines are ordered by the sealed
+time of the change, so every machine settles on the same passphrase. A
+header fetched at Sign In replaces the local one only after the Account Key
+it opens vouches for it; until then it is kept apart as a candidate. The
+recovery wrapping, which never changes, is also kept in its own file, so the
+Recovery Key still opens an account whose header is damaged. The index also
+records when each profile's key file last changed; a superseded key file
+from the cloud is never installed, even when the local one is missing, a
+key file without a password never replaces one the index says has a
+password, and a local key file the index no longer records is not uploaded.
 
 ## 6. Privacy
 
@@ -238,7 +257,8 @@ reconnect and conflict states.
 
 - Snapshots of the encrypted store (values stay sealed), written atomically,
   registered in a checksummed manifest and re-opened to verify before they
-  count. Eight are kept.
+  count. Eight are kept; the snapshot being restored is pinned, so no
+  backup made during the restore can rotate it out.
 - Automatic backups run periodically and on exit (Portable USB Mode).
 - Crash recovery: an unclean exit is detected at the next start and the
   interface offers what was recovered.
@@ -318,6 +338,11 @@ derived from #143A52. Small accent text (`--accent-text`) and filled controls
 with white labels (`--accent-fill`) use slightly deeper shades of the accent,
 because white on #2C7FB8 is 4.3:1, below WCAG AA for normal text. Scientific
 figures keep their own colorblind-safe series palette and white paper. The
+icon, set by the owner on 2026-10-15, is a hammerhead shark seen from above
+in #143A52 on a light #F4F8FA tile, inside a fine goniometer-style graticule
+(the angle scale of light-scattering instruments) with one #2C7FB8 accent;
+the 16–32 px version drops the graticule, and the monochrome mark used for
+generic profile avatars is the shark alone. The
 raster icons (PNG/ICO and the copies in `internal/brand`) are regenerated
 from the SVG masters with `node ../scripts/brand_icons.mjs` from `web/`,
 after `npm ci` and `npx playwright-core install chromium` (or with
@@ -566,7 +591,14 @@ checkout and rejects shallow histories:
   artifact;
 - `scripts/audit.sh` on the tree, the history and the builds: secrets,
   private files, build-machine paths and the unwanted-terms list supplied
-  through the `AUDIT_TERMS` secret.
+  through the `AUDIT_TERMS` secret. Names are matched literally and after
+  Unicode folding; binary blobs, UTF-16 text, ZIP-based files (also behind
+  a prefix), tar archives and gzip, bzip2 and xz streams in the index, every
+  revision and every annotated tag are opened, and archive formats it cannot
+  read fail; tag messages are checked like commit messages; PKCS#12 key
+  stores (`.p12`/`.pfx` names and PFX content) count as private; co-author
+  and session trailers fail even without terms. Without the secret CI shows a warning; the Windows test
+  draft requires it (`AUDIT_REQUIRE_TERMS=1`).
 
 ## 22. Next step
 

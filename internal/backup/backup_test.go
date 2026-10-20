@@ -3,6 +3,7 @@ package backup
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/oaovito/mne_lab/internal/secure"
@@ -60,5 +61,95 @@ func TestCreateVerifyRotateRestore(t *testing.T) {
 	}
 	if err := Verify(bdir, e, secure.NewKey()); err == nil {
 		t.Fatal("verification with the wrong key must fail")
+	}
+}
+
+func TestRotationKeepsPinnedSnapshot(t *testing.T) {
+	d := t.TempDir()
+	key := secure.NewKey()
+	s, err := store.Open(filepath.Join(d, "profile.db"), key, store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	bdir := filepath.Join(d, "backups")
+	for i := 0; i < Keep; i++ {
+		if _, err := Create(s, key, bdir, "test"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m, _ := Load(bdir)
+	oldest := m.Entries[Keep-1]
+	unpin := Pin(bdir, oldest.File)
+	// Every snapshot made while pinned keeps it, not only the first.
+	for i := 0; i < 3; i++ {
+		if _, err := Create(s, key, bdir, "test"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m, _ = Load(bdir)
+	if len(m.Entries) != Keep || m.Entries[Keep-1].File != oldest.File {
+		t.Fatalf("rotation: %+v", m.Entries)
+	}
+	files, _ := filepath.Glob(filepath.Join(bdir, "*.mnebak"))
+	if len(files) != Keep {
+		t.Fatalf("rotation left %d files", len(files))
+	}
+	if err := Restore(bdir, oldest, key, filepath.Join(d, "restored.db")); err != nil {
+		t.Fatalf("pinned snapshot: %v", err)
+	}
+	// Each holder releases only its own pin, however often it calls.
+	again := Pin(bdir, oldest.File)
+	unpin()
+	unpin()
+	if _, err := Create(s, key, bdir, "test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(bdir, oldest.File)); err != nil {
+		t.Fatalf("snapshot still pinned by another holder: %v", err)
+	}
+	again()
+	if _, err := Create(s, key, bdir, "test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(bdir, oldest.File)); !os.IsNotExist(err) {
+		t.Fatalf("unpinned oldest kept: %v", err)
+	}
+}
+
+// Concurrent snapshots (periodic, manual, exit) must all reach the
+// manifest, and rotation must remove exactly what it drops from it.
+func TestConcurrentCreatesKeepManifestComplete(t *testing.T) {
+	d := t.TempDir()
+	key := secure.NewKey()
+	s, err := store.Open(filepath.Join(d, "profile.db"), key, store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	bdir := filepath.Join(d, "backups")
+	errs := make(chan error, 2*Keep)
+	var wg sync.WaitGroup
+	for range 2 * Keep {
+		wg.Go(func() {
+			if _, err := Create(s, key, bdir, "test"); err != nil {
+				errs <- err
+			}
+		})
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	m, _ := Load(bdir)
+	files, _ := filepath.Glob(filepath.Join(bdir, "*.mnebak"))
+	if len(m.Entries) != Keep || len(files) != Keep {
+		t.Fatalf("%d snapshots listed, %d on disk", len(m.Entries), len(files))
+	}
+	for _, e := range m.Entries {
+		if err := Verify(bdir, e, key); err != nil {
+			t.Fatalf("listed snapshot %s: %v", e.File, err)
+		}
 	}
 }

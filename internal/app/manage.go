@@ -243,6 +243,11 @@ func (a *App) RestoreBackup(file string) error {
 	if err != nil {
 		return err
 	}
+	// Until the restore has read it, the target must survive rotation by
+	// any backup, including periodic or manual ones made meanwhile, even
+	// when it is the oldest snapshot.
+	unpin := backup.Pin(p.backupDir(), file)
+	defer unpin()
 	m, err := backup.Load(p.backupDir())
 	if err != nil {
 		return err

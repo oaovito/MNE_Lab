@@ -92,19 +92,9 @@ func ImportAccount(ctx context.Context, p provider.Provider, v *vault.Vault, id 
 // provider); nil means all.
 func SyncAccount(ctx context.Context, p provider.Provider, a *vault.Account, profiles map[string]bool) (changed bool, err error) {
 	base := "accounts/" + a.ID()
-	hdr, err := a.HeaderJSON()
-	if err != nil {
-		return false, err
-	}
-	if cur, err := p.Read(ctx, "directory/"+a.ID()+".json"); err != nil || !bytes.Equal(cur, hdr) {
-		if errors.Is(err, provider.ErrOffline) {
-			return false, err
-		}
-		if err := writeAccountFile(ctx, p, "directory/"+a.ID()+".json", hdr); err != nil {
-			return false, err
-		}
-	}
-	// Index: union merge, then publish the merged result.
+	// Index: union merge, then publish the merged result. The merge runs
+	// first because the remote index can carry a passphrase change made on
+	// another machine; the header published below must already include it.
 	if remote, err := p.Read(ctx, base+"/index.enc"); err == nil {
 		idx, err := a.OpenIndex(remote)
 		if err != nil {
@@ -117,6 +107,18 @@ func SyncAccount(ctx context.Context, p provider.Provider, a *vault.Account, pro
 		}
 	} else if !errors.Is(err, provider.ErrNotFound) {
 		return false, err
+	}
+	hdr, err := a.HeaderJSON()
+	if err != nil {
+		return changed, err
+	}
+	if cur, err := p.Read(ctx, "directory/"+a.ID()+".json"); err != nil || !bytes.Equal(cur, hdr) {
+		if errors.Is(err, provider.ErrOffline) {
+			return changed, err
+		}
+		if err := writeAccountFile(ctx, p, "directory/"+a.ID()+".json", hdr); err != nil {
+			return changed, err
+		}
 	}
 	sealed, err := a.SealedIndex()
 	if err != nil {
@@ -195,7 +197,9 @@ func SyncAccount(ctx context.Context, p provider.Provider, a *vault.Account, pro
 		} else if !errors.Is(rerr, provider.ErrNotFound) {
 			return changed, rerr
 		}
-		if lerr == nil && !bytes.Equal(local, remote) {
+		// A local file the index no longer records is superseded and would
+		// replace the current one.
+		if lerr == nil && !bytes.Equal(local, remote) && a.ProfileKeysCurrent(pe.ID) {
 			if err := writeAccountFile(ctx, p, name, local); err != nil {
 				return changed, err
 			}

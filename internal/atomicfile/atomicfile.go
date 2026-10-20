@@ -4,6 +4,10 @@
 // Write sequence: temporary file in the same directory → write → fsync →
 // close → keep the previous version as <name>.prev → atomic rename → fsync
 // of the directory where the platform supports it.
+//
+// Files that wrap secrets use WriteSecret and ReadSecret instead, which keep
+// and consult no previous version: a superseded wrapping would still open
+// with whatever it was wrapped by, such as an old passphrase.
 package atomicfile
 
 import (
@@ -20,11 +24,15 @@ import (
 var magic = []byte("MNE1")
 
 // ErrCorrupt is returned when neither the file nor its previous version
-// passes checksum verification.
+// passes checksum verification (for ReadSecret, when the file itself fails).
 var ErrCorrupt = errors.New("atomicfile: file failed integrity verification")
 
 // WriteFile atomically replaces path with data.
 func WriteFile(path string, data []byte, perm os.FileMode) error {
+	return write(path, data, perm, true)
+}
+
+func write(path string, data []byte, perm os.FileMode, keepPrev bool) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -58,7 +66,7 @@ func WriteFile(path string, data []byte, perm os.FileMode) error {
 	if err != nil || !bytes.Equal(back, data) {
 		return fmt.Errorf("atomicfile: verification of %s failed", filepath.Base(path))
 	}
-	if _, err := os.Stat(path); err == nil {
+	if _, err := os.Stat(path); err == nil && keepPrev {
 		prev := path + ".prev"
 		os.Remove(prev)
 		if err := copyFile(path, prev); err != nil {
@@ -70,6 +78,11 @@ func WriteFile(path string, data []byte, perm os.FileMode) error {
 	}
 	ok = true
 	syncDir(dir)
+	if !keepPrev {
+		// Only now may an earlier .prev go: until the rename is durable it
+		// could still be the sole intact copy for a manual repair.
+		RemovePrevious(path)
+	}
 	return nil
 }
 
@@ -106,12 +119,15 @@ func syncDir(dir string) {
 // WriteChecked writes data framed with a SHA-256 checksum so later reads can
 // detect corruption and fall back to the previous version.
 func WriteChecked(path string, data []byte) error {
+	return WriteFile(path, frame(data), 0o600)
+}
+
+func frame(data []byte) []byte {
 	sum := sha256.Sum256(data)
 	framed := make([]byte, 0, len(magic)+len(sum)+len(data))
 	framed = append(framed, magic...)
 	framed = append(framed, sum[:]...)
-	framed = append(framed, data...)
-	return WriteFile(path, framed, 0o600)
+	return append(framed, data...)
 }
 
 // ReadChecked reads a file written by WriteChecked, falling back to the
@@ -151,6 +167,50 @@ func readFramed(path string) ([]byte, error) {
 		return nil, ErrCorrupt
 	}
 	return payload, nil
+}
+
+// WriteSecret writes data like WriteChecked but keeps no previous version.
+// A <name>.prev left by an earlier WriteChecked is removed once the new file
+// is in place. An error means path still holds its earlier content; a failed
+// removal is not reported, since ReadSecret never consults the copy and the
+// caller can retry RemovePrevious.
+func WriteSecret(path string, data []byte) error {
+	return write(path, frame(data), 0o600, false)
+}
+
+// ReadSecret reads a file written by WriteSecret or WriteChecked without
+// ever falling back to a previous version: a missing file reports
+// os.ErrNotExist and a damaged one ErrCorrupt.
+func ReadSecret(path string) ([]byte, error) { return readFramed(path) }
+
+// WriteSecretJSON marshals v and writes it with WriteSecret.
+func WriteSecretJSON(path string, v any) error {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	return WriteSecret(path, b)
+}
+
+// ReadSecretJSON reads a file written by WriteSecretJSON into v.
+func ReadSecretJSON(path string, v any) error {
+	b, err := ReadSecret(path)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, v)
+}
+
+// RemovePrevious deletes the previous version of path, if any.
+func RemovePrevious(path string) error {
+	err := os.Remove(path + ".prev")
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err == nil {
+		syncDir(filepath.Dir(path))
+	}
+	return err
 }
 
 // WriteJSON marshals v and writes it with WriteChecked.

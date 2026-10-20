@@ -52,6 +52,41 @@ func main() {
 	}
 }
 
+// download fetches one pinned archive. A transfer that ends early or returns
+// other bytes is retried a few times; only bytes matching the pinned size and
+// SHA-256 are ever returned.
+func download(client *http.Client, p pin) ([]byte, error) {
+	var last error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if attempt > 1 {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+		response, err := client.Get(p.URL)
+		if err != nil {
+			last = err
+			continue
+		}
+		data, err := io.ReadAll(io.LimitReader(response.Body, p.Size+1))
+		response.Body.Close()
+		switch {
+		case response.StatusCode != http.StatusOK:
+			last = fmt.Errorf("package HTTP status: %s %d", p.Package, response.StatusCode)
+		case err != nil:
+			last = err
+		case !pinned(p, data):
+			last = fmt.Errorf("package checksum mismatch: %s (received %d of %d bytes)", p.Package, len(data), p.Size)
+		default:
+			return data, nil
+		}
+	}
+	return nil, last
+}
+
+func pinned(p pin, data []byte) bool {
+	digest := sha256.Sum256(data)
+	return int64(len(data)) == p.Size && hex.EncodeToString(digest[:]) == p.SHA256
+}
+
 func assemble(manifest, cache, out string) error {
 	raw, err := os.ReadFile(manifest)
 	if err != nil {
@@ -80,24 +115,13 @@ func assemble(manifest, cache, out string) error {
 		archive := filepath.Join(cache, p.File)
 		data, readErr := os.ReadFile(archive)
 		if os.IsNotExist(readErr) {
-			response, e := client.Get(p.URL)
-			if e != nil {
-				return e
-			}
-			data, e = io.ReadAll(io.LimitReader(response.Body, p.Size+1))
-			response.Body.Close()
-			if e != nil {
-				return e
-			}
-			if response.StatusCode != http.StatusOK {
-				return fmt.Errorf("package HTTP status: %s %d", p.Package, response.StatusCode)
+			if data, err = download(client, p); err != nil {
+				return err
 			}
 		} else if readErr != nil {
 			return readErr
-		}
-		digest := sha256.Sum256(data)
-		if int64(len(data)) != p.Size || hex.EncodeToString(digest[:]) != p.SHA256 {
-			return fmt.Errorf("package checksum mismatch: %s", p.Package)
+		} else if !pinned(p, data) {
+			return fmt.Errorf("package checksum mismatch: %s (cached copy)", p.Package)
 		}
 		if readErr != nil {
 			if err = os.WriteFile(archive, data, 0600); err != nil {

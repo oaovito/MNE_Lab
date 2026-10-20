@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/atomicfile"
@@ -23,6 +24,31 @@ import (
 
 // Keep is the number of snapshots retained.
 const Keep = 8
+
+// mu serializes manifest updates, so concurrent snapshots (periodic,
+// manual, exit) cannot drop each other's entries, and guards pinned.
+var (
+	mu     sync.Mutex
+	pinned = map[string]int{} // snapshot path → holders
+)
+
+// Pin keeps snapshot file in dir through every rotation, whoever creates
+// the snapshots, until the returned function is called. A restore pins its
+// target for its whole duration: any backup made meanwhile would otherwise
+// delete it when it is the oldest.
+func Pin(dir, file string) (unpin func()) {
+	p := filepath.Join(dir, file)
+	mu.Lock()
+	pinned[p]++
+	mu.Unlock()
+	return sync.OnceFunc(func() {
+		mu.Lock()
+		if pinned[p]--; pinned[p] == 0 {
+			delete(pinned, p)
+		}
+		mu.Unlock()
+	})
+}
 
 // Entry describes one snapshot.
 type Entry struct {
@@ -53,7 +79,8 @@ func Load(dir string) (Manifest, error) {
 	return m, err
 }
 
-// Create writes and verifies a snapshot of s into dir.
+// Create writes and verifies a snapshot of s into dir. Rotation drops the
+// oldest snapshots beyond Keep, except pinned ones.
 func Create(s *store.Store, key secure.Key, dir, reason string) (Entry, error) {
 	var buf bytes.Buffer
 	if _, err := s.Snapshot(&buf); err != nil {
@@ -75,16 +102,16 @@ func Create(s *store.Store, key secure.Key, dir, reason string) (Entry, error) {
 		return Entry{}, fmt.Errorf("backup: new snapshot failed verification: %w", err)
 	}
 	e.Verified = true
+	mu.Lock()
+	defer mu.Unlock()
 	m, err := Load(dir)
 	if err != nil {
 		m = Manifest{Schema: 1}
 	}
-	m.Entries = append([]Entry{e}, m.Entries...)
 	var drop []Entry
-	if len(m.Entries) > Keep {
-		drop = m.Entries[Keep:]
-		m.Entries = m.Entries[:Keep]
-	}
+	m.Entries, drop = rotate(append([]Entry{e}, m.Entries...), func(file string) bool {
+		return pinned[filepath.Join(dir, file)] > 0
+	})
 	if err := atomicfile.WriteJSON(manifestPath(dir), m); err != nil {
 		return Entry{}, err
 	}
@@ -92,6 +119,28 @@ func Create(s *store.Store, key secure.Key, dir, reason string) (Entry, error) {
 		os.Remove(filepath.Join(dir, d.File))
 	}
 	return e, nil
+}
+
+// rotate splits newest-first entries into those kept and those beyond Keep,
+// dropping from the oldest end. The new snapshot and pinned files stay even
+// if that leaves more than Keep.
+func rotate(entries []Entry, isPinned func(file string) bool) (kept, drop []Entry) {
+	excess := len(entries) - Keep
+	dropped := make([]bool, len(entries))
+	for i := len(entries) - 1; i > 0 && excess > 0; i-- {
+		if !isPinned(entries[i].File) {
+			dropped[i] = true
+			excess--
+		}
+	}
+	for i, e := range entries {
+		if dropped[i] {
+			drop = append(drop, e)
+		} else {
+			kept = append(kept, e)
+		}
+	}
+	return kept, drop
 }
 
 // Verify checks a snapshot's checksum and opens it to validate structure
