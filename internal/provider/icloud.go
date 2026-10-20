@@ -81,6 +81,11 @@ func ConnectICloud(ctx context.Context, c Config, open Opener) (*ICloudAPI, erro
 	return ic, nil
 }
 
+// awaitCloudKitToken waits for Apple's sign-in to call the loopback
+// callback. CloudKit carries no caller-chosen value such as an OAuth state
+// through its sign-in, so the callback cannot prove which sign-in it
+// answers: it accepts only the first GET of the registered path while a
+// sign-in started here is open, and ignores every other request.
 func awaitCloudKitToken(ctx context.Context, signIn string, open Opener) (string, error) {
 	type res struct {
 		tok string
@@ -89,6 +94,12 @@ func awaitCloudKitToken(ctx context.Context, signIn string, open Opener) (string
 	done := make(chan res, 1)
 	srv := &http.Server{ReadHeaderTimeout: 10 * time.Second, Addr: fmt.Sprintf("127.0.0.1:%d", CloudKitCallbackPort),
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.Path != "/" {
+				// Favicons, probes and stray requests neither cancel nor
+				// complete the sign-in.
+				http.NotFound(w, r)
+				return
+			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			tok := r.URL.Query().Get("ckWebAuthToken")
 			if tok == "" {
@@ -292,6 +303,7 @@ func (c *ICloudAPI) Read(ctx context.Context, name string) ([]byte, error) {
 	if v, ok := first[0].Fields["parts"].Value.(float64); ok && v > 1 {
 		parts = int(v)
 	}
+	size, _ := first[0].Fields["size"].Value.(float64)
 	recs := first
 	if parts > 1 {
 		var names []string
@@ -304,9 +316,17 @@ func (c *ICloudAPI) Read(ctx context.Context, name string) ([]byte, error) {
 		}
 		recs = append(recs, rest...)
 	}
+	if len(recs) != parts {
+		return nil, ErrUnavailable
+	}
 	var out bytes.Buffer
-	for _, rec := range recs {
-		if rec.ServerErrorCode != "" {
+	for i, rec := range recs {
+		// Every part must belong to this file at its position; a part left
+		// by another version would otherwise be joined silently.
+		path, _ := rec.Fields["path"].Value.(string)
+		part, _ := rec.Fields["part"].Value.(float64)
+		n, _ := rec.Fields["parts"].Value.(float64)
+		if rec.ServerErrorCode != "" || path != name || int(part) != i || (parts > 1 && int(n) != parts) {
 			return nil, ErrUnavailable
 		}
 		s, _ := rec.Fields["data"].Value.(string)
@@ -315,6 +335,9 @@ func (c *ICloudAPI) Read(ctx context.Context, name string) ([]byte, error) {
 			return nil, err
 		}
 		out.Write(b)
+	}
+	if int64(out.Len()) != int64(size) {
+		return nil, ErrUnavailable
 	}
 	return out.Bytes(), nil
 }

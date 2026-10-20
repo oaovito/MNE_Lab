@@ -127,7 +127,15 @@ interface translates.
   registration exists yet (Google and Microsoft client IDs, CloudKit
   container and token). Until they are injected at build time, only the
   folder transport is offered. iCloud has not been validated against the
-  real service.
+  real service; a local CloudKit test server covers sign-in, token rotation,
+  multi-part files, listing and deletion. CloudKit's sign-in carries no
+  caller-chosen `state` (Apple documents only `ckWebAuthToken` on the
+  callback), so the loopback callback cannot prove which sign-in it answers.
+  It accepts only the first GET of its registered path while a sign-in
+  started in MNE Lab is open; another page that sends a token in that window
+  could connect a different Apple Account. Files stay encrypted with the
+  profile keys either way. This limit is accepted until Apple offers a
+  binding value.
 - **Scientific reference.** The owner's latest LIGHTSCATTERING/Zeta PDF
   and its previous revision have been recovered and consulted privately.
   Their checksums and review status are recorded in the scientific reference
