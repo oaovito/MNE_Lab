@@ -153,7 +153,11 @@ Numeric OOXML cells are read with `RawCellValue: true`: declared `<v>` digits
 are preserved, including trailing zeros; locale/display formatting does not
 replace them. Their decimal syntax is always dot as specified by OOXML.
 The user's dot/comma choice applies to shared/inline text cells only. Boolean,
-date, error and formula-result cells are rejected as assigned numeric values.
+date, error and formula-result cells are rejected as assigned numeric values,
+and so are numeric cells formatted as a date or time (a serial number whose
+meaning depends on the workbook's date system). The automatic XLSX reader
+keeps such cells as literal text (`date serial <value>`) with a warning: they
+are neither scientific values nor measurement dates.
 No dates, physical experimental units, units from headers or scale conversion
 are inferred. Invalid numeric values reject the whole source without partial
 persistence. Original source headers remain literal even when they conflict

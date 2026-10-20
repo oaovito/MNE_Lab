@@ -1,6 +1,7 @@
 """Development-only independent golden values; no Python runtime in MNE Lab.
 
-Requires SciPy 1.17.0, statsmodels 0.14.5, pingouin 0.5.5, numpy 2.3.5.
+Requires SciPy 1.17.0, statsmodels 0.14.5, pingouin 0.5.5, numpy 2.3.5 and
+pandas 2.3.3 (statsmodels 0.14.5 does not run with pandas 3).
 All fixtures below are invented; never substitute instrument/user files.
 """
 import json
@@ -15,11 +16,11 @@ import pingouin as pg
 
 cases = []
 
-def fixture(name, values, a, method, b=None, units=None, posthoc="none"):
+def fixture(name, values, a, method, b=None, units=None, posthoc="none", correction="GG"):
     b = b or [""] * len(values)
     units = units or [""] * len(values)
     inp = dict(values=values, factorA=a, factorB=b, unitId=units, alpha=.05,
-               method=method, postHoc=posthoc, structure="repeated" if method == "repeated" else "independent", correction="GG")
+               method=method, postHoc=posthoc, structure="repeated" if method == "repeated" else "independent", correction=correction)
     frame = pd.DataFrame(dict(y=values, A=a, B=b, unit=units))
     groups = []
     for (av,bv), g in frame.groupby(["A","B"], sort=True):
@@ -66,7 +67,7 @@ def fixture(name, values, a, method, b=None, units=None, posthoc="none"):
                     for hi in range(1,len(levels)):
                         for lo in range(hi):
                             comparisons.append(dict(contrast=levels[hi]+"-"+levels[lo],context=condition+"="+level,difference=float(t.statistic[hi,lo]),lower=float(ci.low[hi,lo]),upper=float(ci.high[hi,lo]),adjustedP=min(1,float(t.pvalue[hi,lo])*families)))
-    elif method=="repeated":
+    elif method=="repeated" and frame.A.nunique()==1:
         # This fixture has one within-subject factor and no between factor.
         tab=pg.rm_anova(data=frame,dv="y",within="B",subject="unit",detailed=True)
         r,e=tab.iloc[0],tab.iloc[1]
@@ -77,11 +78,56 @@ def fixture(name, values, a, method, b=None, units=None, posthoc="none"):
         terms=[dict(source="B",ss=ss,df=df,ms=float(r.MS),f=float(r.F),p=float(independent["Pr > F"]),etaSquared=ss/total,partialEtaSquared=ss/(ss+ess)),dict(source="residual_within",ss=ess,df=edf,ms=float(e.MS))]
         wide=frame.pivot(index="unit",columns="B",values="y")
         gg=float(pg.epsilon(wide,correction="gg")); hf=float(pg.epsilon(wide,correction="hf"))
-        corrections=dict(GG=gg,HF=hf,applied=gg)
-        terms.append(dict(source="B_GG",ss=ss,df=df*gg,f=float(r.F),p=float(stats.f.sf(r.F,df*gg,edf*gg))))
+        applied=gg if correction=="GG" else min(1,hf)
+        corrections=dict(GG=gg,HF=hf,applied=applied)
+        terms.append(dict(source="B_"+correction,ss=ss,df=df*applied,f=float(r.F),p=float(stats.f.sf(r.F,df*applied,edf*applied))))
         sph=pg.sphericity(wide)
         diagnostics.append(dict(code="mauchly",statistic=float(sph.W),p=float(sph.pval)))
         residual=ols("y ~ C(unit) + C(B)",frame).fit().resid.to_numpy()
+    elif method=="repeated":
+        # Balanced between-subject groups (A) with one within factor (B).
+        # pingouin mixed_anova supplies the split-plot sums of squares, df,
+        # F and p. Its epsilon uses the unpooled covariance of all units, so
+        # sphericity is computed from the pooled within-group covariance
+        # instead: units centered on their group means at each level of B.
+        # GG and Mauchly's W are scale-invariant, so pingouin's functions
+        # apply to the centered data; the df-dependent HF and Mauchly p use
+        # the residual df of the between-group model (units - groups), as in
+        # Huynh & Feldt with Lecoutre's correction and Mauchly's test.
+        tab=pg.mixed_anova(data=frame,dv="y",within="B",between="A",subject="unit",correction=False,effsize="np2").set_index("Source")
+        total=float(np.sum((frame.y-frame.y.mean())**2))
+        err={}
+        for key,source,stratum in [("A","A","residual_subject"),("B","B","residual_within"),("Interaction","A:B","residual_within")]:
+            row=tab.loc[key]; ms=float(row.MS); f=float(row.F)
+            err[stratum]=(ms/f*float(row.DF2),float(row.DF2))
+        for key,source,stratum in [("A","A","residual_subject"),("B","B","residual_within"),("Interaction","A:B","residual_within")]:
+            row=tab.loc[key]; ss=float(row.SS); ess,edf=err[stratum]
+            terms.append(dict(source=source,ss=ss,df=float(row.DF1),ms=float(row.MS),f=float(row.F),p=float(row["p-unc"]),etaSquared=ss/total,partialEtaSquared=ss/(ss+ess)))
+        for stratum,(ess,edf) in err.items():
+            terms.append(dict(source=stratum,ss=ess,df=edf,ms=ess/edf))
+        # Balanced design: statsmodels' sequential sums of squares match.
+        check=sm.stats.anova_lm(ols("y ~ C(A) * C(B)",frame).fit(),typ=1)
+        for key,source in [("C(A)","A"),("C(B)","B"),("C(A):C(B)","Interaction")]:
+            assert np.isclose(check.loc[key,"sum_sq"],tab.loc[source].SS)
+        wide=frame.pivot(index="unit",columns="B",values="y")
+        unit_groups=frame.groupby("unit").A.first().loc[wide.index]
+        centered=wide-wide.groupby(unit_groups).transform("mean")
+        n=len(wide)-unit_groups.nunique(); k=wide.shape[1]-1
+        gg=float(pg.epsilon(centered,correction="gg"))
+        hf=((n+1)*k*gg-2)/(k*(n-k*gg))
+        applied=gg if correction=="GG" else min(1,hf)
+        corrections=dict(GG=gg,HF=hf,applied=applied)
+        edf_within=err["residual_within"][1]
+        for key,source in [("B","B"),("Interaction","A:B")]:
+            row=tab.loc[key]
+            terms.append(dict(source=source+"_"+correction,ss=float(row.SS),df=float(row.DF1)*applied,f=float(row.F),p=float(stats.f.sf(row.F,float(row.DF1)*applied,edf_within*applied))))
+        w=float(pg.sphericity(centered).W)
+        rho=1-(2*k**2+k+2)/(6*k*n)
+        w2=(k+2)*(k-1)*(k-2)*(2*k**3+6*k**2+3*k+2)/(288*(n*k*rho)**2)
+        z=-n*rho*np.log(w); dof=k*(k+1)/2-1
+        pr1=stats.chi2.sf(z,dof); pr2=stats.chi2.sf(z,dof+4)
+        diagnostics.append(dict(code="mauchly",statistic=w,p=float(pr1+w2*(pr2-pr1))))
+        residual=ols("y ~ C(unit) + C(B) + C(A):C(B)",frame).fit().resid.to_numpy()
     shapiro=stats.shapiro(residual)
     diagnostics.append(dict(code="shapiro_wilk",statistic=float(shapiro.statistic),p=float(shapiro.pvalue)))
     if method!="repeated":
@@ -97,6 +143,11 @@ fixture("unbalanced_decimal_tukey",[1.234,2.345,3.456,4.567,8.765,9.876,10.321,1
 fixture("balanced_two_way",values,["A"]*6+["B"]*6,"two_way",["early"]*3+["late"]*3+["early"]*3+["late"]*3,posthoc="tukey")
 fixture("unbalanced_interaction",[1,2,4,6,7,9,10,4,5,8,14,18,20,24],["A"]*7+["B"]*7,"two_way",["early"]*3+["late"]*4+["early"]*3+["late"]*4)
 fixture("repeated_sphericity",[1,2,4,5,6,8,3,5,6,8,9,12,4,7,8,10,13,16],["A"]*18,"repeated",["t1"]*6+["t2"]*6+["t3"]*6,[f"unit-{i%6}" for i in range(18)])
+fixture("repeated_huynh_feldt",[1,2,4,5,6,8,3,5,6,8,9,12,4,7,8,10,13,16],["A"]*18,"repeated",["t1"]*6+["t2"]*6+["t3"]*6,[f"unit-{i%6}" for i in range(18)],correction="HF")
+between_units=[f"unit-{i}" for i in range(8)]
+between_rows=[(round(2+.9*j+(1.3*j if i>=4 else 0)+np.sin(1.7*(i*3+j+1))*1.1+.4*i,3),"control" if i<4 else "treated",t,u) for i,u in enumerate(between_units) for j,t in enumerate(["t1","t2","t3"])]
+for name,correction in [("repeated_between_groups_gg","GG"),("repeated_between_groups_hf","HF")]:
+    fixture(name,[r[0] for r in between_rows],[r[1] for r in between_rows],"repeated",[r[2] for r in between_rows],[r[3] for r in between_rows],correction=correction)
 target=Path(__file__).resolve().parents[1]/"web/tests/fixtures/statistics-golden.json"
 target.parent.mkdir(exist_ok=True)
 target.write_text(json.dumps(dict(oracle={"scipy":stats.__version__ if hasattr(stats,"__version__") else "1.17.0","statsmodels":"0.14.5","pingouin":"0.5.5","numpy":np.__version__},cases=cases),indent=2,allow_nan=False)+"\n")

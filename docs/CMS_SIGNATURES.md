@@ -85,9 +85,10 @@ Profile preference or Smart Export option uses it yet.
    handshake, 30 s of loading, 5 min idle, 15 min in total or 4,096
    signatures, and after 60 s of processor time (`RLIMIT_CPU` with its
    signal handled on Unix, the job object on Windows), which allows fewer
-   signatures per session with large RSA keys. Writable memory is limited to
-   512 MiB on Linux (`RLIMIT_DATA`) and Windows (the job, which also kills the
-   worker when the application's handle closes); elsewhere only the soft
+   signatures per session with large RSA keys. Writable mappings are limited to
+   512 MiB on Linux (`RLIMIT_DATA`; a worker maps about 150 MiB, and race-detector
+   test builds skip it) and process memory to 512 MiB on Windows (the job, which
+   also kills the worker when the application's handle closes); elsewhere only the soft
    256 MiB Go memory limit applies. A worker whose application ended reads
    end of file or misses a deadline. Worker slots return when a worker exits,
    even if its credential is never closed. The parent creates the pipes itself

@@ -335,3 +335,55 @@ func TestXLSXSelectionCannotBypassValidation(t *testing.T) {
 		t.Fatal("formula in excluded sheet bypassed safety")
 	}
 }
+
+// A date or time stored as a serial number is neither a value nor a
+// measurement date: reading it would assume the workbook's date system.
+func TestXLSXDateSerialsAreNotValues(t *testing.T) {
+	f := excelize.NewFile()
+	defer f.Close()
+	rows := [][]any{
+		{"Sample ID", "Synthetic date cells"},
+		{"Effective Diameter (nm)", 46283.5},
+		{"Measurement Date", 46283.6},
+		{"Polydispersity", 0.125},
+		{"Diameter (nm)", "Intensity (%)"},
+		{50.0, 10.5}, {100.0, 50.0}, {200.0, 39.5},
+	}
+	for row, values := range rows {
+		cell, _ := excelize.CoordinatesToCellName(1, row+1)
+		if err := f.SetSheetRow("Sheet1", cell, &values); err != nil {
+			t.Fatal(err)
+		}
+	}
+	builtin, _ := f.NewStyle(&excelize.Style{NumFmt: 22})
+	custom := `[$-409]d\-mmm\-yy;@`
+	customStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &custom})
+	f.SetCellStyle("Sheet1", "B2", "B2", builtin)
+	f.SetCellStyle("Sheet1", "B3", "B3", customStyle)
+	b, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, _ := ParseFile("synthetic.xlsx", b.Bytes())
+	if len(r.Measurements) != 1 {
+		t.Fatalf("%+v", r)
+	}
+	m := r.Measurements[0]
+	if _, ok := m.Params[model.EffectiveDiameter]; ok || m.MeasuredAt != nil {
+		t.Fatalf("date serial read as a value or date: %+v", m)
+	}
+	if q := m.Params[model.Polydispersity]; q.Value != 0.125 {
+		t.Fatalf("plain number lost: %+v", m.Params)
+	}
+	warned := strings.Join(r.Warnings, " ")
+	for _, cell := range []string{"B2", "B3"} {
+		if !strings.Contains(warned, "ls.spreadsheet_date_serial:"+cell) {
+			t.Fatalf("no warning for %s: %v", cell, r.Warnings)
+		}
+	}
+	for code, want := range map[string]bool{"General": false, "0.00E+00": false, `0.0 "mm"`: false, "#,##0.00": false, "[Red]0.0": false, "yyyy-mm-dd": true, "[h]:mm": true, "hh:mm AM/PM": true} {
+		if dateFormatCode(code) != want {
+			t.Fatalf("format %q: want date %v", code, want)
+		}
+	}
+}

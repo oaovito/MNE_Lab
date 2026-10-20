@@ -172,7 +172,15 @@ SS, df, MS, F, p, effect sizes, group SD/SEM/CI, Tukey intervals/adjusted p,
 Shapiro/Brown–Forsythe and repeated-measures Mauchly/GG/HF results.
 
 Fixtures cover balanced, unbalanced, heteroscedastic, interaction, decimal
-and complete repeated designs. Constant values, insufficient groups and
+and complete repeated designs: one within factor with the GG and with the HF
+correction, and balanced between-subject groups with each correction. For
+groups, Pingouin `mixed_anova` supplies the split-plot SS/df/F/p (statsmodels
+sequential SS agree). Its epsilon uses the unpooled covariance of all units,
+so sphericity comes from the pooled within-group covariance instead: units
+centered on their group means, with Pingouin's scale-invariant GG and
+Mauchly W, and HF (Lecoutre's correction) and the Mauchly p computed from the
+residual df of the between-group model (units minus groups). An HF epsilon
+above one is reported as calculated and applied as one. Constant values, insufficient groups and
 non-finite input are rejected. App tests cover source/receipt invalidation,
 revisions, profile isolation, missing values, experimental units, source
 module separation, graph immutability and export contracts.
@@ -193,7 +201,8 @@ See https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Tukey.html .
 SciPy's studentized multivariate-t distribution. The pinned development
 `DunnettResult` model and `multivariate_t.cdf` plus Brent's root solver refine
 simultaneous confidence limits without adopting its noisy default CI optimizer.
-Balanced, unbalanced and single-treatment synthetic fixtures use a control
+Balanced, unbalanced, single-treatment, five-treatment and eight-treatment
+(the supported bound) synthetic fixtures use a control
 that is not the first sorted label, with punctuation in labels. Probabilities
 are compared with absolute tolerance `3e-5`; CI endpoints use `1e-4` times
 `max(1, abs(reference))`; differences retain `1e-8`. The independent reference

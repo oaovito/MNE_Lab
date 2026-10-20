@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/oaovito/mne_lab/internal/science/model"
+	"github.com/xuri/excelize/v2"
 )
 
 func workbookRecipe() *model.ImportSelection {
@@ -168,5 +169,33 @@ func TestWorkbookMappingBoundsExpandedTextAndStoredLabels(t *testing.T) {
 	r, _, p := InspectFileSelection("invented.xlsx", data, workbookRecipe())
 	if r.Error != ErrSpreadsheetLimit.Error() || len(r.Measurements) != 0 || p != nil {
 		t.Fatal("excluded shared-string expansion accepted")
+	}
+}
+
+// A mapped column cell formatted as a date or time is not a number.
+func TestWorkbookMappingRejectsDateSerials(t *testing.T) {
+	f := excelize.NewFile()
+	defer f.Close()
+	f.SetSheetName("Sheet1", "Raw Data")
+	rows := [][]any{{"Sample", "Effective Diameter"}, {"S1", 46283.5}, {"S2", 201.5}}
+	for row, values := range rows {
+		cell, _ := excelize.CoordinatesToCellName(1, row+1)
+		f.SetSheetRow("Raw Data", cell, &values)
+	}
+	recipe := &model.ImportSelection{Mapping: &model.ColumnMapping{Schema: 2, Module: "lightscattering", Sheet: "Raw Data", HeaderRow: 1, FirstRow: 2, LastRow: 3, Decimal: "dot", SampleColumn: 1, Columns: []model.MappedColumn{{Column: 2, Key: model.EffectiveDiameter, Unit: "nm"}}}}
+	write := func() []byte {
+		b, err := f.WriteToBuffer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b.Bytes()
+	}
+	if r, _ := ParseFileSelection("mapped.xlsx", write(), recipe); r.Status == "failed" {
+		t.Fatalf("plain numbers refused: %+v", r)
+	}
+	style, _ := f.NewStyle(&excelize.Style{NumFmt: 14})
+	f.SetCellStyle("Raw Data", "B2", "B2", style)
+	if r, _ := ParseFileSelection("mapped.xlsx", write(), recipe); r.Status != "failed" || r.Error != ErrMappedNumber.Error() {
+		t.Fatalf("date serial mapped as a number: %+v", r)
 	}
 }

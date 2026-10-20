@@ -537,6 +537,19 @@ func TestWorkerSeesNoSecrets(t *testing.T) {
 	if env, err := os.ReadFile(filepath.Join(proc, "environ")); err != nil || len(env) != 0 {
 		t.Fatalf("worker environment %q %v", env, err)
 	}
+	limits, err := os.ReadFile(filepath.Join(proc, "limits"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Max cpu time              60                   60"}
+	if !raceDetector {
+		want = append(want, "Max data size             536870912            536870912")
+	}
+	for _, line := range want {
+		if !strings.Contains(string(limits), line) {
+			t.Fatalf("worker limit missing: %q in\n%s", line, limits)
+		}
+	}
 	fds, err := os.ReadDir(filepath.Join(proc, "fd"))
 	if err != nil {
 		t.Fatal(err)

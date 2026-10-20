@@ -219,6 +219,7 @@ func parseXLSXSelectionPreview(data []byte, selection *model.ImportSelection, pr
 	res := spreadsheetFailure(ErrUnrecognized)
 	res.Encoding, res.Delimiter = "OOXML", "tab"
 	recognized := map[string]bool{}
+	dateStyles := map[int]bool{}
 	cells := 0
 	totalRows := 0
 	for _, sheet := range f.GetSheetList() {
@@ -245,6 +246,7 @@ func parseXLSXSelectionPreview(data []byte, selection *model.ImportSelection, pr
 			return spreadsheetFailure(ErrSpreadsheet)
 		}
 		var text workbookText
+		var dateCells []string
 		w := csv.NewWriter(&text)
 		w.Comma = '\t'
 		n := 0
@@ -275,7 +277,7 @@ func parseXLSXSelectionPreview(data []byte, selection *model.ImportSelection, pr
 				preview.workbookRow(table, row, n, bounds)
 			}
 			for column, value := range row {
-				if value != "0" && value != "1" {
+				if _, err := strconv.ParseFloat(value, 64); err != nil {
 					continue
 				}
 				cell, _ := excelize.CoordinatesToCellName(column+1, n)
@@ -284,11 +286,24 @@ func parseXLSXSelectionPreview(data []byte, selection *model.ImportSelection, pr
 					rows.Close()
 					return spreadsheetFailure(ErrSpreadsheet)
 				}
-				if kind == excelize.CellTypeBool {
-					if value == "1" {
-						row[column] = "TRUE"
-					} else {
-						row[column] = "FALSE"
+				switch {
+				case kind == excelize.CellTypeBool && value == "1":
+					row[column] = "TRUE"
+				case kind == excelize.CellTypeBool && value == "0":
+					row[column] = "FALSE"
+				case kind == excelize.CellTypeNumber || kind == excelize.CellTypeUnset:
+					date, err := dateStyled(f, sheet, cell, dateStyles)
+					if err != nil {
+						rows.Close()
+						return spreadsheetFailure(ErrSpreadsheet)
+					}
+					if date {
+						// A date or time stored as a serial number: reading it
+						// would assume the workbook's date system and the
+						// display format. It stays literal text, neither a
+						// value nor a measurement date.
+						row[column] = "date serial " + value
+						dateCells = append(dateCells, cell)
 					}
 				}
 			}
@@ -357,6 +372,9 @@ func parseXLSXSelectionPreview(data []byte, selection *model.ImportSelection, pr
 			}
 			res.Warnings = append(res.Warnings, "ls.spreadsheet_sheet_warning:"+sheet+":"+warning)
 		}
+		for _, cell := range dateCells {
+			res.Warnings = append(res.Warnings, "ls.spreadsheet_sheet_warning:"+sheet+":ls.spreadsheet_date_serial:"+cell)
+		}
 		if r.Status == "failed" {
 			res.Warnings = append(res.Warnings, "ls.spreadsheet_sheet_unrecognized:"+sheet)
 			continue
@@ -391,4 +409,62 @@ func parseXLSXSelectionPreview(data []byte, selection *model.ImportSelection, pr
 		res.Status = "partial"
 	}
 	return res
+}
+
+// dateStyled reports whether a numeric cell is formatted as a date or time.
+// Results are cached by style index.
+func dateStyled(f *excelize.File, sheet, cell string, cache map[int]bool) (bool, error) {
+	idx, err := f.GetCellStyle(sheet, cell)
+	if err != nil {
+		return false, err
+	}
+	if date, ok := cache[idx]; ok {
+		return date, nil
+	}
+	style, err := f.GetStyle(idx)
+	if err != nil {
+		return false, err
+	}
+	date := false
+	if style.CustomNumFmt != nil {
+		date = dateFormatCode(*style.CustomNumFmt)
+	} else {
+		id := style.NumFmt
+		// Built-in date and time formats, including the East Asian ones.
+		date = id >= 14 && id <= 22 || id >= 27 && id <= 36 || id >= 45 && id <= 47 || id >= 50 && id <= 58 || id >= 71 && id <= 81
+	}
+	cache[idx] = date
+	return date, nil
+}
+
+// dateFormatCode reports whether a number format code shows a date or time:
+// a y, m, d, h or s outside quoted text, escapes and bracketed sections
+// other than elapsed time ([h], [mm], [ss]).
+func dateFormatCode(code string) bool {
+	lower := strings.ToLower(code)
+	for i := 0; i < len(lower); i++ {
+		switch c := lower[i]; c {
+		case '"':
+			if end := strings.IndexByte(lower[i+1:], '"'); end >= 0 {
+				i += end + 1
+			} else {
+				return false
+			}
+		case '\\', '_', '*':
+			i++
+		case '[':
+			end := strings.IndexByte(lower[i:], ']')
+			if end < 0 {
+				return false
+			}
+			inner := strings.Trim(lower[i+1:i+end], "hms")
+			if inner == "" && end > 1 {
+				return true
+			}
+			i += end
+		case 'y', 'm', 'd', 'h', 's':
+			return true
+		}
+	}
+	return false
 }

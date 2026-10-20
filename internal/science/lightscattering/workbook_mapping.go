@@ -55,6 +55,7 @@ func parseMappedWorkbook(name string, data []byte, m *model.ColumnMapping, inspe
 	cells, totalRows := 0, 0
 	sourceTextBytes, retainedBytes := 0, 0
 	have := map[string]bool{}
+	dateStyles := map[int]bool{}
 	for _, sheet := range sheets {
 		selected := sheet == m.Sheet
 		info := SheetInfo{Name: sheet, Selected: selected}
@@ -158,6 +159,12 @@ func parseMappedWorkbook(name string, data []byte, m *model.ColumnMapping, inspe
 					switch kind {
 					case excelize.CellTypeNumber, excelize.CellTypeUnset:
 						decimal = "dot" // OOXML numerical values are locale-independent.
+						// A date or time stored as a serial number is not a value.
+						if date, err := dateStyled(f, sheet, address, dateStyles); err != nil {
+							return ErrSpreadsheet
+						} else if date {
+							return ErrMappedNumber
+						}
 					case excelize.CellTypeInlineString, excelize.CellTypeSharedString:
 					default:
 						return ErrMappedNumber // Boolean, date, error or formula/string-result.
