@@ -1,16 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-<defs>
-<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#143A52"/><stop offset="1" stop-color="#0B202E"/></linearGradient>
-<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#4A91C2" stop-opacity="0.5"/><stop offset="0.55" stop-color="#2C7FB8" stop-opacity="0.1"/><stop offset="1" stop-color="#2C7FB8" stop-opacity="0"/></radialGradient>
-<linearGradient id="beamIn" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#2C7FB8" stop-opacity="0"/><stop offset="0.5" stop-color="#86B5D6" stop-opacity="0.8"/><stop offset="1" stop-color="#F4F8FA"/></linearGradient>
-<linearGradient id="beamOut" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#86B5D6" stop-opacity="0.55"/><stop offset="1" stop-color="#86B5D6" stop-opacity="0"/></linearGradient>
-<linearGradient id="ray90" x1="0" x2="0" y1="1" y2="0"><stop offset="0" stop-color="#F4F8FA"/><stop offset="1" stop-color="#86B5D6" stop-opacity="0.7"/></linearGradient>
-<radialGradient id="particle" cx="0.36" cy="0.32" r="0.78"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.42" stop-color="#A4C8E0"/><stop offset="1" stop-color="#2C7FB8"/></radialGradient>
-</defs>
-<rect x="0" y="0" width="1024" height="1024" rx="200" fill="url(#bg)"/>
-<rect x="56" y="608" width="456" height="112" rx="56" fill="#5497C5"/>
-<rect x="512" y="634" width="456" height="60" rx="30" fill="#5497C5" fill-opacity="0.45"/>
-<rect x="468" y="294" width="88" height="370" rx="44" fill="#A4C8E0"/>
-<path d="M703.2 234.6A470 470 0 0 0 320.8 234.6" fill="none" stroke="#F4F8FA" stroke-width="120" stroke-linecap="round"/>
-<circle cx="512" cy="664" r="160" fill="#F4F8FA"/>
+<rect x="20" y="20" width="984" height="984" rx="180" fill="#F4F8FA" stroke="#86B5D6" stroke-width="40"/>
+<path d="M512 192C640 192 776 200 848 228C880 242 896 264 896 296C896 336 868 364 828 356C762 334 676 320 624 336C592 348 576 372 576 404C576 418 578 430 582 440C672 470 794 560 832 704C774 660 684 624 588 614C588 690 572 770 548 812C604 830 684 866 702 904C710 922 698 940 680 934C628 914 568 902 512 902C456 902 396 914 344 934C326 940 314 922 322 904C340 866 420 830 476 812C452 770 436 690 436 614C340 624 250 660 192 704C230 560 352 470 442 440C446 430 448 418 448 404C448 372 432 348 400 336C348 320 262 334 196 356C156 364 128 336 128 296C128 264 144 242 176 228C248 200 384 192 512 192Z" fill="#143A52"/>
+<circle cx="176" cy="304" r="24" fill="#F4F8FA"/><circle cx="848" cy="304" r="24" fill="#F4F8FA"/>
 </svg>
