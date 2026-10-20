@@ -186,7 +186,12 @@ try {
   }] }, "/mne-packages");
   await r.evalRVoid('.libPaths(c("/mne-packages", .libPaths()))');
   const advanced=JSON.parse(fs.readFileSync(new URL("./fixtures/statistics-advanced-golden.json",import.meta.url)));
-  for(const c of advanced.cases) await test(`independent Dunnett oracle: ${c.name}`,async()=>{
+  // The engine meets its integration targets for up to three treatments.
+  // The larger oracle families document where it stops: refused up front.
+  for(const c of advanced.cases.filter(c=>c.expected.length>3)) await test(`Dunnett family above the supported bound: ${c.name}`,async()=>{
+    await assert.rejects(calculate(c.input),/statistics.dunnett_family_limit/);
+  });
+  for(const c of advanced.cases.filter(c=>c.expected.length<=3)) await test(`independent Dunnett oracle: ${c.name}`,async()=>{
     const actual=await calculate(c.input);
     assert.equal(actual.engine,"webR/0.6.0; R/4.6.0; multcomp/1.4-30; mvtnorm/1.2-4; Dunnett/1");
     assert.equal(actual.comparisons.length,c.expected.length);

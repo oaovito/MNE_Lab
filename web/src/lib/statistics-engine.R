@@ -269,7 +269,10 @@ mne_engine <- function(input) {
     if(alpha>=0.5) stop("statistics.invalid_definition")
     control<-as.character(input$control)
     if(length(control)!=1L || !control %in% levels(d$A)) stop("statistics.control_required")
-    if(nlevels(d$A)>9L) stop("statistics.dunnett_family_limit")
+    # With these integration settings the accuracy targets below are met for
+    # a control and up to three treatments; larger families are refused
+    # before any integration instead of after minutes of work that fails.
+    if(nlevels(d$A)>4L) stop("statistics.dunnett_family_limit")
     if(!requireNamespace("multcomp",quietly=TRUE) || !requireNamespace("mvtnorm",quietly=TRUE)) stop("statistics.method_unavailable")
     # The control is explicit. Contrast identities are separate from labels:
     # every treatment-minus-control coefficient is a simultaneous contrast.

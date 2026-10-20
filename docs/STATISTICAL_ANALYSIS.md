@@ -29,8 +29,10 @@ being accepted by this shared engine.
   Bonferroni adjustment covers both sets of Tukey comparison families.
 - Dunnett: two-sided single-step multivariate-t comparisons and simultaneous
   confidence intervals for independent classical One-Way ANOVA. The user
-  selects a control with included values. Up to eight treatments are supported
-  as a computational bound. Every treatment/control identity is explicit;
+  selects a control with included values. Up to three treatments are supported:
+  with the settings below, families of four, five and eight treatments missed
+  the `1e-5` integration target, and reaching it took ten or more times the
+  work, so larger families are refused before any integration. Every treatment/control identity is explicit;
   alpha must be below 0.5, the mature two-sided quantile library's scope.
   punctuation in labels never determines a contrast. No Welch, repeated,
   mixed, one-sided or factorial Dunnett procedure is implied.
@@ -201,13 +203,15 @@ See https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Tukey.html .
 SciPy's studentized multivariate-t distribution. The pinned development
 `DunnettResult` model and `multivariate_t.cdf` plus Brent's root solver refine
 simultaneous confidence limits without adopting its noisy default CI optimizer.
-Balanced, unbalanced, single-treatment, five-treatment and eight-treatment
-(the supported bound) synthetic fixtures use a control
+Balanced, unbalanced (three treatments, the supported bound) and
+single-treatment synthetic fixtures use a control
 that is not the first sorted label, with punctuation in labels. Probabilities
 are compared with absolute tolerance `3e-5`; CI endpoints use `1e-4` times
 `max(1, abs(reference))`; differences retain `1e-8`. The independent reference
 uses one million integration points and seed 1701. These are documented
-numeric tolerances, not a claim of exact distribution integration.
+numeric tolerances, not a claim of exact distribution integration. The
+five-treatment and eight-treatment fixtures stay as references for a future
+wider bound; the product refuses them with `statistics.dunnett_family_limit`.
 
 The actual R engine uses multcomp 1.4-30 / mvtnorm 1.2-4, seed 1701,
 Genz–Bretz integration, `maxpts=100000`, `abseps=1e-5`, `releps=0`.
