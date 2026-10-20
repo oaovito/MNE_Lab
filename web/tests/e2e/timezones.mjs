@@ -27,7 +27,7 @@ try {
       for (const known of [false, true]) {
         const tag = `${lang}-${timezoneId.replaceAll('/', '-')}-${known ? 'instant' : 'wall'}`;
         const originalDate = known ? '2026-02-16T09:00:00-03:00' : '2026-02-16 09:00:00';
-        const raw = `Sample ID: SYNTHETIC-TIME-${tag}\nDate: ${originalDate}\nEffective Diameter (nm): 83.125\nDiameter (nm)\tIntensity (%)\n10\t20\n20\t50\n30\t30\n`;
+        const raw = `Sample ID: SYNTHETIC-TIME-${tag}\nMeasurement Date: ${originalDate}\nEffective Diameter (nm): 83.125\nDiameter (nm)\tIntensity (%)\n10\t20\n20\t50\n30\t30\n`;
         const response = await page.request.post(new URL('/api/files', page.url()).href, { data: raw, headers: { 'X-MNE-Lab': '1', 'X-File-Name': encodeURIComponent(tag+'.txt'), 'Content-Type': 'text/plain' } });
         if (!response.ok()) throw new Error('synthetic timestamp import failed');
         const imported = await response.json();

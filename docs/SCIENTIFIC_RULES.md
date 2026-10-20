@@ -1,6 +1,6 @@
 # LIGHTSCATTERING scientific rules
 
-The current parser is `lightscattering-parser/1.4.0`, using
+The current parser is `lightscattering-parser/1.5.0`, using
 `ls-spec/0.3-provisional`. The owner-supplied scientific reference has been
 consulted privately; interpretation of instrument algorithms and undocumented
 fields remains provisional. Development validation uses private experimental corpora outside the source
@@ -18,7 +18,8 @@ remain unresolved. The complete scope and remaining evidence are recorded in
 The parser stores the current reading as `count_rate` and an explicitly
 labeled average as `average_count_rate`. It also accepts the exact shortened
 label `Avg. Count Rate`; it does not infer an average from a current reading
-or reinterpret an average as current.
+or reinterpret an average as current. A bare `Count Rate` says neither, so it stays an
+unmapped field with its label and text.
 
 Each quantity retains its original numeric text, explicit unit, exact source
 label and source line. A missing unit remains missing and produces a warning.
@@ -36,6 +37,16 @@ do not establish identical acquisition semantics. This separation preserves
 what the instrument actually reports while manufacturer-level interpretation
 remains under review.
 
+## Field labels and units
+
+`Polydispersity` is read as the reported polydispersity. `PDI` and
+`Polydispersity Index` stay unmapped: other instruments define a PDI with
+their own models, and a label alone does not establish the same quantity.
+Declared units are kept exactly as written (only surrounding space is
+removed): `C` is not rewritten as `°C`, `mcps` as `Mcps` or `um` as `µm`.
+Units that differ only in spelling stay distinct, and statistics refuse to
+combine them like any other unit mismatch.
+
 ## Instrument distribution alternatives
 
 Lognormal and Multimodal distributions and their report/spreadsheet
@@ -49,7 +60,11 @@ weighting is inferred.
 
 ## Time and replication
 
-Measurement time comes from the original file, never the import time. The
+Measurement time comes from the original file, never the import time. Only
+fields that name the measurement are read as its date and time: `Measurement
+Date`, `Date of Measurement`, `Measured`, `Acquired`, `Measurement Time` and
+`Time of Measurement`. A bare `Date`, `Time`, `Date Time` or `Timestamp` can
+be a report or export time; it stays an unmapped field. The
 parser retains the `TZKnown` flag and ambiguous numeric date order requires
 confirmation. Cycle autoassociation refuses to compare a known-zone instant
 with an unknown-zone wall clock: the person must confirm its cycle point.

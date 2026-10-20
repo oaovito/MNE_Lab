@@ -508,7 +508,7 @@ file or drawing a graph does not establish scientific validity.
 | Shared storage / File Library / Graph / Cycle / Statistics / Export | Yes for existing supported data | Isolation, receipts, snapshots, native rendering and exports | Per scientific adapter; never inherited by a new module | New adapters must supply documented quantity and provenance contracts |
 | Export file collisions | Yes: atomic exclusive publication; explicit replacement only | Concurrent keep-both/ask, payload preservation, existing files and symlinks; local Linux and hosted Windows/macOS checks tracked separately | Not applicable | Clean-system/FAT32/exFAT USB runtime tests still required |
 | Research package checksum verification | Partial backend; package /2 covers README; /1 reports uncovered README | Independent invented ZIP/JSON fixtures, altered payload/index/CRC, unsafe paths and bounds; current checkpoint records completed checks | Not applicable; Authenticated=false, no signature or scientific validation | Package-integrity UI and authenticated manifest integration remain pending. Detached CMS backend/global Verify already exist separately; PFX/Smart Export/PDF integration is still pending |
-| Sign Export / Verify Signature | PARTIAL: native detached CMS signer/verifier; global read-only detached Verify panel | Independent OpenSSL RSA/ECDSA bidirectional comparisons and public invented fixture; trust/time/content/structure tests, authenticated upload and localized browser workflow | Not applicable; no scientific validation, revocation or trusted timestamp claim | Smart Export integration, Profile identity/local credentials/PFX/P12, Visible/Complete ordering, PDF/PAdES, trust selection, revocation/timestamps and signed research packages; see CMS_SIGNATURES.md |
+| Sign Export / Verify Signature | PARTIAL: native detached CMS signer/verifier; global read-only detached Verify panel | Independent OpenSSL RSA/ECDSA bidirectional comparisons and public invented fixture; trust/time/content/structure tests, authenticated upload and localized browser workflow | Not applicable; no scientific validation, revocation or trusted timestamp claim | Smart Export integration, Profile identity/local credentials, PFX/P12 endpoint/UI (bounded worker backend exists), Visible/Complete ordering, PDF/PAdES, trust selection, revocation/timestamps and signed research packages; see CMS_SIGNATURES.md |
 | LIGHTSCATTERING format discovery | PARTIAL: source registry, format/content matrix, external research log and scientific decision records | Five official Brookhaven PDFs retrieved/hash-pinned; PS2.3/4.0 and family/SOP/setup references cross-checked with private corpus and current reader contracts | No validation promotion; observed extraction and documented export capability remain separate | Exact90Plus configuration/build, legacy/historical/independent corroboration, native CSV/Excel/distribution/archive/SOP/layout fixtures and serialization; native authenticity is not established by the separately recorded user declaration; see LIGHTSCATTERING_FORMAT_MATRIX.md |
 
 The existing Zeta spreadsheet and DTS sample are private development corpora.
@@ -531,7 +531,7 @@ uncertainty rather than inventing a field or an algorithm.
 | Identifier | Status |
 |---|---|
 | `ls-spec/0.3-provisional` | Product field list; owner references consulted, instrument layout and semantic validation ongoing. |
-| `lightscattering-parser/1.4.0` | Parser version recorded in provenance. |
+| `lightscattering-parser/1.5.0` | Parser version recorded in provenance. |
 | `graph-engine/1.1.0` | Graph Engine version recorded in provenance. |
 
 ## 19. Tests
@@ -564,8 +564,9 @@ uncertainty rather than inventing a field or an algorithm.
   of exports).
 - EPS and Parquet are not offered.
 - XLS and scientific ODS import, distribution column mapping, Smart Export
-  signing integration, local PFX/P12 credential handling and PDF/PAdES
-  verification are not implemented. Native detached CMS signing and the global
+  signing integration, a PFX/P12 endpoint and UI, and PDF/PAdES
+  verification are not implemented; the bounded PFX/P12 worker exists as a
+  backend only. Native detached CMS signing and the global
   detached Verify panel are PARTIAL; see CMS_SIGNATURES.md.
 - The desktop window still needs a supported installed Chromium browser and
   normal operating-system services. Native science/render/export tests can run
@@ -609,7 +610,8 @@ checkout and rejects shallow histories:
    Preserve supported Statistical Analysis and the existing DLS workflow.
 2. Implement bounded credential handling before Smart Export signing:
    [CMS_SIGNATURES.md](CMS_SIGNATURES.md). Detached CMS verification is already
-   PARTIAL; PFX/P12, final-byte ordering and PDF/PAdES still need their own work.
+   PARTIAL; the bounded PFX/P12 worker exists as a backend. Profile-scoped
+   credential choice, final-byte ordering and PDF/PAdES still need their own work.
 3. Complete safe XLS/ODS/distribution adapters only with sufficient contracts,
    and continue version-aware format research. Preserve Lognormal/Multimodal
    choices and unknown units; remove provisional status only after adequate

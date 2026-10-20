@@ -53,6 +53,69 @@ by default), with separate certificate-time reporting. It never uses claimed
 signingTime to make an expired certificate currently valid. No revocation,
 RFC 3161, PAdES or scientific-validation result is invented.
 
+## PFX/P12 credential worker
+
+Status: **PARTIAL backend**. `internal/signature/pfx` opens a PKCS#12
+(`.pfx`/`.p12`) credential for `SignExport` without exposing the decoder to
+HTTP or keeping the private key in the application process. No endpoint, UI,
+Profile preference or Smart Export option uses it yet.
+
+1. **Preflight without the password.** At most 256 KiB, definite minimal DER
+   (no BER, high tags, trailing bytes), depth 32 and 4,096 objects. Version 3
+   with a required MAC (SHA-1/SHA-256/SHA-512 or PBMAC1 with HMAC-SHA-1/256/512);
+   at most two safes of plain or password-encrypted data; certificate,
+   key and shrouded-key bags only; one key; X.509 certificates parsed. PBES1
+   (3DES, RC2) and PBES2 (PBKDF2 with AES-CBC and a 16-byte IV). Each visible
+   key derivation is limited to 1,000,000 iterations. Their work, counted per
+   hash output block as the decoder runs it (a PBES1 3DES key and IV take three
+   SHA-1 blocks, AES-256 with the default SHA-1 PRF two, and an empty
+   password checks the MAC twice), is limited to 4,000,000 iterations.
+   Derivations inside encrypted content cannot be seen before decryption; the
+   deadlines bound them.
+2. **Worker.** The application's own executable is started with the single
+   argument `--pkcs12-worker-v1`, an empty environment (only `SystemRoot` on
+   Windows), the temporary folder as working folder and no standard error.
+   File and password travel only over its standard input; the frame that
+   carried them is wiped in both processes. The decoder takes the password
+   as a Go string, a copy that cannot be wiped and lasts as long as the
+   worker. The worker writes no file, log or setting.
+3. **Bounds.** At most two workers at once. The parent kills a worker that
+   misses the 20 s load or 10 s signature deadline, breaks the protocol, or
+   whose caller cancels. The worker exits by itself after 5 s without a
+   handshake, 30 s of loading, 5 min idle, 15 min in total or 4,096
+   signatures, and after 60 s of processor time (`RLIMIT_CPU` with its
+   signal handled on Unix, the job object on Windows), which allows fewer
+   signatures per session with large RSA keys. Writable memory is limited to
+   512 MiB on Linux (`RLIMIT_DATA`) and Windows (the job, which also kills the
+   worker when the application's handle closes); elsewhere only the soft
+   256 MiB Go memory limit applies. A worker whose application ended reads
+   end of file or misses a deadline. Worker slots return when a worker exits,
+   even if its credential is never closed. The parent creates the pipes itself
+   so a worker's last frame is read even after it exits.
+4. **Identity.** The worker must echo a fresh 32-byte nonce, then sign a
+   challenge derived from it with the key of the certificate it reports. The
+   leaf is the certificate that matches the key. Only RSA 2048–8192 and ECDSA
+   P-256/P-384/P-521 are accepted. The parent sends only 32-byte SHA-256
+   digests (PKCS #1 v1.5 or ECDSA; PSS and other hashes are refused) and
+   verifies every signature against the certificate before returning it.
+5. **Errors.** Codes only (`pfx.malformed`, `pfx.unsupported`, `pfx.limit`,
+   `pfx.wrong_password`, `pfx.credential`, `pfx.worker`, `pfx.timeout`,
+   `pfx.closed`); no decoder message, path or file content leaves the worker.
+
+Tests generate every key, certificate and file in memory: Go encoders
+(Modern2023, Modern2026, LegacyDES, LegacyRC2) and OpenSSL (default,
+`-legacy`, SHA-512 MAC, unencrypted key, `-nomac` refused) sign through
+`SignExport` and verify with `VerifySignature`. They cover wrong passwords,
+malformed, truncated, trailing, BER and oversized files, cost limits, weak
+keys, a certificate that does not match the key, deadlines, cancellation,
+busy slots, a parent kept busy while workers exit, slots freed by a worker
+that exits, work counted per block, an empty password, hanging, slow and
+stalled workers, a wrong nonce, forged signatures,
+a substituted certificate and another program; on Linux they read the
+worker's `/proc` arguments, environment and open files. A fuzz target covers
+the preflight. Dependency: `software.sslmate.com/src/go-pkcs12` v0.7.3,
+BSD-3-Clause, checksum-pinned in go.sum.
+
 ## Independent tests and remaining integration
 
 An independently generated OpenSSL RSA/SHA-256 fixture contains only invented
@@ -66,7 +129,8 @@ credentials, ambiguous structures and limits. Browser tests cover three
 languages, light/dark themes and normal/small screens without library writes.
 
 Still required: Profile-scoped signing identity/preferences and legitimate
-local key access; safe PFX/P12 import and cleanup, OS store/token adapters;
+local key access; a PFX/P12 endpoint and UI on the bounded worker above,
+OS store/token adapters;
 Smart Export None/Visible/Digital/Complete and final-bytes ordering;
 interoperable PDF/PAdES; trust-root selection, revocation and trusted timestamps;
 signed research-package integration. None of these is established by the

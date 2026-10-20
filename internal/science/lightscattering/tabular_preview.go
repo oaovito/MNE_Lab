@@ -149,7 +149,7 @@ func InspectFileSelection(name string, data []byte, selection *model.ImportSelec
 		return result, "xlsx", preview
 	}
 	result, format := ParseFileSelection(name, data, normalized)
-	if (result.Status == "failed" && result.Error != ErrUnrecognized.Error()) || format != "nanobrook-text" {
+	if (result.Status == "failed" && result.Error != ErrUnrecognized.Error()) || format != "text" {
 		return result, format, nil
 	}
 	separator, tableFormat := rune(0), "csv"

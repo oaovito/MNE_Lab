@@ -76,7 +76,7 @@ func TestBrowserHarness(t *testing.T) {
 	workbook.SetSheetName("Sheet1", "Synthetic sheet")
 	for i, row := range [][]any{
 		{"Sample ID", "Synthetic workbook"}, {"Effective Diameter (nm)", 123.456},
-		{"Date", "2026-09-18 14:30:00"}, {"Diameter (nm)", "Intensity (%)"},
+		{"Measurement Date", "2026-09-18 14:30:00"}, {"Diameter (nm)", "Intensity (%)"},
 		{10, 10}, {20, 20}, {30, 70},
 	} {
 		cell, _ := excelize.CoordinatesToCellName(1, i+1)
@@ -130,7 +130,7 @@ func TestBrowserHarness(t *testing.T) {
 
 // synth writes a NanoBrook-like export with a log-normal distribution.
 func synth(sample string, at time.Time, mean, pdi float64, seed int) []byte {
-	s := fmt.Sprintf("NanoBrook 90Plus\nSample ID:\t%s\nDate:\t%s\nEffective Diameter (nm):\t%.2f\nPolydispersity:\t%.3f\nCurrent Count Rate:\t%.1f kcps\nBaseLine Index:\t%.1f\n\nDiameter (nm)\tIntensity (%%)\tVolume (%%)\tNumber (%%)\n",
+	s := fmt.Sprintf("NanoBrook 90Plus\nSample ID:\t%s\nMeasurement Date:\t%s\nEffective Diameter (nm):\t%.2f\nPolydispersity:\t%.3f\nCurrent Count Rate:\t%.1f kcps\nBaseLine Index:\t%.1f\n\nDiameter (nm)\tIntensity (%%)\tVolume (%%)\tNumber (%%)\n",
 		sample, at.Format("2006-01-02 15:04:05"), mean, pdi, 300+float64(seed%7)*4, 8.5+float64(seed%3)*0.3)
 	sig := 0.25 + pdi
 	type row struct{ d, i, v, n float64 }

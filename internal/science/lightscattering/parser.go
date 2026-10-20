@@ -30,7 +30,7 @@ import (
 )
 
 // Version identifies this parser in provenance records.
-const Version = "lightscattering-parser/1.4.0"
+const Version = "lightscattering-parser/1.5.0"
 
 // MaxFileSize bounds imports to keep parsing predictable on small machines.
 const MaxFileSize = 32 << 20
@@ -86,13 +86,13 @@ type alias struct {
 // Summary field aliases (normalized: lowercase, punctuation removed).
 var summaryAliases = []alias{
 	{model.EffectiveDiameter, []string{"effective diameter", "eff diameter", "eff diam", "effective diam", "effective dia"}},
-	{model.Polydispersity, []string{"polydispersity", "polydispersity index", "pdi", "polydisp", "poly"}},
-	{model.CountRate, []string{"current count rate", "count rate", "countrate", "current countrate"}},
+	{model.Polydispersity, []string{"polydispersity", "polydisp", "poly"}},
+	{model.CountRate, []string{"current count rate", "current countrate"}},
 	{model.AverageCountRate, []string{"average count rate", "avg count rate", "average countrate", "avg countrate"}},
 	{model.BaselineIndex, []string{"baseline index", "base line index", "baselineindex", "bl index", "baseline idx"}},
 	{model.SampleID, []string{"sample id", "sampleid", "sample name", "sample", "sample identifier", "sample identification"}},
-	{model.MeasuredAt, []string{"date time", "date and time", "measurement date", "measured", "date", "acquired", "timestamp", "date of measurement"}},
-	{"_time", []string{"time", "measurement time", "time of measurement"}},
+	{model.MeasuredAt, []string{"measurement date", "measured", "acquired", "date of measurement"}},
+	{"_time", []string{"measurement time", "time of measurement"}},
 }
 
 // Table column aliases.
@@ -128,30 +128,19 @@ func splitLabelUnit(label string) (string, string) {
 		if i := strings.LastIndex(label, p[0]); i > 0 && strings.HasSuffix(label, p[1]) {
 			u := strings.TrimSpace(label[i+1 : len(label)-1])
 			if u != "" && len(u) <= 12 {
-				return strings.TrimSpace(label[:i]), canonicalUnit(u)
+				return strings.TrimSpace(label[:i]), declaredUnit(u)
 			}
 		}
 	}
 	return label, ""
 }
 
-func canonicalUnit(u string) string {
-	switch strings.ToLower(strings.TrimSpace(u)) {
-	case "nm":
-		return "nm"
-	case "um", "µm", "μm":
-		return "µm"
-	case "kcps":
-		return "kcps"
-	case "mcps":
-		return "Mcps"
-	case "cps":
-		return "cps"
-	case "%":
-		return "%"
-	case "°c", "c", "deg c", "degc":
-		return "°C"
-	}
+// declaredUnit keeps a unit exactly as the file writes it,
+// without surrounding space. Spellings are never mapped onto one another:
+// "C" is not "°C", "mcps" is not "Mcps", "um" is not "µm". Units that differ
+// only in spelling therefore stay distinct, and combining them is refused
+// downstream as for any other mismatch.
+func declaredUnit(u string) string {
 	return strings.TrimSpace(u)
 }
 
@@ -463,13 +452,13 @@ func splitValueUnit(v string) (string, string) {
 	v = strings.TrimSpace(v)
 	fields := strings.Fields(v)
 	if len(fields) == 2 && unitPattern.MatchString(fields[1]) {
-		return fields[0], canonicalUnit(fields[1])
+		return fields[0], declaredUnit(fields[1])
 	}
 	for _, u := range []string{"nm", "kcps", "Kcps", "Mcps", "%"} {
 		if strings.HasSuffix(v, u) && len(v) > len(u) {
 			num := strings.TrimSpace(strings.TrimSuffix(v, u))
 			if isNumeric(num) {
-				return num, canonicalUnit(u)
+				return num, declaredUnit(u)
 			}
 		}
 	}
@@ -829,7 +818,7 @@ func tableColumns(header []string) []model.Column {
 			// "Intensity %" style headers.
 			if f := strings.Fields(base); len(f) == 2 && unitPattern.MatchString(f[1]) {
 				col.Key = lookup(columnAliases, f[0])
-				col.Unit = canonicalUnit(f[1])
+				col.Unit = declaredUnit(f[1])
 			}
 		}
 		if col.Key != "" {

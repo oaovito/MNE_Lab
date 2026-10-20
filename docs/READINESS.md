@@ -36,7 +36,8 @@ and comparison with a trustworthy reference, with stated tolerances.
 
 - Native XLS, scientific ODS import and distribution mapping with their own
   versioned contracts, safe reader behavior and appropriate reference evidence.
-- Smart Export signing integration, certificate/PFX/P12 handling and
+- Smart Export signing integration, a PFX/P12 endpoint and UI (the bounded
+  worker backend exists) and
   interoperable PDF verification. Native detached CMS signing infrastructure
   and the global read-only detached Verify panel are PARTIAL, independently
   compared with OpenSSL; see CMS_SIGNATURES.md. Obtaining a certificate alone does not

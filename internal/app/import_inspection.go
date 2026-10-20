@@ -91,7 +91,7 @@ func (p *Profile) InspectImportSelection(name string, data []byte, selection *mo
 	}
 	r, format, tabular := ingest.Inspect(name, data, selection)
 	out := ImportInspection{Tabular: tabular, Selection: selection, Name: name, SHA256: secure.HashHex(data), Format: format, Result: r, Measurements: len(r.Measurements), AccountID: p.acct.ID(), ProfileID: p.Entry.ID}
-	if format == "nanobrook-text" {
+	if format == "text" {
 		out.Format = "txt"
 		switch r.Delimiter {
 		case "tab":

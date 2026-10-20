@@ -354,7 +354,9 @@ export const ls: Record<string, readonly [string, string, string]> = {
   'files.delim.semicolon': ['semicolon-separated', 'separado por ponto e vírgula', 'separado por punto y coma'],
   'files.delim.comma': ['comma-separated', 'separado por vírgula', 'separado por comas'],
   'files.delim.whitespace': ['space-aligned', 'alinhado por espaços', 'alineado con espacios'],
-  'files.format.nanobrook-text': ['NanoBrook text export', 'Exportação de texto do NanoBrook', 'Exportación de texto de NanoBrook'],
+  'files.format.text': ['Text file', 'Arquivo de texto', 'Archivo de texto'],
+  // Files imported by earlier builds: the name never established the producer.
+  'files.format.nanobrook-text': ['Text file', 'Arquivo de texto', 'Archivo de texto'],
   'files.format.xlsx': ['Excel workbook', 'Pasta de trabalho Excel', 'Libro de Excel'],
   'files.format.ods': ['OpenDocument spreadsheet', 'Planilha OpenDocument', 'Hoja de cálculo OpenDocument'],
   'imp.readonly': ['Read-only preview', 'Prévia somente leitura', 'Vista previa de solo lectura'],

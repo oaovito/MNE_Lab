@@ -1,5 +1,5 @@
 Sample ID:  C3
-Date:  10/19/2026 10:00:00
+Measurement Date:  10/19/2026 10:00:00
 Effective Diameter (nm):  239.8
 Polydispersity:  0.171
 Current Count Rate (kcps):  305.2
@@ -58,7 +58,7 @@ Diameter (nm)    Intensity (%)
   10000.00        0.0000
 
 Sample ID:  C3
-Date:  10/19/2026 10:04:00
+Measurement Date:  10/19/2026 10:04:00
 Effective Diameter (nm):  243.1
 Polydispersity:  0.176
 Current Count Rate (kcps):  301.8

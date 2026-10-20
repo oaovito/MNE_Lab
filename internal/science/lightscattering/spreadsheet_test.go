@@ -24,7 +24,7 @@ func workbookFixture(t *testing.T, sheets ...string) []byte {
 		rows := [][]any{
 			{"Sample ID", "Synthetic " + sheet},
 			{"Effective Diameter (nm)", 234.125},
-			{"Date", "2026-09-18 14:30:00"},
+			{"Measurement Date", "2026-09-18 14:30:00"},
 			{"Diameter (nm)", "Intensity (%)"},
 			{50.0, 10.5}, {100.0, 50.0}, {200.0, 39.5},
 		}
@@ -143,7 +143,7 @@ func TestXLSXWorkbookMultilineRowProvenance(t *testing.T) {
 	data := workbookRowsFixture(t, [][]any{
 		{"Notes", "first line\nsecond line"},
 		{"Effective Diameter (nm)", 123.456},
-		{"Date", "2026-09-18 14:30:00"},
+		{"Measurement Date", "2026-09-18 14:30:00"},
 		{"Diameter (nm)", "Intensity (%)"},
 		{10, 10}, {20, 20}, {30, 70},
 	})
@@ -162,7 +162,7 @@ func TestXLSXFormulaAlternateWorksheetPath(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			data := workbookRowsFixture(t, [][]any{
 				{"Effective Diameter (nm)", 123.456},
-				{"Date", "2026-09-18 14:30:00"},
+				{"Measurement Date", "2026-09-18 14:30:00"},
 				{"Diameter (nm)", "Intensity (%)"},
 				{10, 10}, {20, 20}, {30, 70},
 			})
@@ -256,7 +256,7 @@ func TestXLSXWorkbookTextStringWriterBound(t *testing.T) {
 func TestXLSXWorkbookBooleanNotScientificNumber(t *testing.T) {
 	data := workbookRowsFixture(t, [][]any{
 		{"Effective Diameter (nm)", true},
-		{"Date", "2026-09-18 14:30:00"},
+		{"Measurement Date", "2026-09-18 14:30:00"},
 		{"Diameter (nm)", "Intensity (%)"},
 		{10, 10}, {20, 20}, {30, 70},
 	})

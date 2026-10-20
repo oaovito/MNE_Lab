@@ -53,7 +53,7 @@ func TestTabDelimitedFullExport(t *testing.T) {
 	// Unrecognized field kept verbatim, never dropped.
 	found := false
 	for _, f := range m.Fields {
-		if f.Label == "Temperature (C)" && f.Key == "" && f.Unit == "°C" && *f.Num == 25 {
+		if f.Label == "Temperature (C)" && f.Key == "" && f.Unit == "C" && *f.Num == 25 {
 			found = true
 		}
 	}
@@ -237,7 +237,7 @@ func TestQuotedTabularRecords(t *testing.T) {
 				return strings.Join(cells, tc.separator) + "\n"
 			}
 			src := quoted("Sample ID", "Synthetic "+tc.separator+` "sample"`) +
-				quoted("Date", "2026-10-19 09:05:00") +
+				quoted("Measurement Date", "2026-10-19 09:05:00") +
 				quoted("Effective Diameter (nm)", tc.number) +
 				quoted("Polydispersity", "0"+tc.decimal+"12") +
 				quoted("Notes", "first line\nsecond line") +
@@ -274,7 +274,7 @@ func TestQuotedTabularRecords(t *testing.T) {
 
 func TestTabularSummaryWithoutDistribution(t *testing.T) {
 	for _, separator := range []string{",", ";", "\t"} {
-		src := strings.ReplaceAll("Effective Diameter (nm)|200.50\nPolydispersity|0.12\nDate|2026-10-19 09:05:00\n", "|", separator)
+		src := strings.ReplaceAll("Effective Diameter (nm)|200.50\nPolydispersity|0.12\nMeasurement Date|2026-10-19 09:05:00\n", "|", separator)
 		r := Parse([]byte(src))
 		if r.Status != "partial" || len(r.Measurements) != 1 || r.Measurements[0].Dist != nil || r.Measurements[0].MeasuredAt == nil {
 			t.Fatalf("separator %q: %+v", separator, r)
@@ -368,7 +368,7 @@ func TestTextStructureLimits(t *testing.T) {
 
 func TestWrongDelimiterLimitDoesNotRejectTextValues(t *testing.T) {
 	note := strings.Repeat("note,", maxTextColumns+100)
-	src := "Effective Diameter (nm)\t200.5\nDate\t2026-10-19 09:05:00\nNotes\t" + note +
+	src := "Effective Diameter (nm)\t200.5\nMeasurement Date\t2026-10-19 09:05:00\nNotes\t" + note +
 		"\nDiameter (nm)\tIntensity (%)\n10\t10\n20\t20\n30\t70\n"
 	r := Parse([]byte(src))
 	if r.Status != "parsed" || r.Delimiter != "tab" || len(r.Measurements) != 1 || r.Measurements[0].Dist == nil {
@@ -387,5 +387,62 @@ func TestWrongDelimiterLimitDoesNotRejectTextValues(t *testing.T) {
 	// allocating an array for every separator of an incompatible record.
 	if _, _, ok := splitKeyValue("Notes\t" + strings.Repeat("value\t", maxTextColumns+100)); ok {
 		t.Fatal("a multi-column record was treated as one scalar")
+	}
+}
+
+// Units are kept as the file declares them; no spelling is mapped onto
+// another, so a file never gains a unit it did not state.
+func TestDeclaredUnitsAreNotRewritten(t *testing.T) {
+	src := "Effective Diameter (um): 0.2\nCurrent Count Rate: 312.4 Kcps\nTemperature (c): 25.0\n\nDiameter (NM)\tIntensity (%)\n10.00\t0.5\n11.51\t0.5\n"
+	r := Parse([]byte(src))
+	if len(r.Measurements) != 1 {
+		t.Fatalf("%+v", r)
+	}
+	m := r.Measurements[0]
+	if q := param(t, m, model.EffectiveDiameter); q.Unit != "um" {
+		t.Fatalf("diameter unit %q", q.Unit)
+	}
+	if q := param(t, m, model.CountRate); q.Unit != "Kcps" || q.Value != 312.4 {
+		t.Fatalf("count rate %+v", q)
+	}
+	found := false
+	for _, f := range m.Fields {
+		found = found || f.Label == "Temperature (c)" && f.Unit == "c"
+	}
+	if !found {
+		t.Fatalf("temperature unit rewritten: %+v", m.Fields)
+	}
+	if c := m.Dist.Column("diameter"); c == nil || c.Unit != "NM" {
+		t.Fatalf("distribution columns %+v", m.Dist)
+	}
+}
+
+// Labels that do not say which quantity or which time they hold are kept as
+// unmapped fields, never read as a known one.
+func TestAmbiguousLabelsStayUnmapped(t *testing.T) {
+	src := "Effective Diameter (nm): 200.5\nCount Rate: 312.4\nPDI: 0.12\nPolydispersity Index: 0.13\nDate: 2026-10-19 09:05:00\nTime: 09:05:00\nTimestamp: 2026-10-19 09:05:00\n"
+	r := Parse([]byte(src))
+	if len(r.Measurements) != 1 {
+		t.Fatalf("%+v", r)
+	}
+	m := r.Measurements[0]
+	if m.MeasuredAt != nil {
+		t.Fatalf("time read from an ambiguous label: %+v", m.MeasuredAt)
+	}
+	for _, k := range []string{model.CountRate, model.AverageCountRate, model.Polydispersity} {
+		if _, ok := m.Params[k]; ok {
+			t.Fatalf("%s read from an ambiguous label", k)
+		}
+	}
+	unmapped := map[string]bool{}
+	for _, f := range m.Fields {
+		if f.Key == "" {
+			unmapped[f.Label] = true
+		}
+	}
+	for _, label := range []string{"Count Rate", "PDI", "Polydispersity Index", "Date", "Time", "Timestamp"} {
+		if !unmapped[label] {
+			t.Fatalf("%s not kept as an unmapped field: %+v", label, m.Fields)
+		}
 	}
 }

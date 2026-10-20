@@ -103,3 +103,16 @@ func TestNanoBrookMarkerNeedsInstrumentIdentity(t *testing.T) {
 		t.Fatal("generic numeric data promoted to native instrument format")
 	}
 }
+
+// A text file is recorded as text: its name or content never establishes
+// the instrument that produced it, and a failed file is not labeled either.
+func TestTextFormatNamesNoProducer(t *testing.T) {
+	for name, data := range map[string]string{
+		"generic.txt": "Effective Diameter (nm): 200.5\n",
+		"failed.csv":  "\x00\x01\x02",
+	} {
+		if _, format := ParseFile(name, []byte(data)); format != "text" {
+			t.Fatalf("%s: format %q", name, format)
+		}
+	}
+}

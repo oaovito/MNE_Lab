@@ -21,6 +21,7 @@ import (
 	"github.com/oaovito/mne_lab/internal/restartpipe"
 	"github.com/oaovito/mne_lab/internal/secure"
 	"github.com/oaovito/mne_lab/internal/shell"
+	"github.com/oaovito/mne_lab/internal/signature/pfx"
 	"github.com/oaovito/mne_lab/internal/store"
 	"github.com/oaovito/mne_lab/internal/version"
 	"github.com/oaovito/mne_lab/web"
@@ -32,6 +33,11 @@ func init() {
 }
 
 func main() {
+	// A credential worker reads only its pipes; it touches no flag, setting
+	// or file of the application.
+	if len(os.Args) == 2 && os.Args[1] == pfx.WorkerFlag {
+		os.Exit(pfx.Serve(os.Stdin, os.Stdout))
+	}
 	root := flag.String("root", "", "portable installation folder (set by the launcher)")
 	build := flag.String("build", "", "build folder name (set by the launcher)")
 	session := flag.String("session", "", "Temporary Mode session folder to resume after a restart")

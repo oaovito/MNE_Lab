@@ -63,9 +63,9 @@ func ParseFileSelection(name string, data []byte, selection *model.ImportSelecti
 		return parseXLSXSelection(data, selection), "xlsx"
 	}
 	if selection != nil {
-		return spreadsheetFailure(ErrImportSelection), "nanobrook-text"
+		return spreadsheetFailure(ErrImportSelection), "text"
 	}
-	return Parse(data), "nanobrook-text"
+	return Parse(data), "text"
 }
 
 func spreadsheetFailure(err error) Result {

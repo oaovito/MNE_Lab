@@ -711,6 +711,8 @@ const THIRD_PARTY: [string, string][] = [
   ['godbus/dbus', 'BSD-2-Clause'],
   ['mscfb, msoleps', 'Apache-2.0'],
   ['go-deepcopy', 'MIT'],
+  ['digitorus/pkcs7', 'MIT'],
+  ['go-pkcs12', 'BSD-3-Clause'],
   ['Go x/crypto, x/image, x/net, x/sys, x/text', 'BSD-3-Clause'],
 ];
 

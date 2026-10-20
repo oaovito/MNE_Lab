@@ -150,7 +150,7 @@ desenhar um gráfico ou verificar uma assinatura não satisfaz esse critério.
 | NTA | ARCHITECTURE / PREPARATION ALLOWED | Sem fixture real de resultado NTA | SCIENTIFIC VALIDATION PENDING | NanoSight version/schema/settings, exports e referências; timebase/calibration/trajectories/algoritmo se cálculo tracking for implementado |
 | Pesquisa de formatos LIGHTSCATTERING | PARTIAL / VERSION-SPECIFIC | Cinco PDFs oficiais consultados e matriz de conflitos/evidência | Não valida algoritmo nem todos os formatos nativos | Build/configuração real, versões históricas, exemplares genuínos e contratos serializados |
 | Integridade de research package | PARTIAL backend `/2`, leitura `/1` | Fixtures independentes, alterações de payload/index/CRC, paths e bounds | Não se aplica; `Authenticated=false` | UI global, signed manifest e integração autenticada dos pacotes |
-| CMS detached Sign/Verify | PARTIAL backend e painel global Verify | OpenSSL independente RSA/ECDSA bidirecional; trust/time/content/structure e navegador | Não se aplica | PFX/P12 bounded, identidade/profile, Smart Export, Visible/Complete, PDF/PAdES, revogação e timestamps |
+| CMS detached Sign/Verify | PARTIAL backend e painel global Verify | OpenSSL independente RSA/ECDSA bidirecional; trust/time/content/structure e navegador | Não se aplica | Endpoint/UI sobre o worker PFX/P12 bounded (backend existe), identidade/profile, Smart Export, Visible/Complete, PDF/PAdES, revogação e timestamps |
 | Cloud providers | Infraestrutura/adapters e folder transport | Servidores locais, offline, sync/conflicts/readback | Não se aplica | Registrations oficiais e validação contra serviços reais |
 | Updater, LockedBuild e launcher | Infraestrutura implementada | Manifests/hashes/schema, staging, rollback e chaves de teste | Não se aplica | Identidade oficial e artefatos Stable após gates |
 | Distribuição Windows/Linux/macOS | Builds e draft Windows de teste | Cross-builds, CI nativo Windows/macOS; Windows draft upload/download comparados | Não se aplica | GUI/USB real, bootstrap, source reprodutível, licença e signing oficiais |
@@ -210,11 +210,11 @@ configuração 90Plus nem escolhas de exportação PS2.3 para PS4 sem prova.
 
 ## Roadmap de desenvolvimento
 
-1. **Assinatura local bounded:** definir preflight de custo ou worker nativo
-   isolado antes de expor PFX/P12. Controlar tamanho, custo, lifetime,
-   cancelamento e input/output; secrets só em memória/pipes, sem passwords ou
-   chaves em args, logs, paths, store, sync, backup, recovery ou pacotes. Um
-   decoder de PKCS12 sem work cap não pode executar diretamente no handler.
+1. **Assinatura local bounded:** backend feito (`internal/signature/pfx`):
+   pré-checagem sem senha e worker isolado com prazos, vagas e limites; ver
+   CMS_SIGNATURES.md. Secrets só em memória/pipes, sem passwords ou chaves em
+   args, logs, paths, store, sync, backup, recovery ou pacotes. Handlers usam
+   `pfx.Open`, nunca o decoder PKCS12 diretamente.
 2. **Smart Export signing:** ligar identidade/preferences ao Profile sem
    persistir private keys no storage do Profile. Finalizar overlays antes de
    hash/sign; implementar None/Visible/Digital/Complete com comportamento

@@ -1,8 +1,11 @@
 # DLS evidence and validation scope
 
-The current parser is `lightscattering-parser/1.4.0`, with
+The current parser is `lightscattering-parser/1.5.0`, with
 `ls-spec/0.3-provisional`. The evidence below tests faithful extraction from
-the available private reports. It does not validate the instrument's acquisition
+the available private reports with version 1.4.0; it was not re-run for 1.5.0,
+which only stops reading ambiguous labels (`Count Rate`, `PDI`, a bare
+`Date`/`Time`) and keeps declared units as written. The labels compared below
+are read the same way. It does not validate the instrument's acquisition
 or analysis algorithms. Original files, identifiers, values and per-file proofs
 remain in the private recovery package, outside the repository and builds.
 
