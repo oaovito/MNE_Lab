@@ -55,6 +55,9 @@ func main() {
 // download fetches one pinned archive. A transfer that ends early or returns
 // other bytes is retried a few times; only bytes matching the pinned size and
 // SHA-256 are ever returned.
+// maxPackage bounds one package download.
+const maxPackage = 256 << 20
+
 func download(client *http.Client, p pin) ([]byte, error) {
 	var last error
 	for attempt := 1; attempt <= 3; attempt++ {
@@ -66,7 +69,9 @@ func download(client *http.Client, p pin) ([]byte, error) {
 			last = err
 			continue
 		}
-		data, err := io.ReadAll(io.LimitReader(response.Body, p.Size+1))
+		// The whole body is read, within a bound, so that a mismatch names
+		// what the server now publishes and can be told from a bad transfer.
+		data, err := io.ReadAll(io.LimitReader(response.Body, maxPackage))
 		response.Body.Close()
 		switch {
 		case response.StatusCode != http.StatusOK:
@@ -74,7 +79,9 @@ func download(client *http.Client, p pin) ([]byte, error) {
 		case err != nil:
 			last = err
 		case !pinned(p, data):
-			last = fmt.Errorf("package checksum mismatch: %s (received %d of %d bytes)", p.Package, len(data), p.Size)
+			digest := sha256.Sum256(data)
+			last = fmt.Errorf("package checksum mismatch: %s (received %d bytes, sha256 %x, last modified %q; pinned %d bytes, sha256 %s)",
+				p.Package, len(data), digest, response.Header.Get("Last-Modified"), p.Size, p.SHA256)
 		default:
 			return data, nil
 		}
