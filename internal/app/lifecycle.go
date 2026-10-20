@@ -369,7 +369,34 @@ func (a *App) saveAccountRecovery(accountID, src string) error {
 	}
 	// Earlier generations can contain work never restored in this session.
 	// They remain discoverable until individually restored and verified.
+	// The one this session was restored from is contained in the new package
+	// and is removed, so repeated offline exits do not pile up copies.
+	a.dropRestoredGeneration(src, dst, previous)
 	return syncRecoveryDirectory(a.L.Recovery)
+}
+
+// dropRestoredGeneration removes the recovery package an account was
+// restored from, once a newer package of that account was published, if it
+// is still exactly what was restored.
+func (a *App) dropRestoredGeneration(src, dst, previous string) {
+	var origin recoveryOrigin
+	if recovered, err := atomicfile.ReadJSON(filepath.Join(src, "recovery-origin.json"), &origin); err != nil || recovered || origin.Digest == "" {
+		return
+	}
+	path := origin.Source
+	if path == dst {
+		path = previous // the restored package was moved aside just now
+	}
+	inside := false
+	for _, root := range a.recoveryRoots() {
+		inside = inside || filepath.Dir(path) == root
+	}
+	if !inside || path == dst {
+		return
+	}
+	if digest, err := recoveryDigest(path); err == nil && digest == origin.Digest {
+		os.RemoveAll(path)
+	}
 }
 
 // Recovery describes unsynchronized work kept from an earlier session.
@@ -515,11 +542,12 @@ func (a *App) DiscardStaleSessions(accountID string) {
 	a.mu.Lock()
 	acct, p := a.acct, a.prof
 	a.mu.Unlock()
-	if acct == nil || acct.ID() != accountID || p == nil {
+	if acct == nil || acct.ID() != accountID {
 		return
 	}
-	profiles := acct.Profiles()
-	if len(profiles) != 1 || len(a.pendingProfiles(acct)) > 0 || !p.Verified() || p.Entry.ID != profiles[0].ID {
+	// Every profile, open or not, must have a verified synchronization that
+	// covers its current files; the open one must also have just verified.
+	if len(a.pendingProfiles(acct)) > 0 || (p != nil && !p.Verified()) {
 		return
 	}
 	var origin recoveryOrigin

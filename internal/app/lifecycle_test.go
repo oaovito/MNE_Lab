@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -562,5 +563,91 @@ func TestFailedRestoreDoesNotPublishPartialAccount(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(src, "a.enc")); err != nil {
 		t.Fatal("original recovery was lost")
+	}
+}
+
+func TestDiscardCoversEveryProfileOfTheAccount(t *testing.T) {
+	base := t.TempDir()
+	stale := filepath.Join(base, paths.SessionPrefix+"interrupted")
+	v := vault.New(filepath.Join(stale, "data", "accounts"))
+	v.KDF = fastKDF
+	acct, _, err := v.Create("Lab", "account passphrase", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries []vault.ProfileEntry
+	for _, name := range []string{"Ana", "Bia"} {
+		e, err := acct.CreateProfile(vault.ProfileInput{Username: name, StorageMode: vault.StorageCloudOnly, Provider: provider.Google})
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries = append(entries, e)
+	}
+	b := lifecycleApp(t, paths.Temporary, base)
+	if err := b.RestoreRecovery(acct.ID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.UnlockAccount(acct.ID(), "account passphrase", false); err != nil {
+		t.Fatal(err)
+	}
+	cloud := provider.NewFolder(provider.Google, t.TempDir())
+	for i, e := range entries {
+		p, err := b.OpenProfile(e.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		close(p.stop)
+		<-p.stopped
+		if i == 0 {
+			// One profile synchronized is not enough.
+			b.DiscardStaleSessions(acct.ID())
+			if _, err := os.Stat(acct.Dir()); err != nil {
+				t.Fatal("discarded before every profile was synchronized")
+			}
+		}
+		p.setProvider(lifecycleAPI{cloud})
+		if _, err := p.Sync(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b.DiscardStaleSessions(acct.ID())
+	if _, err := os.Stat(acct.Dir()); !os.IsNotExist(err) {
+		t.Fatalf("verified multi-profile source not discarded: %v", err)
+	}
+}
+
+func TestExitAfterRestoreReplacesTheRestoredGeneration(t *testing.T) {
+	base := t.TempDir()
+	a := lifecycleApp(t, paths.Temporary, base)
+	if _, _, err := a.CreateAccount("Lab", "account passphrase", false); err != nil {
+		t.Fatal(err)
+	}
+	id := a.acct.ID()
+	if err := os.WriteFile(filepath.Join(a.acct.Dir(), "only-copy.enc"), []byte("first session"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.saveRecovery(a.acct); err != nil {
+		t.Fatal(err)
+	}
+	a.Close()
+	for i := 0; i < 3; i++ {
+		b := lifecycleApp(t, paths.Temporary, base)
+		if err := b.RestoreRecovery(id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := b.UnlockAccount(id, "account passphrase", false); err != nil {
+			t.Fatal(err)
+		}
+		acct := b.acct
+		if err := os.WriteFile(filepath.Join(acct.Dir(), "only-copy.enc"), []byte(fmt.Sprintf("session %d", i)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.saveRecovery(acct); err != nil {
+			t.Fatal(err)
+		}
+		if packages := b.recoveryPackages(id); len(packages) != 1 {
+			t.Fatalf("exit %d kept %d generations", i, len(packages))
+		}
+		b.Close()
 	}
 }
