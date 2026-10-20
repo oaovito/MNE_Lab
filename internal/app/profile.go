@@ -359,13 +359,17 @@ func (p *Profile) loop(stop, stopped chan struct{}) {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(p.app.ctx, 5*time.Minute)
-		p.Sync(ctx)
+		p.sync(ctx, true)
 		cancel()
 	}
 }
 
-// Sync runs one synchronization (records, blobs, account files).
-func (p *Profile) Sync(ctx context.Context) (SyncStatus, error) {
+// Sync runs one synchronization (records, blobs, account files) that also
+// checks every copy the cloud should hold. The periodic loop runs a light
+// pass instead, which checks only what changed.
+func (p *Profile) Sync(ctx context.Context) (SyncStatus, error) { return p.sync(ctx, false) }
+
+func (p *Profile) sync(ctx context.Context, light bool) (SyncStatus, error) {
 	p.syncMu.Lock()
 	defer p.syncMu.Unlock()
 	if p.paused.Load() || p.closed.Load() {
@@ -381,7 +385,11 @@ func (p *Profile) Sync(ctx context.Context) (SyncStatus, error) {
 	done := p.app.begin("sync")
 	defer done()
 	p.setState(SyncSyncing, "")
-	_, err := eng.Run(ctx)
+	run := eng.Run
+	if light {
+		run = eng.RunLight
+	}
+	_, err := run(ctx)
 	if err == nil {
 		_, err = syncer.SyncAccount(ctx, prov, p.acct, map[string]bool{p.Entry.ID: true})
 	}

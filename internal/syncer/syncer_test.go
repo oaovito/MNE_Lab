@@ -468,3 +468,67 @@ func TestRestoredRecordsAreNotReplacedByTheCloud(t *testing.T) {
 		t.Fatalf("after sync: %+v", s)
 	}
 }
+
+type counting struct {
+	provider.Provider
+	mu            sync.Mutex
+	reads, writes int
+}
+
+func (c *counting) Read(ctx context.Context, name string) ([]byte, error) {
+	c.mu.Lock()
+	c.reads++
+	c.mu.Unlock()
+	return c.Provider.Read(ctx, name)
+}
+
+func (c *counting) Write(ctx context.Context, name string, b []byte) (provider.Object, error) {
+	c.mu.Lock()
+	c.writes++
+	c.mu.Unlock()
+	return c.Provider.Write(ctx, name, b)
+}
+
+func (c *counting) take() (int, int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	r, w := c.reads, c.writes
+	c.reads, c.writes = 0, 0
+	return r, w
+}
+
+func TestLightPassDoesNotDownloadConfirmedCopies(t *testing.T) {
+	cloud := &counting{Provider: provider.NewFolder(provider.Google, t.TempDir())}
+	pdk := secure.NewKey()
+	a := newMachine(t, "A", pdk, cloud)
+	ctx := context.Background()
+	for _, id := range []string{"g1", "g2", "g3"} {
+		put(t, a, id, map[string]any{"title": id})
+	}
+	a.st.Update(func(tx *store.Tx) error { _, err := tx.PutBlob([]byte("original file bytes")); return err })
+	if _, err := a.eng.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	cloud.take()
+	if _, err := a.eng.RunLight(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r, w := cloud.take(); r != 0 || w != 0 {
+		t.Fatalf("light pass on unchanged data: %d reads, %d writes", r, w)
+	}
+	// A change is still uploaded and read back.
+	put(t, a, "g2", map[string]any{"title": "changed"})
+	if _, err := a.eng.RunLight(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r, w := cloud.take(); r != 1 || w != 1 {
+		t.Fatalf("light pass on one change: %d reads, %d writes", r, w)
+	}
+	// The full pass downloads and checks every copy.
+	if _, err := a.eng.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := cloud.take(); r != 4 {
+		t.Fatalf("full pass read %d copies, want 4", r)
+	}
+}

@@ -95,7 +95,9 @@ func SyncAccount(ctx context.Context, p provider.Provider, a *vault.Account, pro
 	// Index: union merge, then publish the merged result. The merge runs
 	// first because the remote index can carry a passphrase change made on
 	// another machine; the header published below must already include it.
+	var remoteIndex []byte
 	if remote, err := p.Read(ctx, base+"/index.enc"); err == nil {
+		remoteIndex = remote
 		idx, err := a.OpenIndex(remote)
 		if err != nil {
 			return false, err
@@ -124,8 +126,11 @@ func SyncAccount(ctx context.Context, p provider.Provider, a *vault.Account, pro
 	if err != nil {
 		return changed, err
 	}
-	if err := writeAccountFile(ctx, p, base+"/index.enc", sealed); err != nil {
-		return changed, err
+	// The index just read is authentic and current when it is identical.
+	if !bytes.Equal(remoteIndex, sealed) {
+		if err := writeAccountFile(ctx, p, base+"/index.enc", sealed); err != nil {
+			return changed, err
+		}
 	}
 	// Avatar names identify their expected content; verify the bytes too.
 	objs, err := p.List(ctx, base+"/avatars")

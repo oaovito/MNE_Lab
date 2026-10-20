@@ -82,7 +82,10 @@ interface translates.
 - Storage Modes: USB Drive + Cloud, USB Drive Only, Cloud Only.
 - Run modes: Portable USB Mode and Temporary Machine Mode, with detection,
   cleanup and recovery.
-- Sync engine, queue, conflicts, offline work; folder transport for the
+- Sync engine, queue, conflicts, offline work. Periodic passes upload,
+  download and verify only what changed; exits, profile switches and Sync
+  Now also download and authenticate every copy the cloud should hold, and
+  an unchanged account index is not uploaded again; folder transport for the
   providers' desktop apps; API transports for Google Drive and OneDrive
   (OAuth 2.0 with PKCE) and for iCloud (CloudKit Web Services).
 - Backups (automatic, manual, on exit), verification and restore. In a

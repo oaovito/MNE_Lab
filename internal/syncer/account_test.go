@@ -177,3 +177,25 @@ func TestSignInOnAnotherMachine(t *testing.T) {
 		t.Fatalf("merge: changed=%v err=%v n=%d", changed, err, len(a.Profiles()))
 	}
 }
+
+func TestUnchangedAccountIsNotUploadedAgain(t *testing.T) {
+	cloud := &counting{Provider: provider.NewFolder(provider.Google, t.TempDir())}
+	a, _, err := fastVault(t).Create("Lab", "lab passphrase", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.CreateProfile(vault.ProfileInput{Username: "Ana", StorageMode: vault.StorageCloudOnly, Provider: provider.Google,
+		Avatar: []byte("avatar file"), AvatarType: "image/png"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SyncAccount(context.Background(), cloud, a, nil); err != nil {
+		t.Fatal(err)
+	}
+	cloud.take()
+	if _, err := SyncAccount(context.Background(), cloud, a, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, w := cloud.take(); w != 0 {
+		t.Fatalf("unchanged account uploaded %d files again", w)
+	}
+}

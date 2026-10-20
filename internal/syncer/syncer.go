@@ -196,9 +196,17 @@ func (e *Engine) push(ctx context.Context, r store.Record, rk string, parents []
 	return nil
 }
 
-// Run performs one synchronization pass. It is safe to interrupt at any
-// point and to run again.
-func (e *Engine) Run(ctx context.Context) (Report, error) {
+// Run performs one synchronization pass that also downloads and
+// authenticates every record and blob the cloud is expected to hold. It is
+// safe to interrupt at any point and to run again.
+func (e *Engine) Run(ctx context.Context) (Report, error) { return e.run(ctx, false) }
+
+// RunLight is a periodic pass: it uploads, downloads and verifies what
+// changed, but does not download again records and blobs already confirmed
+// unchanged in the cloud. Run, before an exit or on request, checks those.
+func (e *Engine) RunLight(ctx context.Context) (Report, error) { return e.run(ctx, true) }
+
+func (e *Engine) run(ctx context.Context, light bool) (Report, error) {
 	rep := Report{At: time.Now().UTC()}
 	objs, err := e.Prov.List(ctx, e.Prefix+"/r")
 	if err != nil {
@@ -226,7 +234,7 @@ func (e *Engine) Run(ctx context.Context) (Report, error) {
 		}
 		rk := e.rk(r.Key())
 		seen[rk] = true
-		if err := e.reconcile(ctx, r, rk, remote[rk], &rep); err != nil {
+		if err := e.reconcile(ctx, r, rk, remote[rk], light, &rep); err != nil {
 			e.Log.Warn("sync record failed", "rk", rk[:8], "err", err.Error())
 			if firstErr == nil {
 				firstErr = err
@@ -251,7 +259,7 @@ func (e *Engine) Run(ctx context.Context) (Report, error) {
 			}
 		}
 	}
-	if err := e.syncBlobs(ctx, &rep); err != nil {
+	if err := e.syncBlobs(ctx, light, &rep); err != nil {
 		return rep, err
 	}
 	e.cleanQueue()
@@ -269,7 +277,7 @@ func versionByHash(vs []version, h string) (version, bool) {
 	return version{}, false
 }
 
-func (e *Engine) reconcile(ctx context.Context, r store.Record, rk string, vs []version, rep *Report) error {
+func (e *Engine) reconcile(ctx context.Context, r store.Record, rk string, vs []version, light bool, rep *Report) error {
 	lh, bh := sh(r.Hash), sh(r.Base)
 	if r.Sync == store.StateConflict {
 		rep.Conflicts++
@@ -288,6 +296,9 @@ func (e *Engine) reconcile(ctx context.Context, r store.Record, rk string, vs []
 		rep.Pushed++
 		return e.confirm(r)
 	case len(hs) == 1 && hs[0] == lh:
+		if light && r.Sync == store.StateConfirmed && r.Base == r.Hash {
+			return nil // authenticated when it was confirmed
+		}
 		// A content-addressed name establishes which version is expected,
 		// not whether the provider still holds authentic, complete bytes.
 		v, _ := versionByHash(vs, lh)
@@ -535,7 +546,7 @@ func (e *Engine) fetchBlob(ctx context.Context, id string) ([]byte, error) {
 	return pt, nil
 }
 
-func (e *Engine) syncBlobs(ctx context.Context, rep *Report) error {
+func (e *Engine) syncBlobs(ctx context.Context, light bool, rep *Report) error {
 	objs, err := e.Prov.List(ctx, e.Prefix+"/b")
 	if err != nil {
 		return err
@@ -564,6 +575,9 @@ func (e *Engine) syncBlobs(ctx context.Context, rep *Report) error {
 			continue
 		}
 		if _, ok := remote[id]; ok {
+			if light {
+				continue
+			}
 			if _, err := e.fetchBlob(ctx, id); err != nil {
 				e.markOps(id, err)
 				return err
