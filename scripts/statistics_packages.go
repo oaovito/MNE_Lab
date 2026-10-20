@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -115,6 +116,9 @@ func assemble(manifest, cache, out string) error {
 	files := map[string][]byte{}
 	var total int64
 	client := &http.Client{Timeout: 90 * time.Second}
+	// Every pin is checked before failing, so one build names all packages
+	// the host republished.
+	var mismatches []error
 	for _, p := range m.Packages {
 		if path.Base(p.File) != p.File || p.Size <= 0 || p.Size > 32<<20 || len(p.SHA256) != 64 || !strings.HasPrefix(p.URL, "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/") {
 			return fmt.Errorf("invalid pin: %s", p.Package)
@@ -123,12 +127,14 @@ func assemble(manifest, cache, out string) error {
 		data, readErr := os.ReadFile(archive)
 		if os.IsNotExist(readErr) {
 			if data, err = download(client, p); err != nil {
-				return err
+				mismatches = append(mismatches, err)
+				continue
 			}
 		} else if readErr != nil {
 			return readErr
 		} else if !pinned(p, data) {
-			return fmt.Errorf("package checksum mismatch: %s (cached copy)", p.Package)
+			mismatches = append(mismatches, fmt.Errorf("package checksum mismatch: %s (cached copy)", p.Package))
+			continue
 		}
 		if readErr != nil {
 			if err = os.WriteFile(archive, data, 0600); err != nil {
@@ -181,6 +187,9 @@ func assemble(manifest, cache, out string) error {
 		if err = gz.Close(); err != nil {
 			return err
 		}
+	}
+	if len(mismatches) > 0 {
+		return errors.Join(mismatches...)
 	}
 	if err = os.MkdirAll(out, 0700); err != nil {
 		return err

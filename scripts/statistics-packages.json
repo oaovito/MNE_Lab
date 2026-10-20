@@ -115,8 +115,8 @@
       "version": "1.2-4",
       "url": "https://repo.r-wasm.org/bin/emscripten/contrib/4.6/mvtnorm_1.2-4.tgz",
       "file": "mvtnorm_1.2-4.tgz",
-      "size": 652763,
-      "sha256": "ae2c5c562144af25eabce27ebaba8f80767c104a28d9977599cf19f1efa9df45",
+      "size": 652913,
+      "sha256": "2ad91c5eacf59295585e8f627c4e99125d8c0ae9d13fe2fca97616975bcb27f1",
       "license": "GPL-2",
       "source": {
         "package": "mvtnorm",
