@@ -75,7 +75,6 @@ Results name objects or positions only; contents stay in the scratch folder.
 Limits fail the inspection rather than skipping any content.
 """
 import bz2
-import gzip
 import io
 import lzma
 import os
@@ -86,6 +85,7 @@ import sys
 import tarfile
 import unicodedata
 import zipfile
+import zlib
 
 LIMIT = 512 * 1024 * 1024
 ZIP_MAGIC = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
@@ -95,7 +95,11 @@ ZIP_SUFFIXES = tuple("." + suffix for suffix in (
 ).split())
 # Compressed streams that are expanded, and formats that cannot be read here
 # and therefore fail the inspection instead of passing unread.
-STREAMS = ((b"\x1f\x8b", gzip.decompress), (b"BZh", bz2.decompress), (b"\xfd7zXZ\x00", lzma.decompress))
+STREAMS = (
+    (b"\x1f\x8b", lambda: zlib.decompressobj(31)),
+    (b"BZh", bz2.BZ2Decompressor),
+    (b"\xfd7zXZ\x00", lzma.LZMADecompressor),
+)
 UNREADABLE = (b"7z\xbc\xaf\x27\x1c", b"Rar!\x1a\x07", b"\x28\xb5\x2f\xfd", b"\x04\x22\x4d\x18", b"MSCF")
 # UTF-16 text runs, as strings -e l and -e b find them.
 UTF16 = (re.compile(rb"(?:[\t\x20-\x7e]\x00){6,}"), re.compile(rb"(?:\x00[\t\x20-\x7e]){6,}"))
@@ -161,6 +165,30 @@ def kind(names, head, source):
     return None
 
 
+def expand(content, limit):
+    """Expand concatenated compressed streams within limit bytes.
+
+    Bytes after the last stream, such as data appended to a compressed file,
+    are kept as they are so they are still matched.
+    """
+    out = bytearray()
+    while content:
+        start = next((new for magic, new in STREAMS if content.startswith(magic)), None)
+        if start is None:
+            out += content
+            break
+        stream = start()
+        out += stream.decompress(content, limit + 1 - len(out))
+        if len(out) > limit:
+            raise ValueError("archive expansion limit")
+        if not stream.eof:
+            raise ValueError("truncated compressed stream")
+        content = stream.unused_data
+    if len(out) > limit:
+        raise ValueError("archive expansion limit")
+    return bytes(out)
+
+
 def utf16(content):
     """UTF-16 text runs of content, decoded to bytes for matching."""
     runs = [run.replace(b"\x00", b"") for pattern in UTF16 for run in pattern.findall(content)]
@@ -192,15 +220,10 @@ def inspect(raw, names, data, how):
         if how == "unreadable":
             raise ValueError("archive format cannot be inspected")
         if how == "stream":
-            for magic, expand in STREAMS:
-                if content.startswith(magic):
-                    expanded = expand(content)
-                    if total + len(expanded) > LIMIT:
-                        raise ValueError("archive expansion limit")
-                    # A stream has no member names; its content is judged
-                    # as a member of the file that holds it.
-                    member("", expanded, depth)
-                    return
+            # A stream has no member names; its content is judged as a
+            # member of the file that holds it.
+            member("", expand(content, LIMIT - total), depth)
+            return
         if how == "tar":
             with tarfile.open(fileobj=io.BytesIO(content), mode="r:") as archive:
                 for entry in archive:

@@ -4,7 +4,7 @@ set -euo pipefail
 audit=$(cd "$(dirname "$0")" && pwd)/audit.sh
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
-for command_name in git strings zip python3; do
+for command_name in git strings zip gzip bzip2 tar python3; do
 	command -v "$command_name" >/dev/null || { echo "missing test prerequisite: $command_name"; exit 1; }
 done
 
@@ -910,6 +910,18 @@ commit 'Synthetic UTF-16 text'
 run_audit
 expect_status 1 'UTF-16 text'
 expect_line 'FAIL  secrets: tracked files'
+new_repo
+{ printf 'Synthetic compressed part.\n' | gzip -c; printf '%s\n' "$synthetic_secret"; } >"$repo/appended.gz"
+commit 'Synthetic data after a compressed stream'
+run_audit
+expect_status 1 'data after a compressed stream'
+expect_line 'ok    tracked and historical archives can be inspected'
+expect_line 'FAIL  secrets: tracked files'
+new_repo
+{ printf 'First part.\n' | gzip -c; printf 'Second part.\n' | bzip2 -c; } >"$repo/clean.gz"
+commit 'Synthetic concatenated streams'
+run_audit
+expect_status 0 'concatenated compressed streams'
 new_repo
 printf '7z\274\257\047\034synthetic' >"$repo/opaque.7z"
 commit 'Synthetic archive that cannot be read'
