@@ -4,8 +4,8 @@ Atualizado em 12 de outubro de 2026. Versão de desenvolvimento: `0.1.0`;
 schema de dados: `1`. **A aplicação ainda não é uma versão Stable completa.**
 
 Este documento descreve o código funcional publicado em
-`7985a57ff835699f2643687b2a80bbceb9b5e779`, na branch
-`desenvolvimento`. A atualização seguinte é documental;
+`7985a57ff835699f2643687b2a80bbceb9b5e779`, na branch de desenvolvimento.
+A atualização seguinte é documental;
 não altera o comportamento da aplicação. As últimas provas funcionais citadas
 abaixo correspondem à revisão `7985a57`, e não a testes novos executados por
 esta atualização documental.

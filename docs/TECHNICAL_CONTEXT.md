@@ -599,8 +599,8 @@ uncertainty rather than inventing a field or an algorithm.
 
 ## 21. CI checks
 
-`.github/workflows/ci.yml` runs on pushes to `main` and the clean development
-branch `desenvolvimento`, and on pull requests. Its audit
+`.github/workflows/ci.yml` runs on pushes to every branch and on pull
+requests. Its audit
 checkout fetches the complete checked-out revision history without unrelated
 branches/tags; the audit still inspects all reachable objects/revisions in that
 checkout and rejects shallow histories:

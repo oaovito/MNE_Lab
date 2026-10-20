@@ -2,7 +2,7 @@ name: Windows owner test (draft only)
 
 on:
   push:
-    branches: [desenvolvimento]
+    branches: ['**']
 
 permissions:
   contents: read
@@ -120,7 +120,7 @@ jobs:
 
           Extraia TODO o ZIP e abra **MNE Lab.exe**. Precisa de Edge/Chrome/Brave/Chromium instalado; não requer Go, Node, R, Python ou Office. Crie uma conta/perfil de teste. Dados ficam na pasta portátil `data`. Não envie senhas nem chaves nos relatos.
 
-          Source checkpoint: `8a12ff636f867e89f84b1db0bf3db14e8c4da9cf`, branch `desenvolvimento`. ZIP inclui snapshot limpo do código, licenças, escopos e instruções.
+          Source checkpoint: `8a12ff636f867e89f84b1db0bf3db14e8c4da9cf`. ZIP inclui snapshot limpo do código, licenças, escopos e instruções.
 
           Build dev sem assinatura Authenticode oficial, fora de Stable/update. PE/CRC/hashes e download de retorno do GitHub conferidos. GUI Windows/USB real precisa do seu teste. Statistical Analysis validado apenas no escopo documentado; DLS parcial/provisório; ZETA/NTA cientificamente não validados. Este checkpoint antecede CMS/Verify em implementação.
 

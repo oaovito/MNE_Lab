@@ -13,3 +13,13 @@ testdata/signature/invented.csv whitespace=cr-at-eol
 /development/continuity/** export-ignore
 /AGENTS.md export-ignore
 /ferramenta.md export-ignore
+
+# Repository tooling (CI, audits and the checks that guard the development
+# area) is not part of the application source distribution.
+/.github export-ignore
+/.github/** export-ignore
+/.gitignore export-ignore
+/.gitattributes export-ignore
+/scripts/audit.sh export-ignore
+/scripts/audit_test.sh export-ignore
+/scripts/check_development_boundary.py export-ignore
