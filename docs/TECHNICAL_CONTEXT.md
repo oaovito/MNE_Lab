@@ -597,7 +597,9 @@ checkout and rejects shallow histories:
   revision and every annotated tag are opened, and archive formats it cannot
   read fail; tag messages are checked like commit messages; PKCS#12 key
   stores (`.p12`/`.pfx` names and PFX content) count as private; co-author
-  and session trailers fail even without terms. Without the secret CI shows a warning; the Windows test
+  and session trailers fail even without terms. The bundled R runtime is
+  third-party content whose citations can contain the branding words, so only
+  those words are not applied to its files. Without the secret CI shows a warning; the Windows test
   draft requires it (`AUDIT_REQUIRE_TERMS=1`).
 
 ## 22. Next step

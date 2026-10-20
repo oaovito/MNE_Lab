@@ -936,4 +936,26 @@ expect_status 1 'compressed artifact'
 expect_line 'FAIL  secrets: built artifacts'
 pass 'compressed streams, tar and prefixed archives and UTF-16 text are inspected; unknown archives fail'
 
+new_repo
+commit 'Clean source'
+mkdir -p "$scratch/dist-$case_number/statistics-engine/vfs/usr/lib/R" "$scratch/dist-$case_number/app"
+printf 'author = person(given = "%s")\n' "$branding_word" | gzip -c >"$scratch/dist-$case_number/statistics-engine/vfs/usr/lib/R/share.data.gz"
+test_terms=$scratch/runtime-terms
+printf '%s\n' "$branding_word" >"$test_terms"
+run_audit "$scratch/dist-$case_number"
+expect_status 0 'branding word in the bundled statistics runtime'
+printf '%s\nblockedword\n' "$branding_word" >"$test_terms"
+printf 'blockedword\n' | gzip -c >"$scratch/dist-$case_number/statistics-engine/vfs/usr/lib/R/other.data.gz"
+run_audit "$scratch/dist-$case_number"
+expect_status 1 'confidential term in the bundled statistics runtime'
+expect_line 'FAIL  terms: built artifacts (3)'
+rm "$scratch/dist-$case_number/statistics-engine/vfs/usr/lib/R/other.data.gz"
+printf '%s\n' "$branding_word" >"$test_terms"
+printf 'Built by %s.\n' "$branding_word" >"$scratch/dist-$case_number/app/index.html"
+run_audit "$scratch/dist-$case_number"
+expect_status 1 'branding word in application files'
+expect_line 'FAIL  terms: built artifacts (3)'
+test_terms=""
+pass 'the bundled statistics runtime is exempt from branding terms only'
+
 echo "All $passed audit regression cases passed."

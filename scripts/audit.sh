@@ -613,7 +613,14 @@ known='GetLargePage[M]inimum'
 if [ -n "$terms" ]; then
 	# Use explicit text boundaries to avoid accidental minified-symbol matches.
 	sed -E -e 's/^\\b/(^|[[:space:]"'"'"'>])/' -e 's/\\b$/([[:space:]"'"'"'<.,;:!?)-]|$)/' "$terms" >"$scratch/artifact-terms"
+	sed -E -e 's/^\\b/(^|[[:space:]"'"'"'>])/' -e 's/\\b$/([[:space:]"'"'"'<.,;:!?)-]|$)/' "$confidential_terms" >"$scratch/artifact-confidential-terms"
 fi
+# The bundled statistics runtime is third-party R content whose citations
+# and package names can contain the branding words (a person named ferramenta,
+# the openair package). Only branding terms are not applied there.
+artifact_terms() {
+	case "$1" in */statistics-engine/vfs/*) printf '%s\n' "$scratch/artifact-confidential-terms" ;; *) printf '%s\n' "$scratch/artifact-terms" ;; esac
+}
 
 private_artifacts="" secret_artifacts="" term_artifacts="" path_artifacts="" unreadable_artifacts=""
 if [ "$#" -gt 0 ]; then
@@ -650,7 +657,7 @@ if [ "$#" -gt 0 ]; then
 		fi
 		if private_entry_names "$item.names" || private_basename_text "$scratch/artifact-text" || grep -a -i -q -E -f "$private_content" "$scratch/artifact-text" || grep -a -q -F "$development_marker" "$scratch/artifact-text"; then private_artifacts+="$f"$'\n'; fi
 		if [ -e "$item.pkcs12" ] || grep -a -i -q -E -f "$secrets" "$scratch/artifact-text" || grep -a -i -q -E -f "$secrets" "$item.names"; then secret_artifacts+="$f"$'\n'; fi
-		if [ -n "$terms" ] && sed -E "s/($known)//g" "$scratch/artifact-text" | grep -a -i -q -E -f "$scratch/artifact-terms"; then term_artifacts+="$f"$'\n'; fi
+		if [ -n "$terms" ] && term_file=$(artifact_terms "$f") && [ -s "$term_file" ] && sed -E "s/($known)//g" "$scratch/artifact-text" | grep -a -i -q -E -f "$term_file"; then term_artifacts+="$f"$'\n'; fi
 		if grep -a -q -F "$build_home/" "$f"; then path_artifacts+="$f"$'\n'; fi
 	done <"$scratch/artifact-files"
 	report "artifacts can be inspected" "${unreadable_artifacts%$'\n'}"
