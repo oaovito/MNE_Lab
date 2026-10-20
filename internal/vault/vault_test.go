@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -1049,5 +1050,68 @@ func TestForgedRemoteHeaderDoesNotReplaceLocalHeader(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(v2.dir(a.ID()), "account.next.json")); !os.IsNotExist(err) {
 		t.Fatalf("adopted candidate kept: %v", err)
+	}
+}
+
+func TestMergeKeepsRemovedProfilesRemoved(t *testing.T) {
+	v := fastVault(t)
+	a, _, err := v.Create("Lab", "passphrase1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ana, err := a.CreateProfile(ProfileInput{Username: "Ana", StorageMode: StorageUSBOnly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bia, err := a.CreateProfile(ProfileInput{Username: "Bia", StorageMode: StorageUSBOnly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Another machine still lists Ana, in a newer index.
+	stale := Index{Schema: SchemaVersion, Name: "Lab", Updated: time.Now().UTC().Add(time.Hour), Profiles: slices.Clone(a.Index.Profiles)}
+	if err := a.RemoveProfile(ana.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.MergeIndex(stale); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Profile(ana.ID); err == nil {
+		t.Fatal("removed profile came back")
+	}
+	if _, err := a.Profile(bia.ID); err != nil {
+		t.Fatal(err)
+	}
+	// The removal reaches the other machine through the merged index.
+	other := Account{Header: a.Header, Index: stale, key: a.key, v: a.v}
+	if _, err := other.MergeIndex(a.Index); err != nil {
+		t.Fatal(err)
+	}
+	if len(other.Index.Profiles) != 1 || other.Index.Profiles[0].ID != bia.ID || other.Index.Removed[ana.ID].IsZero() {
+		t.Fatalf("removal not propagated: %+v", other.Index)
+	}
+}
+
+func TestMergeKeepsProfilesBeyondTheLimit(t *testing.T) {
+	v := fastVault(t)
+	a, _, err := v.Create("Lab", "passphrase1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"Ana", "Bia", "Caio", "Davi", "Eva"} {
+		if _, err := a.CreateProfile(ProfileInput{Username: name, StorageMode: StorageUSBOnly}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Another machine created a fifth profile of its own while offline.
+	remote := Index{Schema: SchemaVersion, Name: "Lab", Updated: time.Now().UTC(), Profiles: append(slices.Clone(a.Index.Profiles[:4]),
+		ProfileEntry{ID: secure.NewID(), Username: "Fabi", StorageMode: StorageUSBOnly, Created: time.Now().UTC().Add(time.Minute)})}
+	if _, err := a.MergeIndex(remote); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Index.Profiles) != MaxProfiles+1 {
+		t.Fatalf("a profile was dropped: %d", len(a.Index.Profiles))
+	}
+	if _, err := a.CreateProfile(ProfileInput{Username: "Gil", StorageMode: StorageUSBOnly}); !errors.Is(err, ErrProfileLimit) {
+		t.Fatalf("created beyond the limit: %v", err)
 	}
 }

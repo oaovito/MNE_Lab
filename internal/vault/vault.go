@@ -19,8 +19,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -128,6 +130,10 @@ type Index struct {
 	// carries a passphrase change to machines that synchronize the index,
 	// and lets them recognize their own header as superseded.
 	Header *Header `json:"header,omitempty"`
+	// Removed records removed profiles by ID, with the time of removal, so
+	// a merge with an index that still lists one does not bring it back.
+	// Profile IDs are random and never reused.
+	Removed map[string]time.Time `json:"removed,omitempty"`
 }
 
 // ProfileKeys is the key file of one profile.
@@ -1114,7 +1120,10 @@ func (a *Account) OpenIndex(sealed []byte) (Index, error) {
 // MergeIndex merges a remote index into the local one. Profiles are
 // independent entries, so the merge is a union by profile ID; for a profile
 // present in both, the entry from the more recently updated index wins.
-// It reports whether the local index changed.
+// A profile removed in either index stays removed. Profiles created on two
+// machines at once can exceed MaxProfiles; all are kept, since dropping an
+// entry would hide its data, and no new profile can be created until one is
+// removed. It reports whether the local index changed.
 func (a *Account) MergeIndex(remote Index) (bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1139,6 +1148,15 @@ func (a *Account) MergeIndex(remote Index) (bool, error) {
 		}
 		byID[p.ID] = win
 	}
+	removed := maps.Clone(local.Removed)
+	for id, at := range remote.Removed {
+		if cur, ok := removed[id]; !ok || at.After(cur) {
+			if removed == nil {
+				removed = map[string]time.Time{}
+			}
+			removed[id] = at
+		}
+	}
 	remoteNewer := remote.Updated.After(local.Updated)
 	for _, p := range local.Profiles {
 		add(p, false)
@@ -1148,12 +1166,11 @@ func (a *Account) MergeIndex(remote Index) (bool, error) {
 	}
 	merged := make([]ProfileEntry, 0, len(order))
 	for _, id := range order {
-		merged = append(merged, byID[id])
+		if _, gone := removed[id]; !gone {
+			merged = append(merged, byID[id])
+		}
 	}
 	sort.SliceStable(merged, func(i, j int) bool { return merged[i].Created.Before(merged[j].Created) })
-	if len(merged) > MaxProfiles {
-		merged = merged[:MaxProfiles]
-	}
 	name := local.Name
 	if remoteNewer && remote.Name != "" {
 		name = remote.Name
@@ -1167,8 +1184,8 @@ func (a *Account) MergeIndex(remote Index) (bool, error) {
 		}
 		adopted = true
 	}
-	before, _ := json.Marshal(local.Profiles)
-	after, _ := json.Marshal(merged)
+	before, _ := json.Marshal([]any{local.Profiles, local.Removed})
+	after, _ := json.Marshal([]any{merged, removed})
 	if string(before) == string(after) && name == local.Name {
 		if adopted {
 			return true, a.sealIndexLocked()
@@ -1177,7 +1194,12 @@ func (a *Account) MergeIndex(remote Index) (bool, error) {
 	}
 	a.Index.Profiles = merged
 	a.Index.Name = name
-	return true, a.saveLocked()
+	a.Index.Removed = removed
+	if err := a.saveLocked(); err != nil {
+		a.Index.Profiles, a.Index.Name, a.Index.Removed = local.Profiles, local.Name, local.Removed
+		return false, err
+	}
+	return true, nil
 }
 
 // RemoveProfile moves a profile into the account's trash folder. Nothing is
@@ -1199,10 +1221,15 @@ func (a *Account) RemoveProfile(pid string) error {
 	if err := os.Rename(a.ProfileDir(pid), trash); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	removed := a.Index.Profiles[idx]
-	a.Index.Profiles = append(a.Index.Profiles[:idx], a.Index.Profiles[idx+1:]...)
+	profiles, tombstones := a.Index.Profiles, a.Index.Removed
+	a.Index.Profiles = slices.Delete(slices.Clone(profiles), idx, idx+1)
+	a.Index.Removed = maps.Clone(tombstones)
+	if a.Index.Removed == nil {
+		a.Index.Removed = map[string]time.Time{}
+	}
+	a.Index.Removed[pid] = time.Now().UTC().Truncate(time.Second)
 	if err := a.saveLocked(); err != nil {
-		a.Index.Profiles = append(a.Index.Profiles, removed)
+		a.Index.Profiles, a.Index.Removed = profiles, tombstones
 		return err
 	}
 	return nil
