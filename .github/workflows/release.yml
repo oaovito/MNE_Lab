@@ -1,0 +1,183 @@
+name: Release (draft)
+
+# A version tag builds every portable package from a commit that already
+# passed CI and stores them in a draft pre-release. Publishing the draft is a
+# separate, manual step after the packages are audited.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: v
+        name: Version, branch and CI of the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          version=${TAG#v}
+          [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Tag $TAG is not a version"; exit 1; }
+          git merge-base --is-ancestor "$SHA" origin/desenvolvimento || { echo "The tagged commit is not on the development branch"; exit 1; }
+          ok=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&status=success" --jq '.total_count')
+          [ "$ok" -gt 0 ] || { echo "CI has not passed on $SHA"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build Windows and Linux
+        env:
+          VERSION: ${{ needs.gate.outputs.version }}
+          CHANNEL: dev
+        run: |
+          (cd web && npm ci && npm run build)
+          scripts/build.sh windows/amd64 windows/386 windows/arm64 linux/amd64 linux/arm64
+      - name: Audit (secrets, private files, unwanted terms, build paths)
+        env:
+          AUDIT_TERMS: ${{ secrets.AUDIT_TERMS }}
+        run: |
+          if [ -n "$AUDIT_TERMS" ]; then printf '%s\n' "$AUDIT_TERMS" > "$RUNNER_TEMP/terms"; export AUDIT_TERMS_FILE="$RUNNER_TEMP/terms"
+          else echo '::warning title=Unwanted terms not checked::Audit the draft packages with the terms list before publishing.'; fi
+          scripts/audit.sh out web/dist
+          python3 scripts/check_development_boundary.py --repo . --artifacts out web/dist
+      - name: Package
+        env:
+          VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          python3 scripts/package_release.py --version "$VERSION" --out "$RUNNER_TEMP/release" \
+            windows/amd64 windows/386 windows/arm64 linux/amd64 linux/arm64
+          git archive --format=zip --prefix="MNE_Lab-$VERSION-source/" HEAD > "$RUNNER_TEMP/release/MNE_Lab-$VERSION-source.zip"
+          python3 scripts/check_development_boundary.py --archive-stdin < "$RUNNER_TEMP/release/MNE_Lab-$VERSION-source.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: ${{ runner.temp }}/release
+          retention-days: 3
+          if-no-files-found: error
+
+  macos:
+    needs: gate
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build and package macOS
+        env:
+          VERSION: ${{ needs.gate.outputs.version }}
+          CHANNEL: dev
+        run: |
+          (cd web && npm ci && npm run build)
+          scripts/build.sh darwin/arm64 darwin/amd64
+          python3 scripts/package_release.py --version "$VERSION" --out "$RUNNER_TEMP/release" darwin/arm64 darwin/amd64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: ${{ runner.temp }}/release
+          retention-days: 3
+          if-no-files-found: error
+
+  runtime-source:
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Collect the statistical runtime source
+        env:
+          VERSION: ${{ needs.gate.outputs.version }}
+        run: python3 scripts/runtime_source.py --version "$VERSION" --out "$RUNNER_TEMP/release"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release
+          retention-days: 3
+          if-no-files-found: error
+
+  draft:
+    needs: [gate, build, macos, runtime-source]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.gate.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/in
+          pattern: release-*
+          merge-multiple: true
+      - name: Create the draft pre-release; never publish here
+        run: |
+          cd "$RUNNER_TEMP/in"
+          sha256sum MNE_Lab-* > SHA256SUMS.txt
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          Pré-release de desenvolvimento do MNE Lab $VERSION.
+
+          **Como usar:** baixe o pacote do seu sistema, extraia a pasta inteira e abra **MNE Lab** (no Windows, **MNE Lab.exe**). É portátil: os dados ficam na subpasta \`data\` e a pasta pode ir para um pendrive. Precisa de Edge, Chrome, Brave ou Chromium instalado; não exige Go, Node, R, Python ou Office. O \`LEIA-ME.txt\` de cada pacote tem os passos do sistema.
+
+          | Sistema | Pacote |
+          |---|---|
+          | Windows 10/11 64 bits | \`MNE_Lab-$VERSION-Windows-x64.zip\` |
+          | Windows 32 bits | \`MNE_Lab-$VERSION-Windows-x86.zip\` |
+          | Windows ARM | \`MNE_Lab-$VERSION-Windows-ARM64.zip\` |
+          | macOS Apple Silicon | \`MNE_Lab-$VERSION-macOS-AppleSilicon.tar.gz\` |
+          | macOS Intel | \`MNE_Lab-$VERSION-macOS-Intel.tar.gz\` |
+          | Linux 64 bits | \`MNE_Lab-$VERSION-Linux-x64.tar.gz\` |
+          | Linux ARM 64 bits | \`MNE_Lab-$VERSION-Linux-ARM64.tar.gz\` |
+
+          Os executáveis não têm assinatura de código: o Windows pode pedir "Mais informações > Executar assim mesmo" e o macOS pede para abrir com o botão direito na primeira vez. Esta versão não recebe atualização automática.
+
+          **Escopo:** Statistical Analysis validado apenas no escopo documentado; DLS parcial e provisório; ZETA e NTA sem validação científica. A nuvem real depende do registro oficial dos provedores. Mantenha cópias dos seus originais.
+
+          **Código-fonte:** \`MNE_Lab-$VERSION-source.zip\` (aplicativo) e \`MNE_Lab-$VERSION-statistical-runtime-source.tar\` (webR, R 4.6.0 e pacotes R do runtime estatístico, sob GPL). \`SHA256SUMS.txt\` traz o SHA-256 de cada arquivo.
+          EOF
+          gh release create "$TAG" --verify-tag --draft --prerelease --title "MNE Lab $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" MNE_Lab-* SHA256SUMS.txt
+          gh release view "$TAG" --json isDraft,assets --jq '{isDraft, assets: [.assets[] | {name, size}]}'

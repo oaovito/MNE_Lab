@@ -54,7 +54,7 @@ use GPL-family licensing with package/component exceptions; the manifest is
 the version-specific record. Matching package source archives do not by
 themselves reconstruct the exact Emscripten toolchain, patches or full webR
 runtime. The Corresponding Source and complete distribution licensing gates
-above continue to apply; no public binary release is announced.
+above continue to apply.
 
 ## MBESS source subset for optional population eta intervals
 
@@ -95,3 +95,16 @@ checksums, exact compiler/image inputs, patches, build/install machinery,
 reconstruction or a fully documented compliant source distribution, and the
 project's distribution licensing decision. A pinned subset of source or a
 successful runtime test does not satisfy the complete Corresponding Source gate.
+
+## Development pre-releases
+
+At the owner's request, version tags publish development pre-releases built
+by `.github/workflows/release.yml`. Each one carries, on the same release
+page as the binaries, `MNE_Lab-<version>-statistical-runtime-source.tar`
+collected by `scripts/runtime_source.py`: the webR checkout at the commit
+above with its build-script submodule, `R-4.6.0.tar.gz` and the source of
+every pinned R package, each checked against the SHA-256 recorded here or in
+`scripts/statistics-packages.json` (its `SOURCES.json` marks any file whose
+recorded hash could not be reproduced). The exact compiler image of the
+upstream webR build is still not pinned upstream, so a byte-identical rebuild
+is not claimed, and the project's own license remains the owner's decision.
