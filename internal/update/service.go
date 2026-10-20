@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"time"
 )
@@ -167,7 +168,7 @@ func (s *Service) Check(ctx context.Context) Status {
 		s.notify()
 		return s.Status()
 	}
-	if ok && s.Auto() && Compare(latest.Version, s.Version) > 0 {
+	if ok && s.Auto() && Compare(latest.Version, s.Version) > 0 && !slices.Contains(s.state().Refused, latest.Version) {
 		if _, err := s.stage(ctx, latest); err == nil {
 			s.ApplyWhenSafe(ctx)
 		}
@@ -186,7 +187,7 @@ func (s *Service) stage(ctx context.Context, r Release) (string, error) {
 	if !ok {
 		return "", ErrNoAsset
 	}
-	if err := r.Compatibility(s.DataSchema); err != nil {
+	if err := r.Installable(s.DataSchema); err != nil {
 		return "", err
 	}
 	dir, err := Stage(ctx, s.Client, s.Builds, r, a, s.ua(), nil)
@@ -250,13 +251,18 @@ func (s *Service) Choose(ctx context.Context, version string) error {
 	if rel == nil {
 		return ErrManifest
 	}
-	if err := rel.Compatibility(s.DataSchema); err != nil {
+	if err := rel.Installable(s.DataSchema); err != nil {
 		return err
 	}
 	if s.Hooks.Busy != nil && s.Hooks.Busy() {
 		return ErrBusy
 	}
 	if _, err := s.stage(ctx, *rel); err != nil {
+		return err
+	}
+	if err := changeState(s.Builds, func(st *State) {
+		st.Refused = slices.DeleteFunc(st.Refused, func(v string) bool { return v == rel.Version })
+	}); err != nil {
 		return err
 	}
 	return s.apply(ctx, rel.Version)
@@ -291,7 +297,12 @@ func (s *Service) apply(ctx context.Context, version string) (result error) {
 	}
 	if s.Hooks.Restart != nil {
 		if err := s.Hooks.Restart(filepath.Join(s.Builds, version, ExeName())); err != nil {
-			return errors.Join(err, activation.rollback(s.Builds))
+			err = errors.Join(err, activation.rollback(s.Builds))
+			return errors.Join(err, changeState(s.Builds, func(st *State) {
+				if !slices.Contains(st.Refused, version) {
+					st.Refused = append(st.Refused, version)
+				}
+			}))
 		}
 	}
 	return nil

@@ -10,12 +10,15 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -127,6 +130,14 @@ func TestStableListHidesBadBuilds(t *testing.T) {
 	}
 	if strings.Join(vs, " ") != "1.2.0 1.0.0" || !l[0].Latest || !l[0].Newer || !l[0].Migration || !l[1].Current {
 		t.Fatalf("stable list: %v %+v", vs, l)
+	}
+	// The restart cannot hand the session to another data schema, so a
+	// schema change is listed but not offered.
+	if l[0].Compatible || l[0].Problem != ErrSchemaChange.Error() || !l[1].Compatible {
+		t.Fatalf("schema change offered: %+v", l)
+	}
+	if r, ok := Latest(m, runtime.GOOS, runtime.GOARCH, "1.0.0", 1); !ok || r.Version != "1.0.0" {
+		t.Fatalf("latest installable build: %v %v", r.Version, ok)
 	}
 	// Data written by schema 2 cannot be opened by 1.0.0: downgrade refused.
 	if m.Releases[0].Compatibility(2) != ErrIncompatible {
@@ -254,5 +265,72 @@ func TestLauncherRollsBackAfterFailedStarts(t *testing.T) {
 	Prune(b)
 	if got := strings.Join(Installed(b), " "); got != "1.1.0 1.0.0" {
 		t.Fatalf("prune must keep the current build and its fallback: %v", got)
+	}
+}
+
+func TestSchemaChangeIsNeverStagedOrRestarted(t *testing.T) {
+	f := newFixture(t)
+	good := zipOf(t, map[string]string{ExeName(): "new"})
+	f.publish(t, []Release{{Version: "2.0.0", Channel: "stable", Schema: 2, MinSchema: 1, Assets: []Asset{f.asset("new.zip", good)}}}, map[string][]byte{"new.zip": good})
+	s := f.service(false)
+	prepared := 0
+	s.Hooks.Prepare = func(context.Context) error { prepared++; return nil }
+	st := s.Check(context.Background())
+	time.Sleep(200 * time.Millisecond)
+	if st.Newer || st.Staged != "" || prepared != 0 || len(f.restarts) != 0 || len(Installed(f.builds)) != 0 {
+		t.Fatalf("schema change staged or applied: %+v prepared=%d", st, prepared)
+	}
+	if err := s.Choose(context.Background(), "2.0.0"); err != ErrSchemaChange || prepared != 0 {
+		t.Fatalf("schema change chosen: %v prepared=%d", err, prepared)
+	}
+}
+
+func TestFailedAutomaticRestartIsNotRetried(t *testing.T) {
+	f := newFixture(t)
+	good := zipOf(t, map[string]string{ExeName(): "new"})
+	f.publish(t, []Release{{Version: "1.1.0", Channel: "stable", Schema: 1, MinSchema: 1, Assets: []Asset{f.asset("new.zip", good)}}}, map[string][]byte{"new.zip": good})
+	stagedBuild(t, f.builds, "1.0.0")
+	SaveState(f.builds, State{Current: "1.0.0"})
+	s := f.service(false)
+	var mu sync.Mutex
+	prepared, restarts := 0, 0
+	fail := true
+	s.Hooks.Prepare = func(context.Context) error { mu.Lock(); prepared++; mu.Unlock(); return nil }
+	s.Hooks.Restart = func(string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		restarts++
+		if fail {
+			return errors.New("child startup failed")
+		}
+		return nil
+	}
+	count := func() (int, int) { mu.Lock(); defer mu.Unlock(); return prepared, restarts }
+	s.Check(context.Background())
+	deadline := time.Now().Add(10 * time.Second)
+	for _, r := count(); r == 0 && time.Now().Before(deadline); _, r = count() {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if p, r := count(); p != 1 || r != 1 || !slices.Contains(LoadState(f.builds).Refused, "1.1.0") {
+		t.Fatalf("first attempt: prepared=%d restarts=%d state=%+v", p, r, LoadState(f.builds))
+	}
+	// Later checks, in this process or the next, take no new backup.
+	for i := 0; i < 3; i++ {
+		s.Check(context.Background())
+		f.service(false).Check(context.Background())
+	}
+	time.Sleep(200 * time.Millisecond)
+	if p, r := count(); p != 1 || r != 1 {
+		t.Fatalf("failed build retried: prepared=%d restarts=%d", p, r)
+	}
+	// An explicit choice still installs it, and clears the refusal.
+	mu.Lock()
+	fail = false
+	mu.Unlock()
+	if err := s.Choose(context.Background(), "1.1.0"); err != nil {
+		t.Fatal(err)
+	}
+	if st := LoadState(f.builds); st.Current != "1.1.0" || len(st.Refused) != 0 {
+		t.Fatalf("explicit choice: %+v", st)
 	}
 }

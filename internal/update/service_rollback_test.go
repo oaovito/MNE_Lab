@@ -57,8 +57,10 @@ func TestRestartFailureRestoresActivation(t *testing.T) {
 	if err := s.apply(context.Background(), "1.1.0"); !errors.Is(err, restartErr) {
 		t.Fatalf("restart error lost: %v", err)
 	}
-	if got := LoadState(builds); !reflect.DeepEqual(got, before) {
-		t.Fatalf("failed restart changed prior selection: got %+v, want %+v", got, before)
+	want := before
+	want.Refused = []string{"1.1.0"} // automatic updates do not retry it
+	if got := LoadState(builds); !reflect.DeepEqual(got, want) {
+		t.Fatalf("failed restart changed prior selection: got %+v, want %+v", got, want)
 	}
 	if _, err := os.Stat(exe); err != nil {
 		t.Fatalf("failed restart discarded staged build: %v", err)
@@ -115,6 +117,7 @@ func TestRestartFailurePreservesLaterStateChanges(t *testing.T) {
 				later.SelectionID = before.SelectionID
 				later.Bad = append(later.Bad, "1.1.0")
 			}
+			later.Refused = []string{"1.1.0"}
 			if got := LoadState(builds); !reflect.DeepEqual(got, later) {
 				t.Fatalf("rollback lost later changes: got %+v, want %+v", got, later)
 			}
@@ -183,6 +186,7 @@ func TestRestartFailurePreservesLaterActivationOfSameBuild(t *testing.T) {
 	if err := s.apply(context.Background(), "1.1.0"); err == nil {
 		t.Fatal("restart failure not reported")
 	}
+	newer.Refused = []string{"1.1.0"}
 	if got := LoadState(builds); !reflect.DeepEqual(got, newer) {
 		t.Fatalf("older failure undid newer activation of same build: got %+v, want %+v", got, newer)
 	}

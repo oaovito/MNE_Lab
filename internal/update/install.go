@@ -54,6 +54,10 @@ type State struct {
 	Available string          `json:"available,omitempty"` // newest stable seen
 	Boots     map[string]Boot `json:"boots,omitempty"`
 	Bad       []string        `json:"bad,omitempty"` // builds that failed to start here
+	// Refused lists builds whose restart handoff failed here. Automatic
+	// updates skip them, so a failing build does not take a backup and a
+	// restart at every check; choosing one explicitly clears it.
+	Refused []string `json:"refused,omitempty"`
 }
 
 // ExeName is the application executable inside a build folder.
@@ -455,6 +459,7 @@ func cloneState(s State) State {
 		s.Boots = boots
 	}
 	s.Bad = slices.Clone(s.Bad)
+	s.Refused = slices.Clone(s.Refused)
 	return s
 }
 

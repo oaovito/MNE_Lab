@@ -513,7 +513,6 @@ function UpdatesTab(p: { s: StateView }) {
         <div class="col gap2">
           {notes && <span>{notes}</span>}
           <span>{down ? t('upd.downgrade.d') : t('upd.choose.d')}</span>
-          {c.migration && <span>{t('upd.migration')}</span>}
         </div>
       ),
       confirm: down ? t('upd.downgrade') : t('upd.install'),

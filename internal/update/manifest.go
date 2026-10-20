@@ -28,6 +28,10 @@ var (
 	ErrRevoked       = errors.New("update.revoked")
 	ErrPortableOnly  = errors.New("update.locked_build_portable_only")
 	ErrBusy          = errors.New("update.busy")
+	// ErrSchemaChange: the restart hands the open session to the new build
+	// only when both use the same data schema, so a build that changes it
+	// cannot be installed from a running application.
+	ErrSchemaChange = errors.New("update.schema_change")
 )
 
 // ManifestFormat identifies the manifest layout.
@@ -226,6 +230,18 @@ func (r Release) Compatibility(dataSchema int) error {
 	return nil
 }
 
+// Installable reports whether a running application can switch to the
+// release: it must open the current data and keep its schema.
+func (r Release) Installable(dataSchema int) error {
+	if err := r.Compatibility(dataSchema); err != nil {
+		return err
+	}
+	if r.Schema != dataSchema {
+		return ErrSchemaChange
+	}
+	return nil
+}
+
 // Choice is a build offered in the LockedBuild list.
 type Choice struct {
 	Release
@@ -256,8 +272,12 @@ func Stable(m Manifest, goos, arch, current string, dataSchema int) []Choice {
 		if err := r.Compatibility(dataSchema); err != nil {
 			continue // destructively incompatible builds are not offered
 		}
-		c.Compatible = true
 		c.Migration = r.Schema != dataSchema
+		if err := r.Installable(dataSchema); err != nil {
+			c.Problem = err.Error()
+		} else {
+			c.Compatible = true
+		}
 		out = append(out, c)
 	}
 	sort.Slice(out, func(i, j int) bool { return Compare(out[i].Version, out[j].Version) > 0 })
@@ -267,11 +287,13 @@ func Stable(m Manifest, goos, arch, current string, dataSchema int) []Choice {
 	return out
 }
 
-// Latest returns the newest stable release that can open the data.
+// Latest returns the newest stable release a running application can
+// switch to.
 func Latest(m Manifest, goos, arch, current string, dataSchema int) (Release, bool) {
-	l := Stable(m, goos, arch, current, dataSchema)
-	if len(l) == 0 {
-		return Release{}, false
+	for _, c := range Stable(m, goos, arch, current, dataSchema) {
+		if c.Compatible {
+			return c.Release, true
+		}
 	}
-	return l[0].Release, true
+	return Release{}, false
 }

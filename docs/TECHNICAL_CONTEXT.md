@@ -97,6 +97,11 @@ interface translates.
   rejected before any migration.
 - Automatic Update with signed manifests, staged downloads and activation at
   a safe point; LockedBuild; Stable build selector; rollback by the launcher.
+  Builds that change the data schema are listed but neither staged nor
+  installable, because the restart handoff accepts only the same schema. A
+  build whose restart failed is recorded as refused and automatic updates
+  skip it, so no backup or restart repeats at every check; choosing it
+  explicitly clears the refusal.
 - Mobile access: QR pairing, viewer (status, graphs, cycles) and presentation
   controller.
 - Interface: homepage, My Stuff, Change Account, Turbo, command palette,

@@ -432,7 +432,6 @@ export const core: Record<string, readonly [string, string, string]> = {
   'upd.choose.d': ['MNE Lab downloads and verifies the build, then switches at a safe moment.', 'O MNE Lab baixa e verifica a build e troca em um momento seguro.', 'MNE Lab descarga y verifica la build y cambia en un momento seguro.'],
   'upd.downgrade.q': ['Go back to version {v}?', 'Voltar para a versão {v}?', '¿Volver a la versión {v}?'],
   'upd.downgrade.d': ['A backup is made first. Features added after this version will not be available.', 'Antes é feito um backup. Recursos adicionados depois desta versão não estarão disponíveis.', 'Antes se hace una copia. Las funciones añadidas después de esta versión no estarán disponibles.'],
-  'upd.migration': ['Your data will be updated to the format of this version. A backup is made first.', 'Seus dados serão atualizados para o formato desta versão. Antes é feito um backup.', 'Sus datos se actualizarán al formato de esta versión. Antes se hace una copia.'],
   'upd.install': ['Install', 'Instalar', 'Instalar'],
   'upd.downgrade': ['Go back', 'Voltar', 'Volver'],
   'upd.chosen': ['Version {v} will be used from the next start.', 'A versão {v} será usada a partir da próxima abertura.', 'La versión {v} se usará desde el próximo inicio.'],

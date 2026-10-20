@@ -162,6 +162,7 @@ export const errors: Record<string, readonly [string, string, string]> = {
   'err.update.no_build_for_platform': ['There is no build for this system.', 'Não há build para este sistema.', 'No hay build para este sistema.'],
   'err.update.no_build_installed': ['No other build is installed.', 'Nenhuma outra build está instalada.', 'No hay otra build instalada.'],
   'err.update.not_configured': ['This build does not check for updates.', 'Esta build não procura atualizações.', 'Esta build no busca actualizaciones.'],
+  'err.update.schema_change': ['This build changes the data format and cannot be installed from the running app.', 'Esta build muda o formato dos dados e não pode ser instalada com o aplicativo em execução.', 'Esta build cambia el formato de los datos y no se puede instalar con la aplicación en ejecución.'],
   'err.update.revoked': ['This build was withdrawn and cannot be installed.', 'Esta build foi retirada e não pode ser instalada.', 'Esta build se retiró y no se puede instalar.'],
   'warn.ls.ambiguous_number': ['Line {n}: a number could be read more than one way and was left out.', 'Linha {n}: um número podia ser lido de mais de um jeito e ficou de fora.', 'Línea {n}: un número podía leerse de más de una forma y se dejó fuera.'],
   'warn.ls.ambiguous_date': ['Measurement {n}: the date can be read more than one way. Confirm it.', 'Medição {n}: a data pode ser lida de mais de um jeito. Confirme.', 'Medición {n}: la fecha puede leerse de más de una forma. Confírmela.'],
