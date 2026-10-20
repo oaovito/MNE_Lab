@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/oaovito/mne_lab/internal/secure"
@@ -52,6 +53,12 @@ type Layout struct {
 	// Exports is the default destination for user exports. In Temporary Mode
 	// it lies outside the session folder so cleanup never deletes exports.
 	Exports string `json:"-"`
+	// Sessions lists the folders that hold Temporary Mode sessions, the
+	// current one first, then where earlier builds kept them.
+	Sessions []string `json:"-"`
+	// LegacyRecovery lists where earlier builds kept recovery packages;
+	// they are still read, and new packages go to Recovery.
+	LegacyRecovery []string `json:"-"`
 }
 
 // Options control layout detection.
@@ -119,40 +126,94 @@ func portable(root string) (*Layout, error) {
 }
 
 func temporary(opt Options) (*Layout, error) {
-	base := opt.BaseTemp
-	if base == "" {
-		base = os.TempDir()
+	roots := SessionRoots(opt)
+	if err := os.MkdirAll(roots[0], 0o700); err != nil {
+		return nil, fmt.Errorf("paths: cannot prepare sessions: %w", err)
 	}
-	session := filepath.Join(base, SessionPrefix+secure.NewID()[:12])
+	return sessionLayout(filepath.Join(roots[0], SessionPrefix+secure.NewID()[:12]), opt)
+}
+
+func sessionLayout(session string, opt Options) (*Layout, error) {
+	recovery := RecoveryRoots(opt)
 	l := &Layout{
-		Mode:     Temporary,
-		Root:     session,
-		Data:     filepath.Join(session, "data"),
-		Builds:   filepath.Join(session, "app"),
-		Logs:     filepath.Join(session, "logs"),
-		Temp:     filepath.Join(session, "tmp"),
-		Window:   filepath.Join(session, "window"),
-		Recovery: recoveryRoot(opt),
-		Exports:  defaultExports(opt),
+		Mode:           Temporary,
+		Root:           session,
+		Data:           filepath.Join(session, "data"),
+		Builds:         filepath.Join(session, "app"),
+		Logs:           filepath.Join(session, "logs"),
+		Temp:           filepath.Join(session, "tmp"),
+		Window:         filepath.Join(session, "window"),
+		Recovery:       recovery[0],
+		Exports:        defaultExports(opt),
+		Sessions:       SessionRoots(opt),
+		LegacyRecovery: recovery[1:],
 	}
 	return l, l.ensure()
 }
 
-// recoveryRoot is a stable per-user location so the next Temporary Mode run
-// on this machine can find unsynchronized work after an offline exit.
-func recoveryRoot(opt Options) string {
-	if opt.BaseTemp != "" {
-		return filepath.Join(opt.BaseTemp, "MNE Lab Recovery")
-	}
-	if runtime.GOOS == "windows" {
+// stateDir is the per-user folder for state that must outlive a reboot and
+// is not a cache: the system temporary folder can be memory that a restart
+// clears, and cache folders may be emptied at any time.
+func stateDir() string {
+	switch runtime.GOOS {
+	case "windows":
 		if la := os.Getenv("LOCALAPPDATA"); la != "" {
-			return filepath.Join(la, "MNE Lab", "Recovery")
+			return filepath.Join(la, "MNE Lab")
+		}
+	case "darwin":
+		if d, err := os.UserConfigDir(); err == nil {
+			return filepath.Join(d, "MNE Lab")
+		}
+	default:
+		if d := os.Getenv("XDG_STATE_HOME"); filepath.IsAbs(d) {
+			return filepath.Join(d, "MNE Lab")
+		}
+		if h, err := os.UserHomeDir(); err == nil && h != "" {
+			return filepath.Join(h, ".local", "state", "MNE Lab")
 		}
 	}
-	if d, err := os.UserCacheDir(); err == nil {
-		return filepath.Join(d, "MNE Lab", "Recovery")
+	return ""
+}
+
+// SessionRoots lists the folders holding Temporary Mode sessions: where
+// new sessions start, then the system temporary folder earlier builds used,
+// which may still hold an interrupted session.
+func SessionRoots(opt Options) []string {
+	if opt.BaseTemp != "" {
+		return []string{opt.BaseTemp}
 	}
-	return filepath.Join(os.TempDir(), "MNE Lab Recovery")
+	if d := stateDir(); d != "" {
+		return unique(filepath.Join(d, "Sessions"), os.TempDir())
+	}
+	return []string{os.TempDir()}
+}
+
+// RecoveryRoots lists the stable per-user folders for recovery packages,
+// so the next Temporary Mode run on this machine finds unsynchronized work
+// after an offline exit: where new packages go, then where earlier builds
+// put them.
+func RecoveryRoots(opt Options) []string {
+	if opt.BaseTemp != "" {
+		return []string{filepath.Join(opt.BaseTemp, "MNE Lab Recovery")}
+	}
+	var out []string
+	if d := stateDir(); d != "" {
+		out = append(out, filepath.Join(d, "Recovery"))
+	}
+	if d, err := os.UserCacheDir(); err == nil {
+		out = append(out, filepath.Join(d, "MNE Lab", "Recovery"))
+	}
+	return unique(append(out, filepath.Join(os.TempDir(), "MNE Lab Recovery"))...)
+}
+
+func unique(dirs ...string) []string {
+	var out []string
+	for _, d := range dirs {
+		if !slices.Contains(out, d) {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 func defaultExports(opt Options) string {
@@ -218,31 +279,18 @@ func StaleSessions(baseTemp, current string) []string {
 
 // Resume returns the layout of an existing Temporary Mode session folder
 // (a restart for Turbo or an update keeps the session; it is not an exit).
+// A session an earlier build started in the system temporary folder is
+// resumed where it is.
 func Resume(session string, opt Options) (*Layout, error) {
 	session, err := filepath.Abs(session)
 	if err != nil {
 		return nil, err
 	}
-	base := opt.BaseTemp
-	if base == "" {
-		base = os.TempDir()
-	}
-	if !strings.HasPrefix(filepath.Base(session), SessionPrefix) || !Within(base, session) {
+	if !strings.HasPrefix(filepath.Base(session), SessionPrefix) || !slices.Contains(SessionRoots(opt), filepath.Dir(session)) {
 		return nil, errors.New("paths: not a Temporary Mode session folder")
 	}
 	if st, err := os.Stat(session); err != nil || !st.IsDir() {
 		return nil, errors.New("paths: session folder not found")
 	}
-	l := &Layout{
-		Mode:     Temporary,
-		Root:     session,
-		Data:     filepath.Join(session, "data"),
-		Builds:   filepath.Join(session, "app"),
-		Logs:     filepath.Join(session, "logs"),
-		Temp:     filepath.Join(session, "tmp"),
-		Window:   filepath.Join(session, "window"),
-		Recovery: recoveryRoot(opt),
-		Exports:  defaultExports(opt),
-	}
-	return l, l.ensure()
+	return sessionLayout(session, opt)
 }

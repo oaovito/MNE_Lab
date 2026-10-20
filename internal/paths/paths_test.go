@@ -3,6 +3,8 @@ package paths
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"testing"
 )
 
@@ -53,5 +55,41 @@ func TestTemporaryLayoutKeepsExportsOutsideSession(t *testing.T) {
 	os.MkdirAll(other, 0o700)
 	if s := StaleSessions(base, l.Root); len(s) != 1 || s[0] != other {
 		t.Fatalf("stale sessions: %v", s)
+	}
+}
+
+// Sessions and recovery packages must outlive a reboot: the system
+// temporary folder can be memory, and cache folders may be emptied.
+func TestTemporaryStateOutlivesTempAndCache(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("folder conventions checked on Linux")
+	}
+	state, cache, tmp := t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("TMPDIR", tmp)
+	l, err := Detect("", Options{ForceMode: Temporary, UserHome: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(l.Root)
+	if !Within(filepath.Join(state, "MNE Lab"), l.Root) || !Within(filepath.Join(state, "MNE Lab"), l.Recovery) {
+		t.Fatalf("session %s and recovery %s not in the state folder", l.Root, l.Recovery)
+	}
+	if !slices.Equal(l.Sessions, []string{filepath.Join(state, "MNE Lab", "Sessions"), tmp}) ||
+		!slices.Contains(l.LegacyRecovery, filepath.Join(cache, "MNE Lab", "Recovery")) {
+		t.Fatalf("earlier locations not read: %v %v", l.Sessions, l.LegacyRecovery)
+	}
+	// A session an earlier build started in the temporary folder resumes
+	// where it is; other folders are refused.
+	old := filepath.Join(tmp, SessionPrefix+"old")
+	os.MkdirAll(old, 0o700)
+	if r, err := Resume(old, Options{}); err != nil || r.Root != old || r.Recovery != l.Recovery {
+		t.Fatalf("legacy session: %+v %v", r, err)
+	}
+	other := filepath.Join(t.TempDir(), SessionPrefix+"x")
+	os.MkdirAll(other, 0o700)
+	if _, err := Resume(other, Options{}); err == nil {
+		t.Fatal("session outside the session folders resumed")
 	}
 }

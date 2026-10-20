@@ -386,15 +386,17 @@ func (a *App) Recoveries() []Recovery {
 		return nil
 	}
 	var out []Recovery
-	entries, _ := os.ReadDir(a.L.Recovery)
-	for _, e := range entries {
-		var m struct {
-			Account string    `json:"account"`
-			Created time.Time `json:"created"`
-		}
-		if e.IsDir() && !strings.HasSuffix(e.Name(), ".partial") {
-			if _, err := atomicfile.ReadJSON(filepath.Join(a.L.Recovery, e.Name(), "recovery.json"), &m); err == nil {
-				out = append(out, Recovery{Account: m.Account, Created: m.Created, Source: "recovery"})
+	for _, root := range a.recoveryRoots() {
+		entries, _ := os.ReadDir(root)
+		for _, e := range entries {
+			var m struct {
+				Account string    `json:"account"`
+				Created time.Time `json:"created"`
+			}
+			if e.IsDir() && !strings.HasSuffix(e.Name(), ".partial") {
+				if _, err := atomicfile.ReadJSON(filepath.Join(root, e.Name(), "recovery.json"), &m); err == nil {
+					out = append(out, Recovery{Account: m.Account, Created: m.Created, Source: "recovery"})
+				}
 			}
 		}
 	}
@@ -415,15 +417,26 @@ func (a *App) Recoveries() []Recovery {
 // staleSessions are earlier session folders of this user whose process is
 // gone (crash, power loss, killed).
 func (a *App) staleSessions() []string {
-	base := filepath.Dir(a.L.Root)
+	roots := a.L.Sessions
+	if len(roots) == 0 {
+		roots = []string{filepath.Dir(a.L.Root)}
+	}
 	var out []string
-	for _, s := range paths.StaleSessions(base, a.L.Root) {
-		if instanceHeld(filepath.Join(s, "data")) {
-			continue // another MNE Lab is using it right now
+	for _, base := range roots {
+		for _, s := range paths.StaleSessions(base, a.L.Root) {
+			if instanceHeld(filepath.Join(s, "data")) {
+				continue // another MNE Lab is using it right now
+			}
+			out = append(out, s)
 		}
-		out = append(out, s)
 	}
 	return out
+}
+
+// recoveryRoots is where recovery packages are read: the current folder,
+// then those of earlier builds.
+func (a *App) recoveryRoots() []string {
+	return append([]string{a.L.Recovery}, a.L.LegacyRecovery...)
 }
 
 // RestoreRecovery brings recovered encrypted files into this session; the
@@ -553,18 +566,20 @@ func (a *App) recoveryPackages(accountID string) []string {
 		at   time.Time
 	}
 	var candidates []candidate
-	entries, _ := os.ReadDir(a.L.Recovery)
-	for _, entry := range entries {
-		if !entry.IsDir() || strings.HasSuffix(entry.Name(), ".partial") {
-			continue
-		}
-		path := filepath.Join(a.L.Recovery, entry.Name())
-		var marker struct {
-			Account string    `json:"account"`
-			Created time.Time `json:"created"`
-		}
-		if _, err := atomicfile.ReadJSON(filepath.Join(path, "recovery.json"), &marker); err == nil && marker.Account == accountID {
-			candidates = append(candidates, candidate{path, marker.Created})
+	for _, root := range a.recoveryRoots() {
+		entries, _ := os.ReadDir(root)
+		for _, entry := range entries {
+			if !entry.IsDir() || strings.HasSuffix(entry.Name(), ".partial") {
+				continue
+			}
+			path := filepath.Join(root, entry.Name())
+			var marker struct {
+				Account string    `json:"account"`
+				Created time.Time `json:"created"`
+			}
+			if _, err := atomicfile.ReadJSON(filepath.Join(path, "recovery.json"), &marker); err == nil && marker.Account == accountID {
+				candidates = append(candidates, candidate{path, marker.Created})
+			}
 		}
 	}
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].at.After(candidates[j].at) })

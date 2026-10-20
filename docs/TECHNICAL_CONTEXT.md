@@ -165,11 +165,15 @@ data/logs/ data/tmp/ data/window/ data/recovery/
 Exports/               default export destination
 ```
 
-Temporary Machine Mode: a session folder `MNE Lab session-…` in the system
-temporary directory, removed on exit. Encrypted recovery packages for work
-not yet confirmed by the cloud go to a stable per-user location
-(`%LOCALAPPDATA%\MNE Lab\Recovery` on Windows) so the next run can finish
-the sync. Exports go to `Downloads/MNE Lab Exports`, outside the session, so
+Temporary Machine Mode: a session folder `MNE Lab session-…`, removed on
+exit, and encrypted recovery packages for work not yet confirmed by the cloud,
+both in a per-user state folder that survives a reboot and is not a cache:
+`%LOCALAPPDATA%\MNE Lab` on Windows, `~/Library/Application Support/MNE Lab`
+on macOS and `$XDG_STATE_HOME/MNE Lab` (default `~/.local/state/MNE Lab`)
+elsewhere, under `Sessions` and `Recovery`. The system temporary folder can
+be memory cleared at restart, and cache folders may be emptied, so neither
+would let the next run find interrupted work. Sessions and packages that
+earlier builds left in the temporary or cache folder are still found. Exports go to `Downloads/MNE Lab Exports`, outside the session, so
 cleanup never deletes them.
 
 A folder transport confirms only the copy in the provider's desktop-client
@@ -502,7 +506,7 @@ file or drawing a graph does not establish scientific validity.
 |---|---|---|---|---|
 | Statistical Analysis: One-Way / Welch / complete Two-Way / balanced complete repeated | Yes | Backend, independent R vs SciPy/statsmodels/Pingouin, offline browser | Yes, within these documented designs and tolerances | No claim for unsupported methods/designs |
 | Tukey / conditional simple effects / Mauchly / GG / HF | Yes | Independent numeric fixtures, explicit pair identities | Yes, within documented scope | Broader instrument/design fixtures remain useful; R quantile precision is documented |
-| Dunnett: two-sided single-step, classical independent One-Way, explicit control | Yes | Independent refined SciPy multivariate-t p/CI fixtures; seeded repeatability; scoped persistence and offline worker | Yes, documented designs and numerical tolerances only | Other designs, one-sided tests and more than eight treatments remain unsupported |
+| Dunnett: two-sided single-step, classical independent One-Way, explicit control | Yes | Independent refined SciPy multivariate-t p/CI fixtures; seeded repeatability; scoped persistence and offline worker | Yes, documented designs and numerical tolerances only | Other designs, one-sided tests and more than three treatments remain unsupported |
 | Mixed: ML Gaussian random intercept, categorical repeated B, optional between A | Yes | Five independent Statsmodels/SciPy synthetic designs; exact df; boundary/design rejections; scoped model persistence; local worker | Yes, restricted documented scope and tolerances | Random slopes, alternative residual covariance, REML choice and mixed post-hoc unsupported |
 | Mixed individual approximate fixed-coefficient CIs | Yes, nlme intervals.lme in engine /2 | 80 independent Statsmodels conditional GLS / SciPy t endpoints in five designs; exact coefficient df; model persistence/export and offline worker | Yes, documented restricted model and approximate interval convention | Simultaneous mixed post-hoc, variance-component CIs and broader covariance/random structures unsupported; no empirical coverage claim |
 | Population eta squared CI: optional fixed-effect independent One-Way | Yes, source subset MBESS 5.0.1 | Seven independent SciPy endpoint fixtures, boundary/non-estimable handling, source integrity, persistence/export and local worker | Yes, available intervals within the documented scope/tolerances | Partial eta/omega and Two-Way/Welch/RM/Mixed effect intervals require separate estimators and reliable oracles |

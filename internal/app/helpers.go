@@ -54,8 +54,10 @@ func FocusRunning(exe, root, baseTemp string) bool {
 	if root != "" {
 		dirs = append(dirs, filepath.Join(root, "data"))
 	} else {
-		for _, s := range paths.StaleSessions(baseTemp, "") {
-			dirs = append(dirs, filepath.Join(s, "data"))
+		for _, base := range paths.SessionRoots(paths.Options{BaseTemp: baseTemp}) {
+			for _, s := range paths.StaleSessions(base, "") {
+				dirs = append(dirs, filepath.Join(s, "data"))
+			}
 		}
 	}
 	for _, d := range dirs {
