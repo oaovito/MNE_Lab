@@ -85,7 +85,12 @@ interface translates.
 - Sync engine, queue, conflicts, offline work; folder transport for the
   providers' desktop apps; API transports for Google Drive and OneDrive
   (OAuth 2.0 with PKCE) and for iCloud (CloudKit Web Services).
-- Backups (automatic, manual, on exit), verification and restore.
+- Backups (automatic, manual, on exit), verification and restore. In a
+  cloud profile a restore marks every restored record as a pending local
+  version: synchronization keeps those the cloud holds unchanged, turns any
+  the cloud changed since into conflicts for the person to resolve, and
+  brings back records created after the backup. Removed profiles are kept
+  as tombstones in the synchronized account index.
 - Save, Clean & Exit.
 - Confirmed restart handoff over bounded, versioned stdin/stdout frames.
   The old HTTP session and window remain available until the replacement

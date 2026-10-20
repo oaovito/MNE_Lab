@@ -609,6 +609,34 @@ func (t *Tx) SetSyncState(collection, id string, state SyncState, base string) e
 	return t.writeRecord(r)
 }
 
+// MarkRestored makes every synchronized record a local version with no
+// known remote base, as after a restore from a backup. Synchronization then
+// keeps a record whose cloud copy is the same, and reports any other as a
+// conflict instead of replacing the restored version with the cloud's.
+func (t *Tx) MarkRestored() error {
+	all, err := t.ListAll("")
+	if err != nil {
+		return err
+	}
+	for _, r := range all {
+		if !Synced(r.Collection) || r.Sync == StateConflict {
+			continue
+		}
+		r.Base, r.Sync = "", StatePending
+		if err := t.writeRecord(r); err != nil {
+			return err
+		}
+		// Until synchronization settles it, the record counts as pending,
+		// so nothing treats the restored data as already in the cloud.
+		if t.s.queueOn {
+			if err := t.enqueue("record", r.Key(), r.Rev, r.Hash); err != nil {
+				return err
+			}
+		}
+	}
+	return t.audit("restore", "")
+}
+
 // List returns live records of a collection sorted by ID.
 func (t *Tx) List(collection string) ([]Record, error) {
 	return t.list(collection, false)

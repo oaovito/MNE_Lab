@@ -363,7 +363,7 @@ export const core: Record<string, readonly [string, string, string]> = {
   'bk.none.d': ['The first one is created automatically.', 'O primeiro é criado automaticamente.', 'La primera se crea automáticamente.'],
   'bk.restore': ['Restore', 'Restaurar', 'Restaurar'],
   'bk.restore.q': ['Restore the backup from {when}?', 'Restaurar o backup de {when}?', '¿Restaurar la copia del {when}?'],
-  'bk.restore.d': ['A backup of the current state is made first, so this can be undone.', 'Antes é feito um backup do estado atual, então dá para desfazer.', 'Antes se hace una copia del estado actual, así que se puede deshacer.'],
+  'bk.restore.d': ['A backup of the current state is made first, so this can be undone. In a cloud profile, items that changed in the cloud since this backup appear as conflicts for you to choose, and items created later return from the cloud.', 'Antes é feito um backup do estado atual, então dá para desfazer. Num perfil na nuvem, itens alterados na nuvem depois deste backup aparecem como conflitos para você escolher, e itens criados depois voltam da nuvem.', 'Antes se hace una copia del estado actual, así que se puede deshacer. En un perfil en la nube, los elementos cambiados en la nube después de esta copia aparecen como conflictos para que usted elija, y los creados después vuelven de la nube.'],
   'bk.restored': ['Backup restored.', 'Backup restaurado.', 'Copia restaurada.'],
   'bk.verified': ['verified', 'conferido', 'comprobada'],
   'bk.unverified': ['not verified', 'não conferido', 'sin comprobar'],

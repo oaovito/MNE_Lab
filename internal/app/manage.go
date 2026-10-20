@@ -14,6 +14,7 @@ import (
 	"github.com/oaovito/mne_lab/internal/media"
 	"github.com/oaovito/mne_lab/internal/paths"
 	"github.com/oaovito/mne_lab/internal/secure"
+	"github.com/oaovito/mne_lab/internal/store"
 	"github.com/oaovito/mne_lab/internal/syncer"
 	"github.com/oaovito/mne_lab/internal/vault"
 )
@@ -237,7 +238,10 @@ func (a *App) Backups() ([]backup.Entry, error) {
 
 // RestoreBackup replaces the open profile's local data with a verified
 // backup. A backup of the current state is made first, so nothing is lost.
-// For cloud profiles, synchronization then reconciles with the cloud.
+// For cloud profiles, synchronization then reconciles with the cloud: a
+// restored record the cloud holds in another version becomes a conflict to
+// resolve, never silently replaced, and records created after the backup
+// return from the cloud.
 func (a *App) RestoreBackup(file string) error {
 	p, err := a.Profile()
 	if err != nil {
@@ -275,6 +279,9 @@ func (a *App) RestoreBackup(file string) error {
 	a.mu.Unlock()
 	p.close()
 	rerr := backup.Restore(p.backupDir(), *target, key, p.dbPath())
+	if rerr == nil {
+		rerr = markRestored(p.dbPath(), key, store.Options{DeviceID: a.device, Queue: p.cloudBacked()})
+	}
 	np, err := a.openProfile(acct, e, key)
 	if err != nil {
 		return err
@@ -379,4 +386,15 @@ func (a *App) ListDirs(dir string) ([]DirEntry, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
 	return out, nil
+}
+
+// markRestored runs before the profile reopens, so no synchronization can
+// read the restored records first.
+func markRestored(db string, key secure.Key, opt store.Options) error {
+	st, err := store.OpenExisting(db, key, opt)
+	if err != nil {
+		return err
+	}
+	err = st.Update(func(t *store.Tx) error { return t.MarkRestored() })
+	return errors.Join(err, st.Close())
 }

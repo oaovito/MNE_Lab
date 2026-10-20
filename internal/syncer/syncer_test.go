@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -399,5 +400,71 @@ func TestDeletionPropagates(t *testing.T) {
 	b.eng.Run(ctx)
 	if get(t, b, "g1") != nil {
 		t.Fatal("deletion did not propagate")
+	}
+}
+
+func TestRestoredRecordsAreNotReplacedByTheCloud(t *testing.T) {
+	cloud := provider.NewFolder(provider.Google, t.TempDir())
+	pdk := secure.NewKey()
+	ctx := context.Background()
+	dir := t.TempDir()
+	db := filepath.Join(dir, "p.db")
+	st, err := store.Open(db, pdk, store.Options{DeviceID: "A", Queue: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := machine{st, New(st, pdk, cloud, "acc", "prof", nil)}
+	put(t, a, "edited", map[string]any{"title": "backup"})
+	put(t, a, "same", map[string]any{"title": "kept"})
+	if _, err := a.eng.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	saved, err := os.ReadFile(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// After the backup the record changes and reaches the cloud, and a new
+	// record is created.
+	if st, err = store.Open(db, pdk, store.Options{DeviceID: "A", Queue: true}); err != nil {
+		t.Fatal(err)
+	}
+	a = machine{st, New(st, pdk, cloud, "acc", "prof", nil)}
+	put(t, a, "edited", map[string]any{"title": "later"})
+	put(t, a, "created", map[string]any{"title": "new"})
+	if _, err := a.eng.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	// Restore the backup.
+	if err := os.WriteFile(db, saved, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if st, err = store.OpenExisting(db, pdk, store.Options{DeviceID: "A", Queue: true}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if err := st.Update(func(tx *store.Tx) error { return tx.MarkRestored() }); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := st.Stats(); s.Pending != 2 {
+		t.Fatalf("restored records not pending: %+v", s)
+	}
+	a = machine{st, New(st, pdk, cloud, "acc", "prof", nil)}
+	rep, err := a.eng.Run(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if get(t, a, "edited")["title"] != "backup" || rep.Conflicts != 1 {
+		t.Fatalf("restored record replaced: %v %+v", get(t, a, "edited"), rep)
+	}
+	if get(t, a, "same")["title"] != "kept" || get(t, a, "created")["title"] != "new" {
+		t.Fatal("unchanged or later records lost")
+	}
+	if c, err := Conflicts(st); err != nil || len(c) != 1 || c[0].ID != "edited" {
+		t.Fatalf("conflict: %+v %v", c, err)
+	}
+	if s, _ := st.Stats(); s.Pending != 0 || s.Conflicts == 0 {
+		t.Fatalf("after sync: %+v", s)
 	}
 }
