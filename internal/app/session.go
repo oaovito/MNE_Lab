@@ -106,7 +106,7 @@ func (a *App) accountView() (*AccountView, error) {
 	if err != nil {
 		return nil, err
 	}
-	v := &AccountView{ID: acct.ID(), Name: acct.Index.Name, Remembered: acct.Remembered()}
+	v := &AccountView{ID: acct.ID(), Name: acct.Name(), Remembered: acct.Remembered()}
 	for _, e := range acct.Profiles() {
 		v.Profiles = append(v.Profiles, ProfileView{ProfileEntry: e, Avatar: e.AvatarHash != ""})
 	}

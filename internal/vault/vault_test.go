@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -770,7 +772,7 @@ func TestUnlockKeepsPreviousVersionOfDamagedKeyFile(t *testing.T) {
 	// An earlier build changed the password and kept the previous version;
 	// the current file was damaged later.
 	keyFile := filepath.Join(a.ProfileDir(pe.ID), "profile.key.json")
-	pk, err := a.wrapProfile(pe.ID, pdk, "second-pw")
+	pk, err := a.wrapProfileLocked(pe.ID, pdk, "second-pw")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1082,7 +1084,7 @@ func TestMergeKeepsRemovedProfilesRemoved(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The removal reaches the other machine through the merged index.
-	other := Account{Header: a.Header, Index: stale, key: a.key, v: a.v}
+	other := Account{id: a.id, Header: a.Header, Index: stale, key: a.key, v: a.v}
 	if _, err := other.MergeIndex(a.Index); err != nil {
 		t.Fatal(err)
 	}
@@ -1114,4 +1116,54 @@ func TestMergeKeepsProfilesBeyondTheLimit(t *testing.T) {
 	if _, err := a.CreateProfile(ProfileInput{Username: "Gil", StorageMode: StorageUSBOnly}); !errors.Is(err, ErrProfileLimit) {
 		t.Fatalf("created beyond the limit: %v", err)
 	}
+}
+
+// Run with -race: account fields change under the lock while other calls
+// read them.
+func TestAccountReadsDuringPassphraseChange(t *testing.T) {
+	v := fastVault(t)
+	a, _, err := v.Create("Lab", "passphrase1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pe, err := a.CreateProfile(ProfileInput{Username: "Ana", StorageMode: StorageUSBOnly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pdk, err := a.UnlockProfile(pe.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sealed, err := a.SealedIndex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 5; i++ {
+			if err := a.ChangePassphrase(fmt.Sprintf("passphrase-%d", i+2)); err != nil {
+				t.Error(err)
+			}
+		}
+	}()
+	for i := 0; i < 5; i++ {
+		_ = a.Dir()
+		_ = a.ID()
+		_ = a.Name()
+		if err := a.SetProfilePassword(pe.ID, pdk, ""); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.SetAvatar(pe.ID, []byte("png"), "image/png"); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.Remember(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.OpenIndex(sealed); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wg.Wait()
 }

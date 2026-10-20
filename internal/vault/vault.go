@@ -196,7 +196,10 @@ func (v *Vault) List() ([]Summary, error) {
 
 // Account is an unlocked account.
 type Account struct {
-	v      *Vault
+	v  *Vault
+	id string // Header.AccountID, which never changes; read without the lock
+	// mu guards Header, key and Index: a passphrase change, a merge and
+	// profile changes replace them while other calls read them.
 	mu     sync.Mutex
 	Header Header
 	key    secure.Key
@@ -231,7 +234,7 @@ func (v *Vault) Create(name, passphrase string, remember bool) (*Account, secure
 		return nil, rk, err
 	}
 	h.WrappedByRecovery = secure.B64(sealed)
-	a := &Account{v: v, Header: h, key: ak, Index: Index{Schema: SchemaVersion, Name: name, Updated: time.Now().UTC()}}
+	a := &Account{v: v, id: h.AccountID, Header: h, key: ak, Index: Index{Schema: SchemaVersion, Name: name, Updated: time.Now().UTC()}}
 	if err := atomicfile.WriteSecretJSON(filepath.Join(v.dir(h.AccountID), recoveryFile), recoveryOf(h)); err != nil {
 		return nil, rk, err
 	}
@@ -434,7 +437,7 @@ func (v *Vault) open(h Header, kek secure.Key, wrapped string) (*Account, error)
 }
 
 func (v *Vault) load(h Header, ak secure.Key) (*Account, error) {
-	a := &Account{v: v, Header: h, key: ak}
+	a := &Account{v: v, id: h.AccountID, Header: h, key: ak}
 	b, _, err := atomicfile.ReadChecked(filepath.Join(v.dir(h.AccountID), "account.data"))
 	if err != nil {
 		return nil, err
@@ -622,16 +625,17 @@ func (v *Vault) ImportHeader(headerJSON, sealedIndex []byte) (string, error) {
 // ---- Account methods ----
 
 // ID returns the account identifier.
-func (a *Account) ID() string {
-	// ChangePassphrase replaces Header under this lock, even though the ID
-	// itself stays constant. Authenticated import scope reads share that lock.
+func (a *Account) ID() string { return a.id }
+
+// Name returns the account name.
+func (a *Account) Name() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.Header.AccountID
+	return a.Index.Name
 }
 
 // Dir returns the account directory.
-func (a *Account) Dir() string { return a.v.dir(a.Header.AccountID) }
+func (a *Account) Dir() string { return a.v.dir(a.id) }
 
 // Save persists the sealed index.
 func (a *Account) Save() error {
@@ -679,9 +683,12 @@ func (a *Account) ChangePassphrase(p string) error {
 // passphrase. Profiles protected by a password stay protected.
 func (a *Account) Remember() error {
 	k := secure.NewKey()
+	a.mu.Lock()
+	ak := a.key
+	a.mu.Unlock()
 	doc := map[string]string{
 		"key":     secure.B64(k[:]),
-		"wrapped": secure.B64(secure.Seal(k, a.key[:], []byte("account:"+a.Header.AccountID))),
+		"wrapped": secure.B64(secure.Seal(k, ak[:], []byte("account:"+a.id))),
 	}
 	return atomicfile.WriteSecretJSON(filepath.Join(a.Dir(), "drive.key"), doc)
 }
@@ -789,7 +796,7 @@ func (a *Account) CreateProfile(in ProfileInput) (ProfileEntry, error) {
 		Created: time.Now().UTC().Truncate(time.Second), HasPassword: in.Password != "", Color: len(a.Index.Profiles)}
 	pdk := secure.NewKey()
 	defer pdk.Wipe()
-	pk, err := a.wrapProfile(pe.ID, pdk, in.Password)
+	pk, err := a.wrapProfileLocked(pe.ID, pdk, in.Password)
 	if err != nil {
 		return ProfileEntry{}, err
 	}
@@ -798,7 +805,7 @@ func (a *Account) CreateProfile(in ProfileInput) (ProfileEntry, error) {
 	}
 	pe.KeysUpdated = pk.Updated
 	if len(in.Avatar) > 0 {
-		if err := a.writeAvatar(pe.ID, in.Avatar); err != nil {
+		if err := a.writeAvatarLocked(pe.ID, in.Avatar); err != nil {
 			return ProfileEntry{}, err
 		}
 		pe.AvatarType = in.AvatarType
@@ -830,7 +837,7 @@ func (a *Account) sealIndexLocked() error {
 	return atomicfile.WriteChecked(filepath.Join(a.Dir(), "account.data"), secure.Seal(a.key, b, []byte("index:"+a.Header.AccountID)))
 }
 
-func (a *Account) wrapProfile(pid string, pdk secure.Key, password string) (ProfileKeys, error) {
+func (a *Account) wrapProfileLocked(pid string, pdk secure.Key, password string) (ProfileKeys, error) {
 	pk := ProfileKeys{Schema: SchemaVersion, ProfileID: pid, HasPassword: password != "", Updated: time.Now().UTC()}
 	aad := []byte("profile:" + pid)
 	if password != "" {
@@ -972,15 +979,15 @@ func (a *Account) UnlockProfile(pid, password string) (secure.Key, error) {
 // SetProfilePassword changes, adds or (with an empty value) removes a
 // profile password. The current key must already be unlocked.
 func (a *Account) SetProfilePassword(pid string, pdk secure.Key, newPassword string) error {
-	pk, err := a.wrapProfile(pid, pdk, newPassword)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	pk, err := a.wrapProfileLocked(pid, pdk, newPassword)
 	if err != nil {
 		return err
 	}
 	if err := atomicfile.WriteSecretJSON(filepath.Join(a.ProfileDir(pid), "profile.key.json"), pk); err != nil {
 		return err
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	for i := range a.Index.Profiles {
 		if a.Index.Profiles[i].ID == pid {
 			a.Index.Profiles[i].HasPassword = newPassword != ""
@@ -1056,8 +1063,13 @@ func (a *Account) UpdateProfile(pid string, fn func(*ProfileEntry) error) (Profi
 func (a *Account) SetAvatar(pid string, data []byte, mime string) error {
 	if len(data) == 0 {
 		atomicfile.Remove(filepath.Join(a.Dir(), "avatars", pid))
-	} else if err := a.writeAvatar(pid, data); err != nil {
-		return err
+	} else {
+		a.mu.Lock()
+		err := a.writeAvatarLocked(pid, data)
+		a.mu.Unlock()
+		if err != nil {
+			return err
+		}
 	}
 	_, err := a.UpdateProfile(pid, func(p *ProfileEntry) error {
 		if len(data) == 0 {
@@ -1070,7 +1082,7 @@ func (a *Account) SetAvatar(pid string, data []byte, mime string) error {
 	return err
 }
 
-func (a *Account) writeAvatar(pid string, data []byte) error {
+func (a *Account) writeAvatarLocked(pid string, data []byte) error {
 	return atomicfile.WriteChecked(filepath.Join(a.Dir(), "avatars", pid), secure.Seal(a.key, data, []byte("avatar:"+pid)))
 }
 
@@ -1110,7 +1122,7 @@ func (a *Account) OpenIndex(sealed []byte) (Index, error) {
 	k := a.key
 	a.mu.Unlock()
 	var idx Index
-	pt, err := secure.Open(k, sealed, []byte("index:"+a.Header.AccountID))
+	pt, err := secure.Open(k, sealed, []byte("index:"+a.id))
 	if err != nil {
 		return idx, ErrWrongSecret
 	}
