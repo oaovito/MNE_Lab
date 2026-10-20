@@ -13,12 +13,12 @@ Portions of this software are copyright © 1996-2006 The FreeType Project (www.f
 | github.com/go-pdf/fpdf | v0.9.0 | MIT |
 | github.com/godbus/dbus/v5 | v5.1.0 | BSD-2-Clause |
 | github.com/golang/freetype | v0.0.0-20170609003504-e2365dfdc4a0 | FreeType License (FTL), chosen from FTL or GPL-2.0 |
-| github.com/richardlehane/mscfb | v1.0.7 | Apache-2.0 |
+| github.com/richardlehane/mscfb | v1.0.8 | Apache-2.0 |
 | github.com/richardlehane/msoleps | v1.0.6 | Apache-2.0 |
 | github.com/skip2/go-qrcode | v0.0.0-20200617195104-da1b6568686e | MIT |
 | github.com/tiendc/go-deepcopy | v1.7.2 | MIT |
-| github.com/xuri/efp | v0.0.1 | BSD-3-Clause |
-| github.com/xuri/excelize/v2 | v2.11.0 | BSD-3-Clause |
+| github.com/xuri/efp | v0.0.2 | BSD-3-Clause |
+| github.com/xuri/excelize/v2 | v2.11.1-0.20260930021559-01a9ff32fb3c | BSD-3-Clause |
 | github.com/xuri/nfp | v0.0.2-0.20250530014748-2ddeb826f9a9 | BSD-3-Clause |
 | go.etcd.io/bbolt | v1.5.0 | MIT |
 | golang.org/x/crypto | v0.57.0 | BSD-3-Clause |
@@ -582,7 +582,7 @@ Legal Terms
 --- end of FTL.TXT ---
 ~~~
 
-## github.com/richardlehane/mscfb (v1.0.7)
+## github.com/richardlehane/mscfb (v1.0.8)
 
 License: Apache-2.0
 
@@ -1052,14 +1052,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~
 
-## github.com/xuri/efp (v0.0.1)
+## github.com/xuri/efp (v0.0.2)
 
 License: BSD-3-Clause
 
 ~~~text
 BSD 3-Clause License
 
-Copyright (c) 2017 - 2025 Ri Xu All rights reserved.
+Copyright (c) 2017 - 2026 Ri Xu All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -1087,7 +1087,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ~~~
 
-## github.com/xuri/excelize/v2 (v2.11.0)
+## github.com/xuri/excelize/v2 (v2.11.1-0.20260930021559-01a9ff32fb3c)
 
 License: BSD-3-Clause
 

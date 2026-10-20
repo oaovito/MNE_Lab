@@ -11,7 +11,7 @@ The file extension does not identify ZETA, DLS or any analysis method.
 1. Content dispatch uses the CFB signature before filename hints. A damaged
    `.dts` does not fall through to the text parser. Valid, unsupported CFB
    structures can be preserved as `unknown_compound` originals.
-2. CFB decoding uses `github.com/richardlehane/mscfb` 1.0.7, with a bounded
+2. CFB decoding uses `github.com/richardlehane/mscfb` 1.0.8, with a bounded
    directory/FAT preflight. CFB v3/v4 structural checks follow the public
    [Microsoft MS-CFB specification](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/).
    The private real corpus currently exercises v3; this does not establish
