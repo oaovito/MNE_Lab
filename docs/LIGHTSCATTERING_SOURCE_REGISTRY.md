@@ -2,7 +2,7 @@
 
 Reviewed/attempted: 2026-10-10 UTC. Stable IDs identify evidence, not a
 scientifically validated parser. Public sources are linked and summarized;
-manuals, private prompts, experimental originals and per-file hashes are not
+manuals, private project documents, experimental originals and per-file hashes are not
 redistributed in this repository. Private receipts retain URLs, byte counts,
 SHA-256, document/page locators and unsuccessful requests.
 
