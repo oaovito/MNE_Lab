@@ -7,23 +7,24 @@ on:
 permissions:
   contents: read
 
+env:
+  SOURCE_REF: 8a12ff636f867e89f84b1db0bf3db14e8c4da9cf
+  TEST_TAG: 0.1.0-dev.8a12ff6
+  DRAFT_ID: '409188088'
+  GH_REPO: oaovito/MNE_Lab
+
+# Only the two jobs that talk to the draft hold a write token, and neither
+# runs candidate code. The build runs npm and the candidate's scripts with a
+# read-only token and no GitHub credentials in its environment.
 jobs:
-  owner-test:
+  draft-check:
     if: contains(github.event.head_commit.message, '[windows-test]')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      SOURCE_REF: 8a12ff636f867e89f84b1db0bf3db14e8c4da9cf
-      TEST_TAG: 0.1.0-dev.8a12ff6
-      DRAFT_ID: '409188088'
       GH_TOKEN: ${{ github.token }}
-      GH_REPO: oaovito/MNE_Lab
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: packaging
-          persist-credentials: false
       - name: Require the existing private draft and exact source
         run: |
           gh api "repos/$GH_REPO/releases/$DRAFT_ID" > "$RUNNER_TEMP/draft.json"
@@ -35,11 +36,23 @@ jobs:
           assert draft['target_commitish']==os.environ['SOURCE_REF']
           assert not draft['assets'], 'Refuse to overwrite existing owner-test assets.'
           PY
+
+  build:
+    needs: draft-check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: packaging
+          persist-credentials: false
       - uses: actions/checkout@v4
         with:
           ref: 8a12ff636f867e89f84b1db0bf3db14e8c4da9cf
           path: candidate
           fetch-depth: 1
+          persist-credentials: false
       - name: Fetch only the source revision ancestry
         working-directory: candidate
         run: git fetch --no-tags --unshallow origin "$SOURCE_REF"
@@ -68,6 +81,25 @@ jobs:
           bash "$GITHUB_WORKSPACE/packaging/scripts/audit.sh" out web/dist
       - name: Package and verify PE, archive members, CRC and hashes
         run: python packaging/scripts/package_windows_test.py --repo candidate --out "$RUNNER_TEMP/windows-test"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-test
+          path: ${{ runner.temp }}/windows-test
+          retention-days: 1
+          if-no-files-found: error
+
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-test
+          path: ${{ runner.temp }}/windows-test
       - name: Upload to the existing draft; never publish a release
         run: |
           gh api "repos/$GH_REPO/releases/$DRAFT_ID" > "$RUNNER_TEMP/draft.json"
