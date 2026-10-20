@@ -1,11 +1,14 @@
 package backup
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 
+	"github.com/oaovito/mne_lab/internal/atomicfile"
 	"github.com/oaovito/mne_lab/internal/secure"
 	"github.com/oaovito/mne_lab/internal/store"
 )
@@ -151,5 +154,34 @@ func TestConcurrentCreatesKeepManifestComplete(t *testing.T) {
 		if err := Verify(bdir, e, key); err != nil {
 			t.Fatalf("listed snapshot %s: %v", e.File, err)
 		}
+	}
+}
+
+func TestFailedRestoreKeepsTheStore(t *testing.T) {
+	d := t.TempDir()
+	key := secure.NewKey()
+	dbp := filepath.Join(d, "profile.db")
+	s, err := store.Open(dbp, key, store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bdir := filepath.Join(d, "backups")
+	e, err := Create(s, key, bdir, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	before, err := os.ReadFile(dbp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := errors.New("disk full")
+	replace = func(string, []byte, os.FileMode) error { return failed }
+	t.Cleanup(func() { replace = atomicfile.ReplaceFile })
+	if err := Restore(bdir, e, key, dbp); !errors.Is(err, failed) {
+		t.Fatalf("restore error: %v", err)
+	}
+	if after, err := os.ReadFile(dbp); err != nil || !bytes.Equal(after, before) {
+		t.Fatalf("failed restore left no store: %v", err)
 	}
 }

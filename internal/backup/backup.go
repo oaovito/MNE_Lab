@@ -189,8 +189,12 @@ func Latest(dir string, key secure.Key) (Entry, error) {
 	return Entry{}, errors.New("backup: no verified snapshot available")
 }
 
+// replace swaps the store file in one rename (tests inject failures).
+var replace = atomicfile.ReplaceFile
+
 // Restore replaces the store file at dbPath with snapshot e. The current
-// file is preserved next to it as <db>.before-restore.
+// file is copied next to it as <db>.before-restore first, and the store is
+// replaced in one rename, so a failure at any point leaves it in place.
 func Restore(dir string, e Entry, key secure.Key, dbPath string) error {
 	if err := Verify(dir, e, key); err != nil {
 		return err
@@ -199,12 +203,14 @@ func Restore(dir string, e Entry, key secure.Key, dbPath string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(dbPath); err == nil {
+	if cur, err := os.ReadFile(dbPath); err == nil {
 		keep := dbPath + ".before-restore"
 		os.Remove(keep)
-		if err := os.Rename(dbPath, keep); err != nil {
+		if err := atomicfile.ReplaceFile(keep, cur, 0o600); err != nil {
 			return err
 		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
-	return atomicfile.WriteFile(dbPath, b, 0o600)
+	return replace(dbPath, b, 0o600)
 }

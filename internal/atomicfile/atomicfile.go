@@ -32,6 +32,12 @@ func WriteFile(path string, data []byte, perm os.FileMode) error {
 	return write(path, data, perm, true)
 }
 
+// ReplaceFile writes data like WriteFile but keeps no previous version, for
+// callers that keep their own copy of what is replaced.
+func ReplaceFile(path string, data []byte, perm os.FileMode) error {
+	return write(path, data, perm, false)
+}
+
 func write(path string, data []byte, perm os.FileMode, keepPrev bool) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
