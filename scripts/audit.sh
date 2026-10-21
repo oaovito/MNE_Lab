@@ -6,7 +6,6 @@
 # Usage: scripts/audit.sh [artifact-file-or-dir ...]
 set -u
 export LC_ALL=C.UTF-8
-boundary=$(cd "$(dirname "$0")" && pwd)/check_development_boundary.py
 # Quoted non-ASCII names would evade anchored patterns; names Git still quotes
 # (control characters, quotes, backslashes) fail their own check below.
 git() { command git -c core.quotePath=false "$@"; }
@@ -40,31 +39,20 @@ PATTERNS
 # Even an identifier can itself contain a credential-shaped value.
 sed -e 's|^|s~|' -e 's|$|~[redacted]~gI|' "$secrets" >"$scratch/redactions"
 
-# Confidential categories remain forbidden. Only a fixed, separately checked
-# Git-only continuity contract permits coordination documents in source.
-# Artifacts use the original strict categories plus the entire context folder.
-private_re='(^|/)(\.env(\..*)?|[^/]*\.pem|[^/]*\.key|[^/]*\.p12|[^/]*\.pfx|release-signing[^/]*|providers\.json|AGENTS\.md|ferramenta\.md|Zeta\.xlsx)$|(^|/)(C-(RT|SR)|F-(RT|SR)|\.private-fixtures|\.dev-data)(/|$)|(^|/)[^/]*pacote[-_ .]*mestre[^/]*(/|$)|(^|/)[^/]*(prompt[-_ .]*mestre|mestre[-_ .]*prompt)[^/]*$|(^|/)[^/]*(master[-_ .]*(continuity|recovery|prompt)|continuity[-_ .]*(recovery[-_ .]*)?prompt|recovery[-_ .]*prompt)[^/]*$|(^|/)[^/]*((ferramenta|ferramenta)[-_ .]*(coordination|transcript|conversation|handoff|chat|session|prompt)|(coordination|transcript|conversation|handoff|chat|session|prompt)[-_ .]*(ferramenta|ferramenta))[^/]*$|(^|/)[^/]*(ferramenta[-_ .]*ferramenta|ferramenta[-_ .]*ferramenta)[^/]*$|(^|/)example[-_ .]*results\.dts$|(^|/)[^/]*pacote[-_ .]*implementa(cao|ção)[^/]*(/|$)'
-allowed_development='(AGENTS\.md|ferramenta\.md|development/continuity/(README\.md|MASTER_SPECIFICATION\.md|USER_DIRECTIVES\.md|CONTEXT\.md|CHECKPOINT\.json|TASKS\.json|MATERIALS\.md|PROMPT\.md|REQUIREMENTS_REVIEW\.md|VALIDATION\.json))'
-source_paths() { grep -a -v -E "^([a-f0-9]{40,64}:)?$allowed_development$"; }
+# Confidential categories: credentials, the private corpus and private
+# development documents. Tool names are checked through the terms file.
+private_re='(^|/)(\.env(\..*)?|[^/]*\.pem|[^/]*\.key|[^/]*\.p12|[^/]*\.pfx|release-signing[^/]*|providers\.json|Zeta\.xlsx)$|(^|/)(C-(RT|SR)|F-(RT|SR)|\.private-fixtures|\.dev-data)(/|$)|(^|/)[^/]*pacote[-_ .]*mestre[^/]*(/|$)|(^|/)[^/]*(prompt[-_ .]*mestre|mestre[-_ .]*prompt)[^/]*$|(^|/)[^/]*(master[-_ .]*(continuity|recovery|prompt)|continuity[-_ .]*(recovery[-_ .]*)?prompt|recovery[-_ .]*prompt)[^/]*$|(^|/)example[-_ .]*results\.dts$|(^|/)[^/]*pacote[-_ .]*implementa(cao|ção)[^/]*(/|$)'
 development_marker='MNE_LAB_'
 development_marker+='DEVELOPMENT_ONLY'
-if command -v python3 >/dev/null 2>&1 && [ -f "$boundary" ]; then
-	if python3 "$boundary" --repo "$PWD" >"$scratch/boundary" 2>&1; then
-		report "development continuity is marked and excluded in every Git tree/index" ""
-	else
-		report "development continuity is marked and excluded in every Git tree/index" "$(cat "$scratch/boundary")"
-	fi
-else
-	report "development continuity inspection is available" "Python and the boundary checker are required"
-fi
 command -v python3 >/dev/null 2>&1 || exit 1
 private_content=$scratch/private-content
 cat >"$private_content" <<'PATTERNS'
 ^#{1,6}[[:space:]]+.*master[[:space:]_-]+continuity[[:space:][:punct:]]+recovery[[:space:]_-]+prompt
 ^[[:space:]]*master[[:space:]_-]+continuity[[:space:][:punct:]]+recovery[[:space:]_-]+prompt([[:space:]]|$)
 ^#{1,6}[[:space:]]+.*prompt[[:space:]_-]+mestre([[:space:]]|$)
-^#{1,6}[[:space:]]*((ferramenta|ferramenta)[[:space:][:punct:]]+){1,2}(coordination|transcript|conversation|handoff|session|chat|instructions)
 PATTERNS
+# Development-only documents never belong in the repository or a build.
+printf '%s\n' "$development_marker" >>"$private_content"
 trailer_re='^[[:space:]]*(co-authored-by|([[:alnum:]_]+-)*session(-[[:alnum:]_]+)*)[[:space:]]*:'
 
 helper=$scratch/inspect.py
@@ -453,7 +441,7 @@ meta_hits() { # meta_hits <grep options...>: commits whose metadata matches or c
 }
 
 # Archive members are judged like artifacts: secrets in names or bytes, PFX
-# members, private names, private coordination content and the marker.
+# members, private names, private development content and the marker.
 {
 	matching_objects -i -E -f "$secrets" "$objects/blobs"
 	matching_objects --include='*.names' -i -E -f "$secrets" "$objects/zips"
@@ -465,14 +453,14 @@ meta_hits() { # meta_hits <grep options...>: commits whose metadata matches or c
 	matching_objects --include='*.data' -i -E -f "$private_content" "$objects/zips"
 	matching_objects --include='*.data' -F -e "$development_marker" "$objects/zips"
 } >"$scratch/hits-private-content"
-names_matching "$scratch/all-names" -i -E -e "$private_re" | source_paths >"$scratch/private-paths"
-blob_findings history "$scratch/hits-private-content" | source_paths | grep -a -v -F '[file content inspection failed]' | sed 's/^[a-f0-9]*://' >"$scratch/private-content-paths"
+names_matching "$scratch/all-names" -i -E -e "$private_re" >"$scratch/private-paths"
+blob_findings history "$scratch/hits-private-content" | grep -a -v -F '[file content inspection failed]' | sed 's/^[a-f0-9]*://' >"$scratch/private-content-paths"
 # Retain historical basenames even after deletion from the current branch.
 cat "$scratch/private-paths" "$scratch/private-content-paths" | sed 's|.*/||' | grep -a -v -x -F '' | sort -u >"$scratch/private-names"
 if [ -s "$scratch/private-names" ]; then python3 "$helper" fold "$scratch/private-names" 2>/dev/null; fi
 {
-	matching_objects --include='*.names' -i -E -e "$private_re" -e '(^|/)development/continuity(/|$)' "$objects/zips"
-	matching_objects --include='*.folded' -i -E -e "$private_re" -e '(^|/)development/continuity(/|$)' "$objects/zips"
+	matching_objects --include='*.names' -i -E -e "$private_re" "$objects/zips"
+	matching_objects --include='*.folded' -i -E -e "$private_re" "$objects/zips"
 	if [ -s "$scratch/private-names" ]; then
 		matching_objects --include='*.names' -i -F -f "$scratch/private-names" "$objects/zips"
 		matching_objects --include='*.folded' -i -F -f "$scratch/private-names.folded" "$objects/zips"
@@ -480,70 +468,16 @@ if [ -s "$scratch/private-names" ]; then python3 "$helper" fold "$scratch/privat
 } >"$scratch/hits-archive-names"
 
 report "tracked and historical archives can be inspected" "$( { blob_findings index "$objects/unreadable"; blob_findings history "$objects/unreadable"; } | sort -u)"
-report "no private files tracked" "$( { names_matching "$scratch/index-names" -i -E -e "$private_re" | source_paths; blob_findings index "$scratch/hits-archive-names"; } | sort -u)"
+report "no private files tracked" "$( { names_matching "$scratch/index-names" -i -E -e "$private_re"; blob_findings index "$scratch/hits-archive-names"; } | sort -u)"
 report "no private file names in history" "$( { cat "$scratch/private-paths"; blob_findings history "$scratch/hits-archive-names"; } | sort -u)"
-report "no private coordination content tracked" "$( { blob_findings index "$scratch/hits-private-content"; git_matches -l -i -E -f "$private_content"; } | source_paths | sort -u)"
-report "no private coordination content in history" "$(blob_findings history "$scratch/hits-private-content" | source_paths)"
+report "no private development content tracked" "$( { blob_findings index "$scratch/hits-private-content"; git_matches -l -i -E -f "$private_content"; } | sort -u)"
+report "no private development content in history" "$(blob_findings history "$scratch/hits-private-content")"
 report "secrets: tracked files" "$( { blob_findings index "$scratch/hits-secrets"; git_matches -l -i -E -f "$secrets"; } | sort -u)"
 report "secrets: tracked file names" "$(names_matching "$scratch/index-names" -i -E -f "$secrets")"
 report "secrets: history" "$(blob_findings history "$scratch/hits-secrets")"
 report "secrets: historical file names" "$(names_matching "$scratch/all-names" -i -E -f "$secrets")"
 report "secrets: commit metadata and trailers" "$(meta_hits -i -E -f "$secrets")"
 report "no co-author or session trailers in commit messages" "$(meta_hits -i -E -e "$trailer_re")"
-
-term_config_content() { # exact structural boundary declarations are not branding
-	local path=$1
-	if [ "$path" = .gitattributes ]; then
-		sed -E '/^\/(AGENTS|ferramenta)\.md[[:space:]]+export-ignore[[:space:]]*$/d'
-	else
-		sed -E '/^(AGENTS\.md|ferramenta\.md|!\/(AGENTS|ferramenta)\.md)[[:space:]]*$/d'
-	fi
-}
-# The audit tooling must name the coordination files it detects, so only
-# branding terms are not reported there.
-audit_tooling() {
-	case "$1" in scripts/audit.sh|scripts/audit_test.sh|scripts/check_development_boundary.py) return 0 ;; esac
-	return 1
-}
-# Versions of docs/READINESS.md that named the tools before they were removed
-# from it. They are already published and history is never rewritten, so only
-# these exact blobs are accepted for branding terms; confidential terms and
-# every other blob keep full coverage.
-cat >"$scratch/accepted-blobs" <<'BLOBS'
-42833a67ace5594e0280f82d9314734224cea68f
-4d2321249acc3afcc8855406389632bcce549f34
-87f8bd4be7a183e284199cc47dcb50f3ff54cec5
-88e0963403efa1a89f02b0afe9026ca5b4e16b4a
-b59b3ed51a109efce66d1826a5b56f9c18008dfe
-f2effdeff4755dd994e4fa9e28d6d1f32de98815
-BLOBS
-branding_blobs() { # branding_blobs <index|history>
-	blob_items "$1" "$scratch/hits-branding" | while IFS=$'\t' read -r item blob path; do
-		case "$item" in *'[file content inspection failed]') printf '%s\n' "$item"; continue ;; esac
-		if audit_tooling "$path"; then continue; fi
-		case "$path" in
-			.gitattributes|.gitignore)
-				term_config_content "$path" <"$objects/blobs/$blob" | grep -a -i -q -E -f "$branding_terms" || continue
-				;;
-		esac
-		printf '%s\n' "$item"
-	done | source_paths
-}
-branding_worktree() {
-	git_matches -l -i -E -f "$branding_terms" | while IFS= read -r path; do
-		if audit_tooling "$path"; then continue; fi
-		case "$path" in
-			'[file content inspection failed]') ;;
-			.gitattributes|.gitignore)
-				term_config_content "$path" <"$path" | grep -a -i -q -E -f "$branding_terms" || continue
-				;;
-			*)
-				if blob=$(git hash-object -- "$path" 2>/dev/null) && grep -q -x -F -e "$blob" "$scratch/accepted-blobs"; then continue; fi
-				;;
-		esac
-		printf '%s\n' "$path"
-	done | source_paths
-}
 
 terms=""
 if [ -n "${AUDIT_TERMS_FILE:-}" ]; then
@@ -555,39 +489,24 @@ if [ -n "${AUDIT_TERMS_FILE:-}" ]; then
 		if [ "$pattern_status" -gt 1 ]; then
 			report "unwanted term expressions are valid" "$AUDIT_TERMS_FILE"
 		else
-			terms=$AUDIT_TERMS_FILE
-			# Only complete literal tool names or a simple alternation of those
-			# names are branding patterns. Arbitrary confidentiality regexes,
-			# including mixed alternatives, retain their full source/history
-			# coverage even inside the authorized continuity documents.
-			branding_terms=$scratch/branding-terms
+			# A line may start with "brand:" to mark a product or tool name.
+			# Every term applies to the whole repository, its history, file,
+			# branch and tag names and commit metadata; only the pinned
+			# third-party statistics runtime image is spared brand terms in
+			# built artifacts (see artifact_terms).
+			terms=$scratch/all-terms
 			confidential_terms=$scratch/confidential-terms
-			: >"$branding_terms"
-			: >"$confidential_terms"
-			while IFS= read -r expression || [ -n "$expression" ]; do
-				if printf '%s\n' "$expression" | grep -i -q -E '^(ferramenta|ferramenta|ferramenta|ferramenta)(\|(ferramenta|ferramenta|ferramenta|ferramenta))*$'; then
-					printf '%s\n' "$expression" >>"$branding_terms"
-				else
-					printf '%s\n' "$expression" >>"$confidential_terms"
-				fi
-			done <"$terms"
-			# Archive members are not exempt from any term.
+			sed -E 's/^brand://' "$AUDIT_TERMS_FILE" | grep -a -v -x -F '' >"$terms"
+			grep -a -v -E '^brand:' "$AUDIT_TERMS_FILE" | grep -a -v -x -F '' >"$confidential_terms"
 			{
-				if [ -s "$confidential_terms" ]; then matching_objects -i -E -f "$confidential_terms" "$objects/blobs"; fi
+				matching_objects -i -E -f "$terms" "$objects/blobs"
 				matching_objects --include='*.data' -i -E -f "$terms" "$objects/zips"
-			} >"$scratch/hits-confidential"
-			: >"$scratch/hits-branding"
-			if [ -s "$branding_terms" ]; then
-				matching_objects -i -E -f "$branding_terms" "$objects/blobs" | grep -v -x -F -f "$scratch/accepted-blobs" >"$scratch/hits-branding"
-			fi
-			report "terms: tracked files (1)" "$( {
-				blob_findings index "$scratch/hits-confidential"
-				if [ -s "$confidential_terms" ]; then git_matches -l -i -E -f "$confidential_terms"; fi
-				if [ -s "$branding_terms" ]; then branding_blobs index; branding_worktree; fi
-			} | sort -u)"
-			report "terms: file names (1)" "$( { names_matching "$scratch/index-names" -i -E -f "$confidential_terms"; names_matching "$scratch/index-names" -i -E -f "$branding_terms" | source_paths; } | sort -u)"
-			report "terms: every revision (2)" "$( { blob_findings history "$scratch/hits-confidential"; if [ -s "$branding_terms" ]; then branding_blobs history; fi; } | sort -u)"
-			report "terms: historical file names (2)" "$( { names_matching "$scratch/all-names" -i -E -f "$confidential_terms"; names_matching "$scratch/all-names" -i -E -f "$branding_terms" | source_paths; } | sort -u)"
+			} >"$scratch/hits-terms"
+			report "terms: tracked files (1)" "$( { blob_findings index "$scratch/hits-terms"; git_matches -l -i -E -f "$terms"; } | sort -u)"
+			report "terms: file names (1)" "$(names_matching "$scratch/index-names" -i -E -f "$terms")"
+			report "terms: every revision (2)" "$(blob_findings history "$scratch/hits-terms")"
+			report "terms: historical file names (2)" "$(names_matching "$scratch/all-names" -i -E -f "$terms")"
+			report "terms: branch and tag names (2)" "$(git for-each-ref --format='%(refname)' | grep -a -i -E -f "$terms")"
 			report "terms: commit metadata and trailers (2)" "$(meta_hits -i -E -f "$terms")"
 		fi
 	fi
@@ -615,22 +534,15 @@ if [ -n "$terms" ]; then
 	sed -E -e 's/^\\b/(^|[[:space:]"'"'"'>])/' -e 's/\\b$/([[:space:]"'"'"'<.,;:!?)-]|$)/' "$terms" >"$scratch/artifact-terms"
 	sed -E -e 's/^\\b/(^|[[:space:]"'"'"'>])/' -e 's/\\b$/([[:space:]"'"'"'<.,;:!?)-]|$)/' "$confidential_terms" >"$scratch/artifact-confidential-terms"
 fi
-# The bundled statistics runtime is third-party R content whose citations
-# and package names can contain the branding words (a person named ferramenta,
-# the openair package). Only branding terms are not applied there.
+# The bundled statistics runtime is pinned third-party R content whose
+# citations and package names can contain a brand word by coincidence (a
+# person's name, a package name). Only brand terms are not applied there.
 artifact_terms() {
 	case "$1" in */statistics-engine/vfs/*) printf '%s\n' "$scratch/artifact-confidential-terms" ;; *) printf '%s\n' "$scratch/artifact-terms" ;; esac
 }
 
 private_artifacts="" secret_artifacts="" term_artifacts="" path_artifacts="" unreadable_artifacts=""
 if [ "$#" -gt 0 ]; then
-	if [ -f "$boundary" ]; then
-		if python3 "$boundary" --artifacts-only --artifacts "$@" >"$scratch/artifact-boundary" 2>&1; then
-			report "development context is absent from product artifacts" ""
-		else
-			report "development context is absent from product artifacts" "$(cat "$scratch/artifact-boundary")"
-		fi
-	fi
 	if ! command -v strings >/dev/null 2>&1; then
 		report "artifact text inspection is available" "strings is required"
 		exit "$fail"

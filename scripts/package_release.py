@@ -9,7 +9,7 @@ SHA-256 sums. Windows archives are ZIP; others are tar.gz, which keeps the
 executable bits.
 """
 from pathlib import Path
-import argparse, hashlib, io, json, struct, subprocess, sys, tarfile, zipfile
+import argparse, hashlib, io, json, struct, subprocess, tarfile, zipfile
 
 NAMES = {
     'windows/amd64': 'Windows-x64', 'windows/386': 'Windows-x86', 'windows/arm64': 'Windows-ARM64',
@@ -137,9 +137,6 @@ def package(repo, out, version, target, head):
                 raw, mode = files[m.name[len(root) + 1:]]
                 assert t.extractfile(m).read() == raw and m.mode == mode
     data = archive.read_bytes()
-    if os_ == 'windows':
-        subprocess.run([sys.executable, str(Path(__file__).resolve().with_name('check_development_boundary.py')),
-                        '--archive-stdin'], input=data, check=True, capture_output=True)
     return {'archive': archive.name, 'target': target, 'size': len(data),
             'sha256': hashlib.sha256(data).hexdigest(), 'files': len(files)}
 

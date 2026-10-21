@@ -16,4 +16,3 @@ testdata/signature/invented.csv whitespace=cr-at-eol
 /.gitattributes export-ignore
 /scripts/audit.sh export-ignore
 /scripts/audit_test.sh export-ignore
-/scripts/check_development_boundary.py export-ignore

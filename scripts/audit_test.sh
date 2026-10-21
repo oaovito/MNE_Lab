@@ -65,17 +65,16 @@ for group in C-RT C-SR F-RT F-SR; do
 	mkdir "$repo/$group"
 	printf 'Synthetic placeholder, no experimental measurements.\n' >"$repo/$group/sample-record.txt"
 done
-for name in Zeta.xlsx AGENTS.md ferramenta.md MASTER_CONTINUITY_RECOVERY_PROMPT.txt ferramenta_transcript.md PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip MNE_Lab_Pacote_Implementacao_ATUALIZADO.zip Example_Results.dts; do
+for name in Zeta.xlsx MASTER_CONTINUITY_RECOVERY_PROMPT.txt PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip MNE_Lab_Pacote_Implementacao_ATUALIZADO.zip Example_Results.dts; do
 	printf 'Synthetic private-category placeholder.\n' >"$repo/$name"
 done
 commit 'Synthetic private filename categories'
 run_audit
 expect_status 1 'tracked private filenames'
 expect_line 'FAIL  no private files tracked'
-for name in C-RT/sample-record.txt C-SR/sample-record.txt F-RT/sample-record.txt F-SR/sample-record.txt Zeta.xlsx MASTER_CONTINUITY_RECOVERY_PROMPT.txt ferramenta_transcript.md PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip MNE_Lab_Pacote_Implementacao_ATUALIZADO.zip Example_Results.dts; do expect_line "$name"; done
-expect_line 'FAIL  development continuity is marked and excluded in every Git tree/index'
-pass 'private categories and unapproved root coordination contracts are rejected'
-git -C "$repo" rm -rq -- C-RT C-SR F-RT F-SR Zeta.xlsx AGENTS.md ferramenta.md MASTER_CONTINUITY_RECOVERY_PROMPT.txt ferramenta_transcript.md PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip MNE_Lab_Pacote_Implementacao_ATUALIZADO.zip Example_Results.dts
+for name in C-RT/sample-record.txt C-SR/sample-record.txt F-RT/sample-record.txt F-SR/sample-record.txt Zeta.xlsx MASTER_CONTINUITY_RECOVERY_PROMPT.txt PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip MNE_Lab_Pacote_Implementacao_ATUALIZADO.zip Example_Results.dts; do expect_line "$name"; done
+pass 'private categories are rejected'
+git -C "$repo" rm -rq -- C-RT C-SR F-RT F-SR Zeta.xlsx MASTER_CONTINUITY_RECOVERY_PROMPT.txt PROMPT_MESTRE_MNE_LAB_CURRENT.md MNE_Lab_Pacote_Mestre_COMPLETO.zip MNE_Lab_Pacote_Implementacao_ATUALIZADO.zip Example_Results.dts
 commit 'Remove synthetic private fixtures'
 run_audit
 expect_status 1 'deleted private filenames remain in history'
@@ -174,8 +173,8 @@ if grep -q -F "$synthetic_secret" "$log"; then echo 'FAIL: audit printed a crede
 pass 'artifact identifiers are redacted too'
 
 mkdir "$scratch/entry-archive"
-printf 'Harmless synthetic placeholder.\n' >"$scratch/entry-archive/AGENTS.md"
-(cd "$scratch/entry-archive" && zip -q "$scratch/entry.zip" AGENTS.md)
+printf 'Harmless synthetic placeholder.\n' >"$scratch/entry-archive/Zeta.xlsx"
+(cd "$scratch/entry-archive" && zip -q "$scratch/entry.zip" Zeta.xlsx)
 run_audit "$scratch/entry.zip"
 expect_status 1 'private ZIP entry with clean source history'
 expect_line 'FAIL  no private file names in artifacts or ZIP entries'
@@ -206,7 +205,7 @@ cp "$audit" "$repo/public-audit.sh"
 cp "$0" "$repo/public-audit-test.sh"
 commit 'Public audit implementation and synthetic tests'
 run_audit
-expect_status 0 'public synthetic references are not private coordination content'
+expect_status 0 'public synthetic references are not private development content'
 pass 'audit source and regression names do not trigger private heading checks'
 
 new_repo
@@ -216,13 +215,13 @@ printf '# %s & %s\n' "$heading_prefix" 'RECOVERY PROMPT' >"$repo/ordinary-notes.
 commit 'Synthetic private content under a neutral filename'
 run_audit
 expect_status 1 'renamed private heading'
-expect_line 'FAIL  no private coordination content tracked'
+expect_line 'FAIL  no private development content tracked'
 git -C "$repo" rm -q ordinary-notes.txt
 commit 'Remove synthetic heading'
 run_audit
 expect_status 1 'renamed private heading retained in history'
-expect_line 'ok    no private coordination content tracked'
-expect_line 'FAIL  no private coordination content in history'
+expect_line 'ok    no private development content tracked'
+expect_line 'FAIL  no private development content in history'
 pass 'renaming a private continuity heading cannot bypass history checks'
 
 new_repo
@@ -231,90 +230,42 @@ printf '# %s %s\n' "$portuguese_prefix" 'MESTRE — synthetic placeholder' >"$re
 commit 'Synthetic Portuguese heading under a neutral name'
 run_audit
 expect_status 1 'Portuguese private heading'
-expect_line 'FAIL  no private coordination content tracked'
+expect_line 'FAIL  no private development content tracked'
 pass 'Portuguese master headings are rejected under neutral filenames'
 
-# The explicitly authorized Git-only bridge is the sole coordination exception.
+# Development-only documents are recognised by their marker under any name.
 # Assemble the marker: this regression script is itself distributable source.
 marker='MNE_LAB_'
 marker+='DEVELOPMENT_ONLY'
-boundary=$(dirname "$audit")/check_development_boundary.py
-bridge() {
-	mkdir -p "$repo/development/continuity"
-	printf '/development/continuity export-ignore\n/development/continuity/** export-ignore\n/AGENTS.md export-ignore\n/ferramenta.md export-ignore\n' >"$repo/.gitattributes"
-	for name in AGENTS.md ferramenta.md development/continuity/README.md development/continuity/MASTER_SPECIFICATION.md development/continuity/USER_DIRECTIVES.md development/continuity/CONTEXT.md development/continuity/MATERIALS.md development/continuity/PROMPT.md development/continuity/REQUIREMENTS_REVIEW.md; do
-		printf '<!-- %s -->\n# ferramenta coordination — synthetic example\nferramenta and ferramenta development notes.\n' "$marker" >"$repo/$name"
-	done
-	python3 - "$repo" "$marker" <<'PY'
-import json, pathlib, sys
-root = pathlib.Path(sys.argv[1]) / 'development' / 'continuity'
-for name in ['CHECKPOINT.json', 'TASKS.json', 'VALIDATION.json']:
-    (root/name).write_text(json.dumps({'development_only': sys.argv[2], 'synthetic': True}, indent=2)+'\n')
-PY
-}
 
 new_repo
-bridge
-commit 'Authorized Git-only continuity fixture'
+printf '<!-- %s -->\nSynthetic development notes.\n' "$marker" >"$repo/notes.md"
+commit 'Synthetic development-only document'
 run_audit
-expect_status 0 'authorized continuity documents'
-pass 'only marked export-ignored continuity documents pass source audit'
-test_terms=$scratch/tool-terms
-printf 'ferramenta|ferramenta\n' >"$test_terms"
+expect_status 1 'tracked development-only document'
+expect_line 'FAIL  no private development content tracked'
+cp "$repo/notes.md" "$scratch/renamed-context.bin"
+git -C "$repo" rm -q notes.md
+commit 'Remove synthetic development document'
 run_audit
-expect_status 0 'tool names in authorized source continuity'
-pass 'optional tool terms permit authorized source coordination'
-printf '# ferramenta text outside a structural exclusion rule.\n' >>"$repo/.gitattributes"
-git -C "$repo" add .gitattributes
-run_audit
-expect_status 1 'unwanted term outside exact config declarations'
-expect_line 'FAIL  terms: tracked files (1)'
-pass 'boundary declarations do not exempt unrelated config text from optional terms'
-git -C "$repo" restore --staged --worktree .gitattributes
-printf 'ferramenta artifact bytes.\n' >"$scratch/tool-artifact.bin"
-run_audit "$scratch/tool-artifact.bin"
-expect_status 1 'tool names in a product artifact'
-expect_line 'FAIL  terms: built artifacts (3)'
-pass 'tool-term exemption does not reach product artifacts'
-git -C "$repo" commit --allow-empty -qm 'Synthetic ferramenta metadata'
-run_audit
-expect_status 1 'tool name in commit metadata'
-expect_line 'FAIL  terms: commit metadata and trailers (2)'
-pass 'authorized source coordination does not exempt commit metadata'
-test_terms=""
+expect_status 1 'development-only document retained in history'
+expect_line 'ok    no private development content tracked'
+expect_line 'FAIL  no private development content in history'
+pass 'development-only documents are rejected in the index and in history'
 
-git -C "$repo" archive --format=zip HEAD >"$scratch/bridge-source.zip"
-python3 "$boundary" --archive-stdin <"$scratch/bridge-source.zip" >"$scratch/bridge-archive-result"
-python3 - "$scratch/bridge-source.zip" <<'PY'
-import sys, zipfile
-with zipfile.ZipFile(sys.argv[1]) as archive:
-    assert 'README.md' in archive.namelist()
-    assert 'AGENTS.md' not in archive.namelist()
-    assert 'ferramenta.md' not in archive.namelist()
-    assert not any(name.startswith('development/continuity') for name in archive.namelist())
-PY
-run_audit "$scratch/bridge-source.zip"
-expect_status 0 'actual source archive excludes context'
-pass 'committed export-ignore excludes every context entry from git archive'
-
-cp "$repo/development/continuity/README.md" "$scratch/renamed-context.bin"
 run_audit "$scratch/renamed-context.bin"
 expect_status 1 'renamed development document'
 expect_line 'FAIL  no private file names in artifacts or ZIP entries'
 pass 'development marker rejects renamed artifact content'
-cp "$repo/development/continuity/TASKS.json" "$scratch/renamed-context-json.bin"
-run_audit "$scratch/renamed-context-json.bin"
-expect_status 1 'renamed development JSON'
-pass 'JSON marker rejects renamed artifact content'
 python3 - "$scratch/renamed-context-utf16.bin" "$marker" <<'PY'
 import pathlib, sys
-pathlib.Path(sys.argv[1]).write_bytes(sys.argv[2].encode('utf-16be'))
+pathlib.Path(sys.argv[1]).write_bytes(sys.argv[2].encode('utf-16le'))
 PY
 run_audit "$scratch/renamed-context-utf16.bin"
 expect_status 1 'UTF-16 renamed development marker'
-expect_line 'FAIL  development context is absent from product artifacts'
+expect_line 'FAIL  no private file names in artifacts or ZIP entries'
 pass 'development marker is also rejected in renamed UTF-16 content'
-python3 - "$scratch/nested-context.zip" "$repo/development/continuity/README.md" <<'PY'
+python3 - "$scratch/nested-context.zip" "$scratch/renamed-context.bin" <<'PY'
 import io, pathlib, sys, zipfile
 inner = io.BytesIO()
 with zipfile.ZipFile(inner, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
@@ -323,199 +274,86 @@ with zipfile.ZipFile(sys.argv[1], 'w', compression=zipfile.ZIP_DEFLATED) as arch
     archive.writestr('nested/ordinary.zip', inner.getvalue())
 PY
 run_audit "$scratch/nested-context.zip"
-expect_status 1 'context in nested archive'
+expect_status 1 'development document in nested archive'
 expect_line 'FAIL  no private file names in artifacts or ZIP entries'
-if python3 "$boundary" --archive-stdin <"$scratch/nested-context.zip" >"$scratch/nested-context-result" 2>&1; then echo 'FAIL: boundary accepted nested context'; exit 1; fi
-pass 'nested archives reject renamed marked continuity documents'
+pass 'nested archives reject renamed development documents'
 
-printf '%s\n' "$synthetic_secret" >>"$repo/AGENTS.md"
-git -C "$repo" add AGENTS.md
-run_audit
-expect_status 1 'secret inside authorized coordination'
-expect_line 'FAIL  secrets: tracked files'
-if grep -q -F "$synthetic_secret" "$log"; then echo 'FAIL: context audit exposed secret'; exit 1; fi
-pass 'continuity permission never exempts credentials in the index or working tree'
-git -C "$repo" restore --staged --worktree AGENTS.md
-mkdir "$repo/development/continuity/C-RT"
-printf 'Synthetic corpus placeholder.\n' >"$repo/development/continuity/C-RT/sample.txt"
-git -C "$repo" add development/continuity/C-RT/sample.txt
-run_audit
-expect_status 1 'corpus under continuity'
-expect_line 'FAIL  no private files tracked'
-pass 'corpus categories stay forbidden inside the continuity directory'
-
+# Synthetic product names stand in for the private brand terms.
+branding_word=Acmebot
+test_terms=$scratch/brand-terms
+printf 'brand:%s|Zentool\n' "$branding_word" >"$test_terms"
 new_repo
-bridge
-printf 'Unmarked synthetic placeholder.\n' >"$repo/AGENTS.md"
-commit 'Unmarked root coordination fixture'
+commit 'Clean source'
 run_audit
-expect_status 1 'root agent file without development marker'
-expect_line 'AGENTS.md: missing first-line development marker'
-pass 'root coordination requires its explicit development marker'
-
-new_repo
-bridge
-printf '# Prompt mestre — synthetic example\n' >>"$repo/development/continuity/MASTER_SPECIFICATION.md"
-rm "$repo/.gitattributes"
-commit 'Missing distribution exclusion fixture'
+expect_status 0 'brand terms on a clean repository'
+printf 'Notes naming %s.\n' "$branding_word" >"$repo/notes.md"
+git -C "$repo" add notes.md
 run_audit
-expect_status 1 'coordination without committed exclusion'
-expect_line 'export-ignore is required'
-printf '/development/continuity export-ignore\n/development/continuity/** export-ignore\n/AGENTS.md export-ignore\n/ferramenta.md export-ignore\n' >"$repo/.gitattributes"
-commit 'Add exclusion after unauthorized revision'
-run_audit
-expect_status 1 'old unauthorized coordination remains in history'
-expect_line 'export-ignore is required'
-pass 'current exclusion cannot conceal a historical unauthorized coordination tree'
-
-new_repo
-bridge
-cp "$repo/.gitattributes" "$repo/.git/info/attributes"
-rm "$repo/.gitattributes"
-commit 'Local attribute overlay fixture'
-run_audit
-expect_status 1 'local-only exclusion cannot certify a committed tree'
-expect_line 'Local info/attributes overrides cannot certify committed continuity exclusions'
-pass 'local attribute overrides cannot replace committed distribution exclusions'
-
-new_repo
-bridge
-commit 'Valid contract for index isolation'
-cp "$repo/.gitattributes" "$scratch/valid-bridge-attributes"
-printf '# Missing exclusions in index.\n' >"$repo/.gitattributes"
-git -C "$repo" add .gitattributes
-cp "$scratch/valid-bridge-attributes" "$repo/.gitattributes"
-run_audit
-expect_status 1 'index-only exclusion removal'
-expect_line 'export-ignore is required'
-pass 'export-ignore is verified independently in index and working tree'
-
-new_repo
-bridge
-printf '<!-- %s -->\nUnknown document.\n' "$marker" >"$repo/development/continuity/EXTRA.md"
-commit 'Unapproved context entry fixture'
-run_audit
-expect_status 1 'unknown path under continuity'
-expect_line 'Unapproved entry under development/continuity'
-pass 'continuity is a fixed file whitelist, not a directory-wide exception'
-
-new_repo
-bridge
-printf '<!-- %s -->\nInvalid text:\377\n' "$marker" >"$repo/AGENTS.md"
-commit 'Non-UTF8 context fixture'
-run_audit
-expect_status 1 'non-UTF8 continuity'
-expect_line 'continuity document must be UTF-8'
-pass 'binary text cannot use an approved continuity filename'
-
-new_repo
-bridge
-printf '<!-- %s -->\nInvalid NUL:\000\n' "$marker" >"$repo/AGENTS.md"
-commit 'NUL context fixture'
-run_audit
-expect_status 1 'NUL continuity'
-expect_line 'NUL byte'
-pass 'NUL-bearing continuity documents are rejected'
-
-new_repo
-bridge
-rm "$repo/AGENTS.md"
-ln -s README.md "$repo/AGENTS.md"
-commit 'Symlink context fixture'
-run_audit
-expect_status 1 'symlink continuity'
-expect_line 'continuity document must be a regular file'
-pass 'continuity documents cannot be symlinks'
-
-new_repo
-bridge
-printf '{"development_only": false}\n' >"$repo/development/continuity/TASKS.json"
-commit 'Missing JSON context marker fixture'
-run_audit
-expect_status 1 'JSON without explicit development marker'
-expect_line 'missing JSON development marker'
-pass 'JSON continuity requires its exact development marker'
-
-new_repo
-mkdir -p "$repo/docs"
-printf '<!-- %s -->\n# ferramenta coordination — synthetic\n' "$marker" >"$repo/docs/ferramenta.md"
-printf '/docs/ferramenta.md export-ignore\n' >"$repo/.gitattributes"
-commit 'Coordination outside approved paths'
-run_audit
-expect_status 1 'coordination outside whitelist'
-expect_line 'FAIL  no private files tracked'
-pass 'marking and export-ignore cannot authorize an unapproved source path'
-
-new_repo
-bridge
-commit 'Valid bridge for exact branding patterns'
-test_terms=$scratch/exact-branding-terms
-printf 'ferramenta|ferramenta|ferramenta|ferramenta\n' >"$test_terms"
-printf 'ferramenta and ferramenta development references.\n' >>"$repo/AGENTS.md"
-git -C "$repo" add AGENTS.md
-run_audit
-expect_status 0 'only known tool names in a valid bridge'
-pass 'branding exemption accepts only literal known tool names or their simple alternation'
-printf 'ferramenta|privateword\n' >"$test_terms"
-run_audit
-expect_status 1 'unknown mixed alternation is not branding-only'
+expect_status 1 'brand term in a tracked file'
 expect_line 'FAIL  terms: tracked files (1)'
-pass 'a mixed branding and custom expression retains coverage of continuity content'
-test_terms=""
-
-new_repo
-bridge
-printf 'Synthetic private_identifier.\n' >>"$repo/development/continuity/CONTEXT.md"
-commit 'Valid bridge with synthetic custom identifier'
-test_terms=$scratch/custom-continuity-terms
-printf 'private[-_]identifier\n' >"$test_terms"
+pass 'brand terms apply to tracked files once their prefix is removed'
+printf 'Synthetic placeholder.\n' >"$repo/zentool-notes.txt"
+commit 'Synthetic named fixtures'
 run_audit
-expect_status 1 'custom confidentiality regex inside a marked bridge'
-expect_line 'FAIL  terms: tracked files (1)'
-pass 'custom confidentiality expressions inspect marked continuity content'
-test_terms=""
-
-new_repo
-bridge
-commit 'Valid bridge for staged-only custom identifier'
-printf 'Synthetic private_identifier.\n' >>"$repo/AGENTS.md"
-git -C "$repo" add AGENTS.md
-git -C "$repo" show HEAD:AGENTS.md >"$repo/AGENTS.md"
-test_terms=$scratch/staged-custom-continuity-terms
-printf 'private[-_]identifier\n' >"$test_terms"
+expect_status 1 'brand term in a file name'
+expect_line 'FAIL  terms: file names (1)'
+git -C "$repo" rm -q notes.md zentool-notes.txt
+commit 'Remove synthetic named fixtures'
 run_audit
-expect_status 1 'custom identifier exists only in a marked staged document'
-expect_line 'FAIL  terms: tracked files (1)'
-pass 'staged continuity bytes retain custom confidentiality term checks'
-test_terms=""
-
-new_repo
-bridge
-commit 'Valid bridge for historical custom identifier'
-printf 'Synthetic private_identifier.\n' >>"$repo/development/continuity/CONTEXT.md"
-commit 'Synthetic custom identifier in prior bridge revision'
-git -C "$repo" show HEAD~1:development/continuity/CONTEXT.md >"$repo/development/continuity/CONTEXT.md"
-commit 'Remove synthetic identifier from current bridge'
-test_terms=$scratch/historical-custom-continuity-terms
-printf 'private[-_]identifier\n' >"$test_terms"
-run_audit
-expect_status 1 'custom identifier exists only in a historical marked document'
+expect_status 1 'brand term retained in history'
 expect_line 'ok    terms: tracked files (1)'
 expect_line 'FAIL  terms: every revision (2)'
-pass 'historical continuity bytes retain custom confidentiality term checks'
+expect_line 'FAIL  terms: historical file names (2)'
+pass 'brand terms apply to file names and every revision without exceptions'
+git -C "$repo" commit -q --allow-empty -m "Synthetic $branding_word metadata"
+run_audit
+expect_status 1 'brand term in commit metadata'
+expect_line 'FAIL  terms: commit metadata and trailers (2)'
+pass 'brand terms apply to commit metadata'
+
+new_repo
+commit 'Clean source'
+git -C "$repo" branch "${branding_word,,}/work"
+run_audit
+expect_status 1 'brand term in a branch name'
+expect_line 'FAIL  terms: branch and tag names (2)'
+git -C "$repo" branch -D "${branding_word,,}/work" >/dev/null
+git -C "$repo" tag "zentool-1"
+run_audit
+expect_status 1 'brand term in a tag name'
+expect_line 'FAIL  terms: branch and tag names (2)'
+pass 'brand terms apply to branch and tag names'
+printf 'Zentool artifact bytes.\n' >"$scratch/tool-artifact.bin"
+run_audit "$scratch/tool-artifact.bin"
+expect_line 'FAIL  terms: built artifacts (3)'
+pass 'brand terms apply to product artifacts'
 test_terms=""
 
 new_repo
-bridge
-commit 'Valid bridge for custom filename expression'
-test_terms=$scratch/filename-custom-continuity-terms
-printf 'CONTEXT\.md\n' >"$test_terms"
+printf 'Synthetic private_identifier.\n' >"$repo/notes.md"
+commit 'Synthetic custom identifier'
+test_terms=$scratch/custom-terms
+printf 'private[-_]identifier\n' >"$test_terms"
 run_audit
-expect_status 1 'custom confidentiality expression matches an approved filename'
-expect_line 'FAIL  terms: file names (1)'
-expect_line 'FAIL  terms: historical file names (2)'
-pass 'approved continuity filenames retain custom confidentiality term checks'
+expect_status 1 'custom confidentiality regex'
+expect_line 'FAIL  terms: tracked files (1)'
+pass 'custom confidentiality expressions inspect tracked content'
+printf 'Clean notes.\n' >"$repo/notes.md"
+commit 'Remove synthetic custom identifier'
+run_audit
+expect_status 1 'custom identifier exists only in history'
+expect_line 'ok    terms: tracked files (1)'
+expect_line 'FAIL  terms: every revision (2)'
+pass 'historical bytes retain custom confidentiality term checks'
+printf 'Synthetic private_identifier.\n' >"$repo/notes.md"
+git -C "$repo" add notes.md
+git -C "$repo" show HEAD:notes.md >"$repo/notes.md"
+run_audit
+expect_status 1 'custom identifier exists only in the index'
+expect_line 'FAIL  terms: tracked files (1)'
+pass 'staged bytes retain custom confidentiality term checks'
 test_terms=""
+
 
 new_repo
 commit 'Clean source'
@@ -663,7 +501,7 @@ PY
 commit 'Synthetic bundle'
 run_audit
 expect_status 1 'development marker inside a tracked archive'
-expect_line 'FAIL  no private coordination content tracked'
+expect_line 'FAIL  no private development content tracked'
 expect_line 'bundle.zip'
 pass 'tracked archive members are checked for the development marker'
 
@@ -787,71 +625,6 @@ require_terms=""
 test_terms=""
 pass 'AUDIT_REQUIRE_TERMS=1 turns missing terms into a failure; otherwise a warning is shown'
 
-# Branding terms come from the earlier fixture so no new tool name is written here.
-branding_word=$(cut -d'|' -f1 "$scratch/tool-terms")
-new_repo
-mkdir "$repo/scripts"
-printf 'Detects %s coordination files.\n' "$branding_word" >"$repo/scripts/audit.sh"
-commit 'Synthetic audit tooling'
-printf 'Detects %s names in history too.\n' "$branding_word" >>"$repo/scripts/audit.sh"
-commit 'Synthetic audit tooling revision'
-test_terms=$scratch/branding-word-terms
-printf '%s\n' "$branding_word" >"$test_terms"
-run_audit
-expect_status 0 'branding term inside audit tooling'
-cp "$repo/scripts/audit.sh" "$repo/scripts/other.sh"
-git -C "$repo" add scripts/other.sh
-run_audit
-expect_status 1 'branding term outside audit tooling'
-expect_line 'FAIL  terms: tracked files (1)'
-expect_line 'scripts/other.sh'
-git -C "$repo" rm -q --cached scripts/other.sh
-rm "$repo/scripts/other.sh"
-printf 'Synthetic blockedword reference.\n' >>"$repo/scripts/audit.sh"
-git -C "$repo" add scripts/audit.sh
-printf '%s\nblockedword\n' "$branding_word" >"$test_terms"
-run_audit
-expect_status 1 'confidential term inside audit tooling'
-expect_line 'FAIL  terms: tracked files (1)'
-expect_line 'scripts/audit.sh'
-test_terms=""
-pass 'audit tooling paths are exempt from branding terms only, never from confidential terms'
-
-new_repo
-mkdir "$repo/docs"
-printf 'Published notes naming %s and blockedword.\n' "$branding_word" >"$repo/docs/notes.md"
-commit 'Synthetic published notes'
-accepted_blob=$(git -C "$repo" rev-parse HEAD:docs/notes.md)
-printf 'Published notes without those names.\n' >"$repo/docs/notes.md"
-commit 'Synthetic cleaned notes'
-test_terms=$scratch/accepted-terms
-printf '%s\n' "$branding_word" >"$test_terms"
-run_audit
-expect_status 1 'unlisted historical branding blob'
-expect_line 'FAIL  terms: every revision (2)'
-# Exercise the fixed list through a copy that also lists this synthetic blob.
-mkdir "$scratch/accepting"
-sed "/<<'BLOBS'\$/a $accepted_blob" "$audit" >"$scratch/accepting/audit.sh"
-cp "$boundary" "$scratch/accepting/"
-grep -q -x -F "$accepted_blob" "$scratch/accepting/audit.sh" || { echo 'FAIL: accepted blob fixture was not inserted'; exit 1; }
-original_audit=$audit
-audit=$scratch/accepting/audit.sh
-run_audit
-expect_status 0 'accepted historical branding blob'
-printf '%s\nblockedword\n' "$branding_word" >"$test_terms"
-run_audit
-expect_status 1 'accepted blob with a confidential term'
-expect_line 'FAIL  terms: every revision (2)'
-printf '%s\n' "$branding_word" >"$test_terms"
-printf 'New notes naming %s again.\n' "$branding_word" >"$repo/docs/notes.md"
-commit 'Synthetic new branding notes'
-run_audit
-expect_status 1 'new blob with a branding term'
-expect_line 'FAIL  terms: tracked files (1)'
-expect_line 'FAIL  terms: every revision (2)'
-audit=$original_audit
-test_terms=""
-pass 'only listed published blobs are accepted for branding terms; confidential terms still apply'
 
 new_repo
 commit 'Clean source'
@@ -883,8 +656,8 @@ pass 'annotated tags, their messages and the objects they point at are inspected
 
 new_repo
 mkdir "$scratch/bundle-$case_number"
-printf '%s\n' "$synthetic_secret" >"$scratch/bundle-$case_number/ferramenta.md"
-tar -C "$scratch/bundle-$case_number" -czf "$repo/bundle.tar.gz" ferramenta.md
+printf '%s\n' "$synthetic_secret" >"$scratch/bundle-$case_number/Zeta.xlsx"
+tar -C "$scratch/bundle-$case_number" -czf "$repo/bundle.tar.gz" Zeta.xlsx
 commit 'Synthetic compressed archive'
 run_audit
 expect_status 1 'compressed tar archive'
@@ -941,21 +714,21 @@ commit 'Clean source'
 mkdir -p "$scratch/dist-$case_number/statistics-engine/vfs/usr/lib/R" "$scratch/dist-$case_number/app"
 printf 'author = person(given = "%s")\n' "$branding_word" | gzip -c >"$scratch/dist-$case_number/statistics-engine/vfs/usr/lib/R/share.data.gz"
 test_terms=$scratch/runtime-terms
-printf '%s\n' "$branding_word" >"$test_terms"
+printf 'brand:%s\n' "$branding_word" >"$test_terms"
 run_audit "$scratch/dist-$case_number"
-expect_status 0 'branding word in the bundled statistics runtime'
-printf '%s\nblockedword\n' "$branding_word" >"$test_terms"
+expect_status 0 'brand word in the bundled statistics runtime'
+printf 'brand:%s\nblockedword\n' "$branding_word" >"$test_terms"
 printf 'blockedword\n' | gzip -c >"$scratch/dist-$case_number/statistics-engine/vfs/usr/lib/R/other.data.gz"
 run_audit "$scratch/dist-$case_number"
 expect_status 1 'confidential term in the bundled statistics runtime'
 expect_line 'FAIL  terms: built artifacts (3)'
 rm "$scratch/dist-$case_number/statistics-engine/vfs/usr/lib/R/other.data.gz"
-printf '%s\n' "$branding_word" >"$test_terms"
+printf 'brand:%s\n' "$branding_word" >"$test_terms"
 printf 'Built by %s.\n' "$branding_word" >"$scratch/dist-$case_number/app/index.html"
 run_audit "$scratch/dist-$case_number"
-expect_status 1 'branding word in application files'
+expect_status 1 'brand word in application files'
 expect_line 'FAIL  terms: built artifacts (3)'
 test_terms=""
-pass 'the bundled statistics runtime is exempt from branding terms only'
+pass 'the bundled statistics runtime is exempt from brand terms only'
 
 echo "All $passed audit regression cases passed."

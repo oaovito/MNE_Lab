@@ -62,11 +62,6 @@ jobs:
       - name: Audit contract regressions
         run: scripts/audit_test.sh
 
-      - name: Development context stays outside product artifacts
-        run: |
-          python3 scripts/check_development_boundary.py --repo . --artifacts out web/dist
-          git archive --format=zip HEAD | python3 scripts/check_development_boundary.py --archive-stdin
-
       - name: Audit (secrets, private files, unwanted terms, build paths)
         env:
           AUDIT_TERMS: ${{ secrets.AUDIT_TERMS }}

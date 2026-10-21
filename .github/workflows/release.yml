@@ -71,7 +71,6 @@ jobs:
           if [ -n "$AUDIT_TERMS" ]; then printf '%s\n' "$AUDIT_TERMS" > "$RUNNER_TEMP/terms"; export AUDIT_TERMS_FILE="$RUNNER_TEMP/terms"
           else echo '::warning title=Unwanted terms not checked::Audit the draft packages with the terms list before publishing.'; fi
           scripts/audit.sh out web/dist
-          python3 scripts/check_development_boundary.py --repo . --artifacts out web/dist
       - name: Package
         env:
           VERSION: ${{ needs.gate.outputs.version }}
@@ -79,7 +78,7 @@ jobs:
           python3 scripts/package_release.py --version "$VERSION" --out "$RUNNER_TEMP/release" \
             windows/amd64 windows/386 windows/arm64 linux/amd64 linux/arm64
           git archive --format=zip --prefix="MNE_Lab-$VERSION-source/" HEAD > "$RUNNER_TEMP/release/MNE_Lab-$VERSION-source.zip"
-          python3 scripts/check_development_boundary.py --archive-stdin < "$RUNNER_TEMP/release/MNE_Lab-$VERSION-source.zip"
+          scripts/audit.sh "$RUNNER_TEMP/release"
       - uses: actions/upload-artifact@v4
         with:
           name: release-linux

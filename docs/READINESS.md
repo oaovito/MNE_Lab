@@ -24,9 +24,7 @@ The project is not yet a complete signed Stable release.
 | Official release identity | Choose the release signing identity and retain the private Ed25519 key offline or in secure CI; provide/inject the public key. Supply OS code-signing/notarization identities only for distribution that requires them | A trusted signed release/update channel after the remaining engineering gates pass. Test keys are not official release keys |
 | Target-system validation access | Provide Windows/macOS runners or machines and representative clean-system/USB conditions for final installation and launch tests | Actual target-platform runtime validation. Cross-compilation and headless browser tests do not prove clean desktop installation |
 | Distribution licensing decision | Choose the project's distribution license and a compatible method for providing the statistical runtime's complete Corresponding Source | An authorized public distribution after complete source/reconstruction and other release gates. Development pre-releases (tags, `release.yml`) attach the application source and the statistical runtime source; they are not Stable |
-| Unwanted-terms list for CI | Add the repository secret `AUDIT_TERMS`, one expression per line (the private terms list). Never commit it | CI then checks the tree, every revision and the builds against it instead of only warning; the Windows test draft refuses to publish without it |
-| Historical private Git data, if remediation is desired | Decide the permitted remediation scope for the pre-existing remote private-data history separately; current instruction continues to prohibit direct modification of main | Authorized history remediation. Development proceeds on the audited isolated branch; no force-push or main change is authorized here |
-| Original continuity material from earlier sessions, if available | Supply the missing original checkpoint/transcripts privately | More complete historical recovery. Preserved Git commits remain available; absent transcripts are not fabricated and this does not block current development |
+| Unwanted-terms list for CI | Add the repository secret `AUDIT_TERMS`, one expression per line (the private terms list). Never commit it | CI then checks the tree, every revision and the builds against it instead of only warning |
 
 The scientific reference files should remain private development material.
 Validation requires adequate documentation, reproducible extraction/calculation
@@ -54,12 +52,6 @@ and comparison with a trustworthy reference, with stated tolerances.
   and license notices alone do not prove a complete redistributable release.
 - Live cloud-provider verification once owner-controlled registrations are
   configured, and a signed Stable artifact/manifest only after these gates.
-
-No paid external API is used. No native persistent goal/scheduler has been found
-and tested in the available tools; automatic restart after quota renewal is not
-promised. Every published development checkpoint must retain a verified private
-handoff and an exact next action. Main and the preserved earlier history remain
-unchanged.
 
 The current configuration readback reports an active base containing the saved
 source-download domains and startup instructions, with a pending research-network draft (revision 11). Its additional manufacturer,

@@ -669,7 +669,7 @@ partial binary interoperability and its separate technical/scientific status.
 
 See [READINESS.md](READINESS.md) for the explicit remaining owner actions and
 separate development tasks. A tested development checkpoint is not a complete
-Stable release. No native persistent scheduling mechanism has been verified.
+Stable release.
 
 
 ### Concurrent export publication

@@ -188,7 +188,7 @@ configuração 90Plus nem escolhas de exportação PS2.3 para PS4 sem prova.
 | Navegador | Seleção de menu por texto acessível independente do badge opcional evita clique na ação errada |
 | Producer origin | Alteração apenas metadata declarada; originals/scientific status e análises históricas não são reescritos |
 
-## Mapa de código para continuidade
+## Mapa de código
 
 | Área | Caminhos principais |
 |---|---|
@@ -254,27 +254,17 @@ de um módulo não deve impedir progresso independente dos demais.
 | Apps cloud | Registration oficial Google/Microsoft/Apple e configuração por canal seguro, seguida de testes reais |
 | Release/distribuição | Identidade pública de release e gestão segura da chave privada; assinatura/notarização OS quando exigida; licença e forma autorizada de Corresponding Source |
 | Pesquisa externa | Revisar/publicar a configuração de rede pendente quando necessário; respostas 403/challenges não são evidência documental e não devem ser contornadas |
-| Integração Git | Decidir escopo de integração e tratamento do histórico antigo que contém material privado; nenhuma alteração direta de `main` está autorizada |
 
-O draft Windows de teste é construído de `8a12ff6`, anterior ao backend CMS e
-producer origin. Não é um binário da revisão funcional atual nem Stable.
-Upload e download foram comparados, mas GUI/USB no computador do proprietário
-ainda não foi confirmado. Não sobrescrever nem republicar esse draft como se
-contivesse funcionalidades posteriores.
+As pré-releases de desenvolvimento são geradas por `.github/workflows/release.yml`
+a partir de uma tag de versão; não são Stable. GUI/USB no computador do
+proprietário ainda não foi confirmado.
 
-## Histórico e integração Git
+## Histórico Git
 
-A branch de desenvolvimento tem ancestralidade limpa e independente auditada.
-`main` permanece em `9c5a06f3122a89a4e47d707a77043b1a8da3d53d` no checkpoint
-descrito. A comparação remota informou ausência de ancestral comum. Portanto,
-o fluxo normal de PR direto entre essas revisões não está pronto.
-
-O histórico antigo e as referências preservadas contêm material privado,
-embora a árvore pública atual não contenha esse corpus. Um candidato baseado
-nesse histórico herda esses objetos. Não publicar referências antigas,
-reescrever histórico, alterar `main` diretamente ou enfraquecer a auditoria
-para contornar o problema. A integração exige revisão própria e autorização
-do escopo de privacidade; continua separada do desenvolvimento funcional.
+Desde 21 de outubro de 2026, `main` e a branch de desenvolvimento têm o mesmo
+histórico auditado, sem o material privado de desenvolvimento em nenhum
+commit. A auditoria cobre a árvore, cada revisão, nomes de arquivos, branches,
+tags e metadados dos commits.
 
 ## Provas existentes e limites
 
@@ -409,7 +399,7 @@ não devem entrar nos reports ou fixtures públicos.
 Uma etapa só está concluída quando o contrato e o limite estão documentados,
 a implementação passou pelos checks pertinentes, regressões relevantes
 permanecem cobertas, provenance e isolamento sobrevivem à persistência/export
-e o checkpoint pode ser recuperado com a próxima ação exata registrada.
+e a próxima ação está registrada.
 
 Um recurso científico só pode elevar seu status depois de documentação
 adequada, resultado reproduzível e comparação independente com referência
@@ -420,6 +410,3 @@ Stable exige, além dos checks de código, distribuição/licenciamento e source
 reprodutível completos, identidade oficial, artifacts/manifests seguros e
 testes dos sistemas/USB prometidos. Recursos científicos liberados precisam
 de escopo validado; recursos pendentes não podem ser promovidos por uma release.
-Nenhum mecanismo nativo de retomada automática após quota foi verificado;
-checkpoint é registro de continuidade, não executor. Não há uso de API paga
-para manter desenvolvimento.

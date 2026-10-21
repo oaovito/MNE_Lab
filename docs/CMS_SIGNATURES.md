@@ -144,8 +144,6 @@ compatible revision supports the current Go 1.26.9 toolchain; the newer module
 requires Go 1.27. Limits/preflight precede its BER transcoder and trailing-input
 normalization. Selection does not claim a blanket security certification.
 
-Windows owner-test delivery is a separate draft-only workflow. It deliberately
-builds the earlier published `8a12ff6` checkpoint, which predates this feature;
-it never publishes Stable or a public binary release. Runtime corresponding
-source, distribution licensing and actual clean Windows/USB testing remain
+Development pre-releases are built by `.github/workflows/release.yml` and are
+not Stable. Distribution licensing and actual clean Windows/USB testing remain
 release gates in READINESS.md.
