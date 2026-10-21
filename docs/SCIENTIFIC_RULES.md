@@ -1,6 +1,6 @@
 # LIGHTSCATTERING scientific rules
 
-The current parser is `lightscattering-parser/1.5.0`, using
+The current parser is `lightscattering-parser/1.6.0`, using
 `ls-spec/0.3-provisional`. The owner-supplied scientific reference has been
 consulted privately; interpretation of instrument algorithms and undocumented
 fields remains provisional. Development validation uses private experimental corpora outside the source
@@ -8,8 +8,8 @@ tree, public fixtures and release packages.
 
 An independent literal reader matched 216 summary quantities and 216
 distribution candidates in 54 private reports. This establishes extraction
-fidelity for those layouts; missing units and undocumented scientific meanings
-remain unresolved. The complete scope and remaining evidence are recorded in
+fidelity for those layouts; undocumented scientific meanings remain
+unresolved. The complete scope and remaining evidence are recorded in
 [DLS_VALIDATION.md](DLS_VALIDATION.md). The specification remains provisional.
 
 ## Current and average count rates
@@ -46,6 +46,15 @@ Declared units are kept exactly as written (only surrounding space is
 removed): `C` is not rewritten as `°C`, `mcps` as `Mcps` or `um` as `µm`.
 Units that differ only in spelling stay distinct, and statistics refuse to
 combine them like any other unit mismatch.
+
+Instrument reports print `Effective Diameter: 51.3` without a unit and state
+it in the runs table header of the same report (`Eff. Diam. (nm)`). The parser
+takes that unit only when the table's `Combined` row repeats the summary value
+exactly; the quantity then records `unitOrigin: file_table_header` and the
+header line. Otherwise the unit stays missing and is reported. Reports imported
+with an earlier parser get the same lookup once when the profile opens: only
+the unit is added, and the file records `unitsReviewed` with the parser that
+did it. `Polydispersity` and `Baseline Index` are dimensionless.
 
 ## Instrument distribution alternatives
 

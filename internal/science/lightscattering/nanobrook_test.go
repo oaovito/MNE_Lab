@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/oaovito/mne_lab/internal/science/model"
 )
 
 func nanoFixture(t *testing.T) []byte {
@@ -114,5 +116,40 @@ func TestTextFormatNamesNoProducer(t *testing.T) {
 		if _, format := ParseFile(name, []byte(data)); format != "text" {
 			t.Fatalf("%s: format %q", name, format)
 		}
+	}
+}
+
+func TestNanoBrookUnitFromRunTable(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "lightscattering", "synthetic-nanobrook-run-table.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := Parse(b)
+	if len(r.Measurements) != 1 {
+		t.Fatalf("%+v", r)
+	}
+	q := r.Measurements[0].Params[model.EffectiveDiameter]
+	if q.Raw != "87.1" || q.Unit != "nm" || q.UnitOrigin != "file_table_header" || q.Line != 13 || q.UnitLine != 17 {
+		t.Fatalf("effective diameter: %+v", q)
+	}
+	for _, k := range []string{model.Polydispersity, model.BaselineIndex} {
+		if u := r.Measurements[0].Params[k].Unit; u != "" {
+			t.Fatalf("%s got unit %q the file never states", k, u)
+		}
+	}
+	if q := r.Measurements[0].Params[model.AverageCountRate]; q.Unit != "kcps" || q.UnitOrigin != "" {
+		t.Fatalf("stated unit changed: %+v", q)
+	}
+	for _, w := range r.Warnings {
+		if strings.HasPrefix(w, "ls.unit_missing:"+model.EffectiveDiameter) {
+			t.Fatal("unit still reported missing")
+		}
+	}
+
+	// A Combined row with another value is not the same number: no unit.
+	other := strings.Replace(string(b), "Combined     87.1", "Combined     87.4", 1)
+	q = Parse([]byte(other)).Measurements[0].Params[model.EffectiveDiameter]
+	if q.Unit != "" || q.UnitOrigin != "" {
+		t.Fatalf("unit adopted from a different value: %+v", q)
 	}
 }

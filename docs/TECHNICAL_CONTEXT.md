@@ -556,7 +556,7 @@ uncertainty rather than inventing a field or an algorithm.
 | Identifier | Status |
 |---|---|
 | `ls-spec/0.3-provisional` | Product field list; owner references consulted, instrument layout and semantic validation ongoing. |
-| `lightscattering-parser/1.5.0` | Parser version recorded in provenance. |
+| `lightscattering-parser/1.6.0` | Parser version recorded in provenance. |
 | `graph-engine/1.1.0` | Graph Engine version recorded in provenance. |
 
 ## 19. Tests

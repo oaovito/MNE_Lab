@@ -271,6 +271,8 @@ func meta(m model.Measurement) map[string]string {
 			out[k] = q.Raw
 			if q.UnitOrigin != "" {
 				out[k+".unitOrigin"] = q.UnitOrigin
+			}
+			if q.SourceColumn > 0 {
 				out[k+".sourceColumn"] = fmt.Sprint(q.SourceColumn)
 			}
 			if q.Unit != "" {
@@ -405,6 +407,9 @@ func scale(want string, allPositive bool, res *Result) string {
 	return "linear"
 }
 
+// dimensionless parameters have no unit to state.
+var dimensionless = map[string]bool{model.Polydispersity: true, model.BaselineIndex: true}
+
 // CycleInput adds the cycle needed by temporal graphs.
 type CycleInput struct {
 	Config      cycle.Config
@@ -455,6 +460,9 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 		res.Warnings = append(res.Warnings, "ls.user_mapping_unvalidated")
 	}
 	res.Y.Unit = unit
+	if unit == "" && !dimensionless[def.Param] {
+		res.Warnings = append(res.Warnings, "graph.y_unit_not_stated")
+	}
 	series := cycle.Series(cy.Points, cy.Assignments, values)
 	ind := Series{ID: "individual", Label: "series.individual", Kind: "individual"}
 	mean := Series{ID: "mean", Label: "series.mean_sd", Kind: "mean"}
