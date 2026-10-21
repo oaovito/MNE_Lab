@@ -8,7 +8,6 @@
  "col.source_sheet": "Source sheet",
  "col.distribution_method": "Distribution method",
  "col.distribution_format": "Distribution representation",
-
  "axis.hydrodynamic_diameter": "Hydrodynamic diameter",
  "axis.intensity": "Intensity",
  "axis.number": "Number",
@@ -156,5 +155,10 @@
  "producer.user_declared": "User declaration; unverified",
  "producer.save": "Save origin declaration",
  "col.producer_origin": "Producer origin (declaration)",
- "err.ls.invalid_producer_origin": "Check the origin declaration. Unknown must have no producer details; each field must fit its limit and contain no control characters."
+ "err.ls.invalid_producer_origin": "Check the origin declaration. Unknown must have no producer details; each field must fit its limit and contain no control characters.",
+ "plot.unit_not_stated": "unit not stated in the file",
+ "note.unit_not_stated": "unit not stated in the source files",
+ "meta.note": "Note",
+ "note.ls.user_mapping_unvalidated": "Values mapped by the user with a declared unit; not validated against the instrument.",
+ "note.statistics.units_absent_not_inferred": "The source files state no unit for this variable; none was inferred."
 }

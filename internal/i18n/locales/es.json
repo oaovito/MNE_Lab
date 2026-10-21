@@ -8,7 +8,6 @@
  "col.source_sheet": "Hoja de origen",
  "col.distribution_method": "Método de la distribución",
  "col.distribution_format": "Representación de la distribución",
-
  "axis.hydrodynamic_diameter": "Diámetro hidrodinámico",
  "axis.intensity": "Intensidad",
  "axis.number": "Número",
@@ -156,5 +155,10 @@
  "producer.user_declared": "Declaración del usuario; no verificada",
  "producer.save": "Guardar declaración de origen",
  "col.producer_origin": "Origen de creación (declaración)",
- "err.ls.invalid_producer_origin": "Revise la declaración de origen. Desconocido debe quedar sin detalles de creación; respete los límites de los campos y no use caracteres de control."
+ "err.ls.invalid_producer_origin": "Revise la declaración de origen. Desconocido debe quedar sin detalles de creación; respete los límites de los campos y no use caracteres de control.",
+ "plot.unit_not_stated": "unidad no indicada en el archivo",
+ "note.unit_not_stated": "unidad no indicada en los archivos de origen",
+ "meta.note": "Nota",
+ "note.ls.user_mapping_unvalidated": "Valores asignados por el usuario con unidad declarada; sin validación con el instrumento.",
+ "note.statistics.units_absent_not_inferred": "Los archivos de origen no indican la unidad de esta variable; no se dedujo ninguna."
 }

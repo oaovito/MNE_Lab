@@ -96,6 +96,9 @@ func plainText(ds DataSet, dec string) []byte {
 			fmt.Fprintf(&b, "%s: %s\r\n", kv.Label, kv.Value)
 		}
 	}
+	for _, n := range ds.Notes {
+		fmt.Fprintf(&b, "%s: %s\r\n", ds.tr("meta.note", "Note"), ds.NoteText(n))
+	}
 	for _, t := range ds.Tables {
 		b.WriteString("\r\n" + t.Name + "\r\n")
 		b.WriteString(strings.Repeat("-", max(8, len([]rune(t.Name)))) + "\r\n")
@@ -164,7 +167,8 @@ func dataJSON(ds DataSet) ([]byte, error) {
 		Tables     []jsonTable `json:"tables"`
 		Provenance any         `json:"provenance"`
 		Rules      []string    `json:"rules,omitempty"`
-	}{Format: "mnelab-data/1", Title: ds.Title, Metadata: map[string]string{}, Provenance: ds.Provenance, Rules: ds.Rules}
+		Notes      []string    `json:"notes,omitempty"`
+	}{Format: "mnelab-data/1", Title: ds.Title, Metadata: map[string]string{}, Provenance: ds.Provenance, Rules: ds.Rules, Notes: ds.Notes}
 	for _, kv := range ds.Meta {
 		out.Metadata[kv.Key] = kv.Value
 	}
@@ -297,6 +301,11 @@ func workbook(ds DataSet) ([]byte, error) {
 	for i, kv := range ds.Meta {
 		f.SetCellValue(meta, fmt.Sprintf("A%d", i+2), kv.Label)
 		f.SetCellValue(meta, fmt.Sprintf("B%d", i+2), kv.Value)
+	}
+	for i, n := range ds.Notes {
+		row := len(ds.Meta) + i + 2
+		f.SetCellValue(meta, fmt.Sprintf("A%d", row), ds.tr("meta.note", "Note"))
+		f.SetCellValue(meta, fmt.Sprintf("B%d", row), ds.NoteText(n))
 	}
 	f.SetColWidth(meta, "A", "A", 28)
 	f.SetColWidth(meta, "B", "B", 60)

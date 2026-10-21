@@ -827,6 +827,9 @@ func FormatNumber(v float64, decimals int, dec string) string {
 // AxisLabel returns the localized label of an axis with its unit.
 func AxisLabel(a graph.Axis, T Translator) string {
 	l := T(a.Label)
+	if a.Unit == "" && graph.NeedsUnit(a.Label) {
+		return fmt.Sprintf("%s (%s)", l, T("plot.unit_not_stated"))
+	}
 	if strings.HasPrefix(a.Label, "axis.time.") || a.Unit == "" {
 		return l
 	}

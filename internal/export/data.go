@@ -161,6 +161,31 @@ func commonUnit(ms []model.Measurement, key string) (string, bool) {
 	return unit, false
 }
 
+// NoteUnitNotStated prefixes the note for a value whose unit the source
+// files do not state; the parameter key follows.
+const NoteUnitNotStated = "unit_not_stated:"
+
+func anyParam(ms []model.Measurement, key string) bool {
+	for _, m := range ms {
+		if _, ok := m.Params[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// NoteText localizes a data set note.
+func (ds DataSet) NoteText(n string) string {
+	if k, ok := strings.CutPrefix(n, NoteUnitNotStated); ok {
+		name := ds.tr("param."+k, k)
+		if k == "diameter" {
+			name = ds.tr("col.diameter", k)
+		}
+		return name + ": " + ds.tr("note.unit_not_stated", "unit not stated in the source files")
+	}
+	return ds.tr("note."+n, n)
+}
+
 // PointLabels maps measurement identifiers to their cycle point.
 type PointLabels map[string]cycle.Point
 
@@ -175,28 +200,45 @@ func MeasurementData(title string, ids []string, in graph.Input, points PointLab
 			ms = append(ms, m)
 		}
 	}
-	// Weightings present in any measurement, in canonical order, with units.
-	type wcol struct{ key, unit string }
-	var wcols []wcol
-	xunit := ""
-	for _, k := range []string{"intensity", "volume", "number"} {
+	// Distribution columns present in any measurement, in canonical order,
+	// with the unit they share; differing units go in a column of their own.
+	type wcol struct {
+		key, unit string
+		mixed     bool
+	}
+	distUnit := func(key string) (wcol, bool) {
+		c := wcol{key: key}
+		seen := false
 		for _, m := range ms {
-			if c := m.Dist.Column(k); c != nil {
-				wcols = append(wcols, wcol{k, c.Unit})
-				break
+			col := m.Dist.Column(key)
+			if col == nil {
+				continue
+			}
+			if !seen {
+				c.unit, seen = col.Unit, true
+			} else if col.Unit != c.unit {
+				c.unit, c.mixed = "", true
 			}
 		}
+		return c, seen
 	}
-	for _, m := range ms {
-		if c := m.Dist.Column("diameter"); c != nil {
-			xunit = c.Unit
-			break
+	var wcols []wcol
+	for _, k := range []string{"intensity", "volume", "number"} {
+		if c, ok := distUnit(k); ok {
+			wcols = append(wcols, c)
 		}
 	}
+	xcol, _ := distUnit("diameter")
 	units := map[string]string{}
 	mixed := map[string]bool{}
 	for _, k := range paramKeys {
 		units[k], mixed[k] = commonUnit(ms, k)
+		if units[k] == "" && !mixed[k] && graph.NeedsUnit(k) && anyParam(ms, k) {
+			ds.Notes = append(ds.Notes, NoteUnitNotStated+k)
+		}
+	}
+	if _, seen := distUnit("diameter"); seen && xcol.unit == "" && !xcol.mixed {
+		ds.Notes = append(ds.Notes, NoteUnitNotStated+"diameter")
 	}
 	idCols := []Column{
 		{Key: "sample_id", Label: T("col.sample_id")},
@@ -265,9 +307,15 @@ func MeasurementData(title string, ids []string, in graph.Input, points PointLab
 
 	long := Table{ID: "data", Name: T("sheet.data")}
 	long.Columns = append(long.Columns, idCols...)
-	long.Columns = append(long.Columns, Column{Key: "diameter", Label: T("col.diameter"), Unit: xunit})
+	long.Columns = append(long.Columns, Column{Key: "diameter", Label: T("col.diameter"), Unit: xcol.unit})
+	if xcol.mixed {
+		long.Columns = append(long.Columns, Column{Key: "diameter_unit", Label: T("col.diameter") + " · " + T("col.unit")})
+	}
 	for _, w := range wcols {
 		long.Columns = append(long.Columns, Column{Key: w.key, Label: T("axis." + w.key), Unit: w.unit})
+		if w.mixed {
+			long.Columns = append(long.Columns, Column{Key: w.key + "_unit", Label: T("axis."+w.key) + " · " + T("col.unit")})
+		}
 	}
 	long.Columns = append(long.Columns, paramCols...)
 
@@ -281,6 +329,9 @@ func MeasurementData(title string, ids []string, in graph.Input, points PointLab
 			bins = len(d.Values)
 			for i, v := range d.Values {
 				row := append(append([]Cell{}, ic...), num(v, rawDec(d.Raw, i)))
+				if xcol.mixed {
+					row = append(row, text(d.Unit))
+				}
 				for _, w := range wcols {
 					c := m.Dist.Column(w.key)
 					if c != nil && i < len(c.Values) {
@@ -288,14 +339,27 @@ func MeasurementData(title string, ids []string, in graph.Input, points PointLab
 					} else {
 						row = append(row, text(""))
 					}
+					if w.mixed {
+						if c != nil {
+							row = append(row, text(c.Unit))
+						} else {
+							row = append(row, text(""))
+						}
+					}
 				}
 				long.Rows = append(long.Rows, append(row, pc...))
 			}
 		} else {
 			// A measurement without a distribution still exports its parameters.
 			row := append(append([]Cell{}, ic...), text(""))
-			for range wcols {
+			if xcol.mixed {
 				row = append(row, text(""))
+			}
+			for _, w := range wcols {
+				row = append(row, text(""))
+				if w.mixed {
+					row = append(row, text(""))
+				}
 			}
 			long.Rows = append(long.Rows, append(row, pc...))
 		}
@@ -369,6 +433,9 @@ func ParameterData(title, param string, in graph.Input, cy graph.CycleInput, T T
 	if mapped {
 		data.Columns = append(data.Columns, mappingColumns(param)...)
 		ds.Notes = append(ds.Notes, "ls.user_mapping_unvalidated")
+	}
+	if unitSeen && unit == "" && graph.NeedsUnit(param) {
+		ds.Notes = append(ds.Notes, NoteUnitNotStated+param)
 	}
 	st := Table{ID: "statistics", Name: T("sheet.statistics"), Columns: []Column{
 		{Key: "cycle_point", Label: T("col.cycle_point")},

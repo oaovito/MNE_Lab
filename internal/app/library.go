@@ -261,7 +261,12 @@ type CycleView struct {
 	Assignments []cycle.Assignment             `json:"assignments"`
 	Items       []MeasurementSummary           `json:"items"`
 	Series      map[string][]cycle.PointResult `json:"series"`
-	Files       []string                       `json:"files"`
+	// Units holds each parameter's unit shared by every assigned
+	// measurement ("" when the files state none); MixedUnits lists the
+	// parameters whose units differ, which are not summarized.
+	Units      map[string]string `json:"units"`
+	MixedUnits []string          `json:"mixedUnits,omitempty"`
+	Files      []string          `json:"files"`
 }
 
 // uniqueMeasurementIDs preserves input order and never edits the caller's
@@ -453,13 +458,35 @@ func (p *Profile) cycleView(doc CycleDoc) (CycleView, error) {
 			}
 		}
 	}
+	v.Units = map[string]string{}
 	for _, param := range doc.Config.Params {
 		values := map[string]float64{}
+		unit, seen, mixed := "", false, false
 		for id, m := range in.Measurements {
 			if q, ok := m.Params[param]; ok {
 				values[id] = q.Value
 			}
 		}
+		for _, a := range ci.Assignments {
+			if a.Status != "auto" && a.Status != "confirmed" {
+				continue
+			}
+			q, ok := in.Measurements[a.MeasurementID].Params[param]
+			if !ok {
+				continue
+			}
+			if !seen {
+				unit, seen = q.Unit, true
+			} else if q.Unit != unit {
+				mixed = true
+			}
+		}
+		if mixed {
+			// Values in different units are never averaged together.
+			v.MixedUnits = append(v.MixedUnits, param)
+			continue
+		}
+		v.Units[param] = unit
 		v.Series[param] = cycle.Series(ci.Points, ci.Assignments, values)
 	}
 	return v, nil

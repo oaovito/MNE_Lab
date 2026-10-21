@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/science/cycle"
@@ -407,8 +408,17 @@ func scale(want string, allPositive bool, res *Result) string {
 	return "linear"
 }
 
-// dimensionless parameters have no unit to state.
-var dimensionless = map[string]bool{model.Polydispersity: true, model.BaselineIndex: true}
+// NeedsUnit reports whether a parameter key (or an axis label such as
+// "param.effective_diameter") names a quantity measured in some unit, so an
+// empty unit means the file did not state it.
+func NeedsUnit(key string) bool {
+	key = strings.TrimPrefix(key, "param.")
+	switch key {
+	case model.EffectiveDiameter, model.CountRate, model.AverageCountRate, "axis.hydrodynamic_diameter":
+		return true
+	}
+	return false
+}
 
 // CycleInput adds the cycle needed by temporal graphs.
 type CycleInput struct {
@@ -460,7 +470,7 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 		res.Warnings = append(res.Warnings, "ls.user_mapping_unvalidated")
 	}
 	res.Y.Unit = unit
-	if unit == "" && !dimensionless[def.Param] {
+	if unit == "" && NeedsUnit(def.Param) {
 		res.Warnings = append(res.Warnings, "graph.y_unit_not_stated")
 	}
 	series := cycle.Series(cy.Points, cy.Assignments, values)

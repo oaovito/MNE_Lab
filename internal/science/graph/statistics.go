@@ -68,6 +68,9 @@ func StatisticalGroups(def Definition, saved analysis.StatisticalAnalysis) (Resu
 	if saved.SourceChanged {
 		r.Warnings = append(r.Warnings, "statistics.source_changed_saved_graph")
 	}
+	if s.Unit == "" && NeedsUnit(s.Definition.Variable) {
+		r.Warnings = append(r.Warnings, "graph.y_unit_not_stated")
+	}
 	for _, ci := range saved.Results.EffectIntervals {
 		r.Provenance.Transformations = append(r.Provenance.Transformations, "effect interval "+ci.Effect+"; "+ci.Method+"; nominal confidence "+number(ci.ConfidenceLevel)+"; "+ci.Status)
 	}
