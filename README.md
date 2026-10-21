@@ -4,6 +4,61 @@ Análise de espalhamento dinâmico de luz (DLS) do arquivo do NanoBrook 90Plus
 à figura pronta para publicação. Privado por arquitetura, roda direto de um
 pendrive e foi feito para computadores modestos.
 
+## Baixar e usar
+
+Para usar o MNE Lab, baixe **um único arquivo**: o pacote do seu sistema, na
+página de [Releases](https://github.com/oaovito/MNE_Lab/releases). Ele já traz
+o aplicativo, o runtime estatístico e todas as bibliotecas. Não é preciso
+instalar Python, R, Node.js, Java, Excel, LibreOffice nem qualquer outro
+programa, e não há instalador: o MNE Lab roda direto da pasta.
+
+**1. Escolha o pacote**
+
+| Seu computador | Arquivo |
+|---|---|
+| Windows 10 ou 11, 64 bits (a maioria dos PCs) | `MNE_Lab-<versão>-Windows-x64.zip` |
+| Windows 10, 32 bits | `MNE_Lab-<versão>-Windows-x86.zip` |
+| Windows em processador ARM (Snapdragon) | `MNE_Lab-<versão>-Windows-ARM64.zip` |
+| Mac com chip Apple (M1 ou mais recente) | `MNE_Lab-<versão>-macOS-AppleSilicon.tar.gz` |
+| Mac com processador Intel | `MNE_Lab-<versão>-macOS-Intel.tar.gz` |
+| Linux 64 bits | `MNE_Lab-<versão>-Linux-x64.tar.gz` |
+| Linux ARM 64 bits (por exemplo, Raspberry Pi 4 ou 5) | `MNE_Lab-<versão>-Linux-ARM64.tar.gz` |
+
+Se não souber qual é o seu:
+
+- **Windows:** Configurações > Sistema > Sobre, linha "Tipo de sistema".
+- **Mac:** menu Apple > Sobre Este Mac. "Chip Apple M…" usa Apple Silicon;
+  "Processador Intel…" usa Intel.
+- **Linux:** o comando `uname -m` mostra `x86_64` (x64) ou `aarch64` (ARM64).
+
+Os outros arquivos da página (código-fonte e `SHA256SUMS.txt`) não são
+necessários para usar o programa.
+
+**2. Extraia a pasta inteira** para um lugar onde você possa gravar: uma pasta
+do computador ou um pendrive. Não abra o programa de dentro do arquivo
+compactado.
+
+**3. Abra o MNE Lab.** No Windows, `MNE Lab.exe`; no Mac e no Linux, o arquivo
+`MNE Lab`. As versões de desenvolvimento ainda não têm assinatura de código,
+então na primeira abertura o sistema pode pedir confirmação:
+
+- **Windows:** em "O Windows protegeu o computador", clique em "Mais
+  informações" e depois em "Executar assim mesmo".
+- **Mac:** clique com o botão direito em `MNE Lab` e escolha Abrir. Se o
+  macOS ainda bloquear, vá em Ajustes do Sistema > Privacidade e Segurança e
+  clique em "Abrir Mesmo Assim".
+
+**4. Crie sua conta e seu perfil.** Um tutorial curto mostra o restante na
+primeira vez.
+
+Seus dados ficam na subpasta `data`, ao lado do programa. Para levar o MNE Lab
+para outro computador, copie a pasta completa.
+
+A janela do MNE Lab usa o navegador que já existe no computador. No Windows é
+o Microsoft Edge, que acompanha o sistema. No Mac e no Linux, ele usa Google
+Chrome, Microsoft Edge, Brave ou Chromium quando algum deles está instalado e,
+se não houver nenhum, abre no navegador padrão.
+
 ## Por que o MNE Lab
 
 - **Execução local.** Um executável nativo inclui o runtime estatístico offline.
@@ -43,14 +98,6 @@ pendrive e foi feito para computadores modestos.
   LockedBuild mantém a build escolhida.
 - **Idiomas:** português (Brasil), inglês e espanhol, seguindo o idioma do
   sistema.
-
-## Requisitos
-
-- Windows 10 ou 11 (x64, x86 ou ARM64) com Microsoft Edge (já vem no
-  Windows), Google Chrome, Brave ou Chromium.
-- Linux (x64 ou ARM64) com Microsoft Edge, Google Chrome, Chromium ou Brave.
-- macOS (Apple Silicon ou Intel) com Google Chrome, Microsoft Edge, Brave ou
-  Chromium.
 
 ## Estado do projeto
 
