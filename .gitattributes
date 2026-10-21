@@ -8,12 +8,6 @@ web/src/lib/vendor/mbess/DESCRIPTION -text whitespace=-blank-at-eol,cr-at-eol
 testdata/signature/invented.* -text
 testdata/signature/invented.csv whitespace=cr-at-eol
 
-# Git-only development continuity; omit it from product/source distributions.
-/development/continuity export-ignore
-/development/continuity/** export-ignore
-/AGENTS.md export-ignore
-/ferramenta.md export-ignore
-
 # Repository tooling (CI, audits and the checks that guard the development
 # area) is not part of the application source distribution.
 /.github export-ignore
