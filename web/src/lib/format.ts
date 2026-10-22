@@ -1,4 +1,5 @@
-import { lang } from './i18n';
+import { lang, t } from './i18n';
+import type { CycleView } from './types';
 
 let decimal = '.';
 export const setDecimal = (d: string) => (decimal = d === ',' ? ',' : '.');
@@ -25,10 +26,78 @@ export function decimalsOf(raw: string | undefined): number | undefined {
 
 export type Quantity = { value: number; raw: string; unit?: string; label?: string; line?: number; unitOrigin?: string; unitLine?: number; sourceColumn?: number };
 
-export function fmtQ(q: Quantity | undefined, withUnit = true): string {
+/**
+ * Parameters that carry a physical unit. Polydispersity and baseline index
+ * are dimensionless: they have no unit to state, so nothing is shown.
+ */
+export const UNIT_PARAMS: ReadonlySet<string> = new Set(['effective_diameter', 'count_rate', 'average_count_rate']);
+export const needsUnit = (key: string | undefined) => !!key && UNIT_PARAMS.has(key);
+
+/**
+ * unitText is the unit to print after a value of parameter key: the unit the
+ * data carries, or a short marker when the file does not state one for a
+ * quantity that has a unit. Dimensionless and unknown keys print nothing.
+ */
+export function unitText(unit: string | undefined, key?: string): string {
+  if (unit) return unit;
+  return needsUnit(key) ? t('qty.unit_not_stated') : '';
+}
+
+/** squared writes a unit squared (variances, sums of squares). */
+export function squared(unit: string): string {
+  if (!unit) return '';
+  return /^[\p{L}µμ°]+$/u.test(unit) ? unit + '²' : '(' + unit + ')²';
+}
+
+/**
+ * fmtQ writes a quantity as its value with the decimals of the file and its
+ * unit. With the parameter key, a missing unit on a quantity that has one is
+ * marked instead of silently dropped.
+ */
+export function fmtQ(q: Quantity | undefined, key?: string, withUnit = true): string {
   if (!q) return '—';
   const n = fmtNum(q.value, decimalsOf(q.raw));
-  return withUnit && q.unit ? `${n} ${q.unit}` : n;
+  if (!withUnit) return n;
+  const u = q.unit || (needsUnit(key) ? `(${t('qty.unit_not_stated')})` : '');
+  return u ? `${n} ${u}` : n;
+}
+
+/**
+ * The unit shared by the quantities of one parameter: 'unit' when every one
+ * states the same unit, 'none' when the parameter is dimensionless or no
+ * value has a unit and none is needed, 'not_stated' when none states it,
+ * and 'mixed' when they disagree or only some state it.
+ */
+export type CommonUnit = { kind: 'unit'; unit: string } | { kind: 'none' } | { kind: 'not_stated' } | { kind: 'mixed' };
+export function commonUnit(qs: (Quantity | undefined)[], key: string): CommonUnit {
+  const units = new Set<string>();
+  for (const q of qs) if (q) units.add(q.unit || '');
+  if (units.size > 1) return { kind: 'mixed' };
+  const [u] = [...units];
+  if (u) return { kind: 'unit', unit: u };
+  return needsUnit(key) ? { kind: 'not_stated' } : { kind: 'none' };
+}
+
+/**
+ * cycleUnit is the unit to print after the per-point summaries of a cycle.
+ * The core states it per parameter (units, mixedUnits); for a view without
+ * them it is worked out from the measurements the summaries use.
+ */
+export function cycleUnit(v: Pick<CycleView, 'units' | 'mixedUnits' | 'series' | 'items'>, param: string): CommonUnit {
+  if (v.mixedUnits?.includes(param)) return { kind: 'mixed' };
+  if (v.units && param in v.units) {
+    const u = v.units[param];
+    if (u) return { kind: 'unit', unit: u };
+    return needsUnit(param) ? { kind: 'not_stated' } : { kind: 'none' };
+  }
+  const used = new Set((v.series?.[param] || []).flatMap((r) => r.sources || []));
+  const items = (v.items || []).filter((m) => !used.size || used.has(m.id));
+  return commonUnit(items.map((m) => m.params[param]), param);
+}
+
+/** unitNote is the sentence shown when a common unit cannot be printed. */
+export function unitNote(c: CommonUnit): string {
+  return c.kind === 'not_stated' ? t('qty.unit_not_stated.d') : c.kind === 'mixed' ? t('qty.mixed_units.d') : '';
 }
 
 export type Timestamp = { time: string; raw: string; tzKnown: boolean; ambiguous?: boolean; confirmed?: boolean; source: string };

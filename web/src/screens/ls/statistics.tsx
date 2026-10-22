@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { get, post } from "../../lib/api";
 import { statisticsHeaders, useAnalyses } from "../../lib/analyses";
-import { fmtNum } from "../../lib/format";
+import { fmtNum, squared, unitText } from "../../lib/format";
 import { errText, t } from "../../lib/i18n";
 import {
   allMeasurements,
@@ -606,7 +606,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                     <td>{measurementName(m, f)}</td>
                     <td>
                       {m.params[def.variable]
-                        ? `${m.params[def.variable].raw} ${m.params[def.variable].unit || ""}`
+                        ? `${m.params[def.variable].raw} ${unitText(m.params[def.variable].unit, def.variable)}`.trim()
                         : t("stat.missing")}
                     </td>
                     <td>
@@ -736,13 +736,19 @@ function AnalysisResults(p: {
   result: StatisticalResults;
 }) {
   const { snapshot: s, result: r } = p;
+  // Results are in the unit of the variable (sums of squares and variances in
+  // its square); nothing is shown for a dimensionless variable.
+  const shown = unitText(s.unit, s.definition.variable);
+  const u = s.unit ? ` (${s.unit})` : "";
+  const u2 = s.unit ? ` (${squared(s.unit)})` : "";
+  const after = (text: string) => (s.unit ? `${text} ${s.unit}` : text);
   return (
     <div class="col gap3">
       <div class="card pad">
         <b>{t("stat.derived")}</b>
         <p>
-          {t("stat.method." + r.method)} · {t("param." + s.definition.variable)}{" "}
-          ({s.unit || "—"}) · α={s.definition.alpha} · {r.model ? t("stat.mixed_tests") : r.ssType}
+          {t("stat.method." + r.method)} · {t("param." + s.definition.variable)}
+          {shown ? ` (${shown})` : ""} · α={s.definition.alpha} · {r.model ? t("stat.mixed_tests") : r.ssType}
         </p>
         <small>
           {r.engine} · {r.calculation}
@@ -758,10 +764,10 @@ function AnalysisResults(p: {
             <thead>
               <tr>
                 {(r.model ? [t("stat.source"), "df", t("stat.denominator_df"), "F", "p"] : [
-                  "Source",
-                  "SS",
+                  t("stat.source"),
+                  "SS" + u2,
                   "df",
-                  "MS",
+                  "MS" + u2,
                   "F",
                   "p",
                   "η²",
@@ -802,10 +808,10 @@ function AnalysisResults(p: {
         <h3>{t("stat.mixed_model")}</h3>
         <p>{t("stat.mixed_scope")}</p>
         <p>{r.model.estimation} · y ~ {r.model.fixed} · {r.model.random} · {r.model.test}</p>
-        <p>{t("stat.random_variance")}: {num(r.model.randomVariance)} · {t("stat.residual_variance")}: {num(r.model.residualVariance)} · log likelihood: {num(r.model.logLikelihood)}</p>
+        <p>{t("stat.random_variance")}: {num(r.model.randomVariance)}{u2 && " " + squared(s.unit)} · {t("stat.residual_variance")}: {num(r.model.residualVariance)}{u2 && " " + squared(s.unit)} · log likelihood: {num(r.model.logLikelihood)}</p>
         <p>A: {r.model.levelsA.join(" · ")} · B: {r.model.levelsB.join(" · ")}</p>
         {!!r.model.coefficientConfidenceLevel && <p>{t("stat.mixed_coefficient_ci_scope")} · {100*r.model.coefficientConfidenceLevel}%</p>}
-        <table class="table"><thead><tr><th>{t("stat.coefficient")}</th><th>{t("stat.estimate")}</th><th>SE</th>{!!r.model.coefficientConfidenceLevel && <><th>df</th><th>CI</th></>}</tr></thead><tbody>
+        <table class="table"><thead><tr><th>{t("stat.coefficient")}</th><th>{t("stat.estimate")}{u}</th><th>SE{u}</th>{!!r.model.coefficientConfidenceLevel && <><th>df</th><th>CI{u}</th></>}</tr></thead><tbody>
           {r.model.fixedCoefficients.map(v=><tr><td>{v.name}</td><td>{num(v.estimate)}</td><td>{num(v.se)}</td>{!!r.model!.coefficientConfidenceLevel && <><td>{num(v.df)}</td><td>{num(v.lower)} … {num(v.upper)}</td></>}</tr>)}
         </tbody></table>
       </section>}
@@ -816,10 +822,10 @@ function AnalysisResults(p: {
             <tr>
               <th>{t("stat.group")}</th>
               <th>n</th>
-              <th>{t("stat.mean")}</th>
-              <th>SD</th>
-              <th>SEM</th>
-              <th>CI ({100 * (1 - s.definition.alpha)}%)</th>
+              <th>{t("stat.mean")}{u}</th>
+              <th>SD{u}</th>
+              <th>SEM{u}</th>
+              <th>CI ({100 * (1 - s.definition.alpha)}%){u}</th>
             </tr>
           </thead>
           <tbody>
@@ -843,7 +849,7 @@ function AnalysisResults(p: {
           <summary>{t("stat.individuals")}</summary>
           {r.groups.map((g) => (
             <p>
-              {g.factorA} {g.factorB}: {g.values.map((v) => num(v)).join(" · ")}
+              {g.factorA} {g.factorB}: {after(g.values.map((v) => num(v)).join(" · "))}
             </p>
           ))}
         </details>
@@ -855,8 +861,8 @@ function AnalysisResults(p: {
             <thead>
               <tr>
                 <th>{t("stat.contrast")}</th>
-                <th>{t("stat.difference")}</th>
-                <th>CI</th>
+                <th>{t("stat.difference")}{u}</th>
+                <th>CI{u}</th>
                 <th>{t("stat.adjusted_p")}</th>
               </tr>
             </thead>
@@ -899,7 +905,7 @@ function AnalysisResults(p: {
               .join(" · ")}
           </p>
         )}
-        <DiagnosticPlots r={r} />
+        <DiagnosticPlots r={r} unit={s.unit} />
       </section>
       <details class="card pad">
         <summary>{t("stat.provenance")}</summary>
@@ -919,7 +925,7 @@ function AnalysisResults(p: {
     </div>
   );
 }
-function DiagnosticPlots(p: { r: StatisticalResults }) {
+function DiagnosticPlots(p: { r: StatisticalResults; unit: string }) {
   const r = p.r;
   const min = Math.min(...r.qqObserved),
     max = Math.max(...r.qqObserved),
@@ -975,7 +981,7 @@ function DiagnosticPlots(p: { r: StatisticalResults }) {
           ))}
         </svg>
         <small>
-          {num(min)} … {num(max)} · {t("stat.residual_frequency")}
+          {num(min)} … {num(max)}{p.unit ? " " + p.unit : ""} · {t("stat.residual_frequency")}
         </small>
       </figure>
     </div>

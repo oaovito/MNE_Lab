@@ -75,6 +75,15 @@ const menu = async (name) => {
 await screen('home', () => go('/'), async () => report.check('home shows "made by oaovito"', (await page.locator('text=made by oaovito').count()) > 0));
 await screen('files', () => go('/ls/files'));
 await screen('file-detail', async () => (await go('/ls/files'), await click('table tbody tr >> nth=2')));
+// Measurements of a file: each value with its unit and source line, and the
+// file's own parameters opened.
+await screen('file-measurements', async () => {
+  await go('/ls/files');
+  await click('table tbody tr >> nth=2');
+  await click('[role=tablist] >> nth=1 >> [role=tab] >> nth=1');
+  await sleep(400);
+  await click('.meas details summary');
+});
 await screen('graphs', () => go('/ls/graphs'));
 for (const kind of ['dls_distribution', 'parameter_time', 'dls_by_time']) {
   const g = graphs.find((x) => x.kind === kind);

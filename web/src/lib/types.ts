@@ -316,8 +316,13 @@ export type CycleView = CycleDoc & {
   points: Point[] | null;
   assignments: Assignment[] | null;
   items: MeasurementSummary[] | null;
-  series: Record<string, PointResult[]> | null;
+  /** Per parameter: series is absent for a parameter whose units differ. */
+  series: Record<string, PointResult[] | undefined> | null;
   files: string[] | null;
+  /** Unit shared by every assigned measurement, per parameter ("" when the files state none). */
+  units?: Record<string, string> | null;
+  /** Parameters whose assigned measurements use different units. */
+  mixedUnits?: string[] | null;
 };
 
 export type Relations = {

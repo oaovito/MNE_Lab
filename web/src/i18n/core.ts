@@ -580,4 +580,11 @@ export const core: Record<string, readonly [string, string, string]> = {
   'about.licenses.d': ['MNE Lab is built with these libraries, used under their licenses.', 'O MNE Lab é feito com estas bibliotecas, usadas sob as respectivas licenças.', 'MNE Lab se construye con estas bibliotecas, usadas bajo sus licencias.'],
   'about.trademarks': ['Google Drive and Google One are trademarks of Google LLC. iCloud is a trademark of Apple Inc. Microsoft OneDrive is a trademark of Microsoft Corporation. NanoBrook is a trademark of Brookhaven Instruments. MNE Lab is not affiliated with or endorsed by these companies.', 'Google Drive e Google One são marcas da Google LLC. iCloud é marca da Apple Inc. Microsoft OneDrive é marca da Microsoft Corporation. NanoBrook é marca da Brookhaven Instruments. O MNE Lab não é afiliado nem endossado por essas empresas.', 'Google Drive y Google One son marcas de Google LLC. iCloud es una marca de Apple Inc. Microsoft OneDrive es una marca de Microsoft Corporation. NanoBrook es una marca de Brookhaven Instruments. MNE Lab no está afiliado ni respaldado por estas empresas.'],
   'stor.coll.blob.gone': ['Deleted original', 'Original excluído', 'Original eliminado'],
+  'qty.unit_not_stated': ['unit not stated', 'unidade não informada', 'unidad no indicada'],
+  'qty.unit_not_stated.d': ['The file does not state the unit of these values.', 'O arquivo não informa a unidade destes valores.', 'El archivo no indica la unidad de estos valores.'],
+  'qty.mixed_units': ['mixed units', 'unidades diferentes', 'unidades distintas'],
+  'qty.mixed_units.d': ['These values have different units, so they are not summarized together.', 'Estes valores têm unidades diferentes, então não são resumidos juntos.', 'Estos valores tienen unidades distintas, así que no se resumen juntos.'],
+  'fig.err.sd': ['SD', 'DP', 'DE'],
+  'fig.err.sem': ['SEM', 'EPM', 'EEM'],
+  'fig.err.ci': ['CI', 'IC', 'IC'],
 };
