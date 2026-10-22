@@ -9,6 +9,7 @@ import { app, closePanel, openPanel, S } from '../lib/state';
 import { useStore } from '../lib/store';
 import { Icon, type IconName } from '../ui/icons';
 import { Badge, Button, Input, Kbd, Modal } from '../ui/kit';
+import { CHAPTERS } from './tutorial';
 
 /** Notes of this build, newest first. Each entry lists i18n keys. */
 export const NEWS: { version: string; items: { icon: IconName; key: string }[] }[] = [
@@ -202,6 +203,18 @@ function Start() {
         <Button icon="gift" onClick={() => openPanel('whatsnew')}>
           {t('menu.whatsnew')}
         </Button>
+      </div>
+      <div class="col gap2">
+        <span class="section-title">{t('help.tutorial_chapters')}</span>
+        <div class="help-chapters">
+          {CHAPTERS.map((c) => (
+            <button type="button" class="help-chapter" onClick={() => openPanel('tour', c.key)}>
+              <Icon name={c.icon} size="sm" />
+              <span class="grow">{t('tut.ch.' + c.key)}</span>
+              <span class="xs faint num">{t('tut.stops', { n: c.stops.length })}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

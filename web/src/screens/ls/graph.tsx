@@ -4,8 +4,8 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { get, post } from '../../lib/api';
 import { statisticsHeaders } from '../../lib/analyses';
-import { fmtDate, fmtNum, fmtQ, fmtTS } from '../../lib/format';
-import { errText, t } from '../../lib/i18n';
+import { fmtDate, fmtNum, fmtQ, fmtTS, unitText } from '../../lib/format';
+import { errText, has, t } from '../../lib/i18n';
 import { measurementName, PARAMS, useCycles, useFiles, warnText, WEIGHTINGS } from '../../lib/library';
 import { navigate } from '../../lib/route';
 import { openPanel, run, toast } from '../../lib/state';
@@ -35,6 +35,9 @@ function newDef(q: URLSearchParams): GraphDef {
     notes: '',
   };
 }
+
+/** timeUnit localizes the time unit of a cycle axis (days, weeks…). */
+const timeUnit = (u: string) => (u && has('unit.' + u) ? t('unit.' + u) : u);
 
 const norm = (d: GraphDef | null | undefined) => JSON.stringify(d ? { ...d, created: undefined, updated: undefined, schema: undefined } : null);
 
@@ -144,10 +147,10 @@ function Editor(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphDe
         <Button size="sm" kind="ghost" icon="info" class="narrow-only" selected={insp} onClick={() => setInsp(!insp)}>
           {t('graph.details')}
         </Button>
-        <Button size="sm" icon="present" disabled={!r.data} onClick={async () => { const id = await needSave(); if (id) presentGraphs([id]); }}>
+        <Button size="sm" icon="present" class="graph-present" disabled={!r.data} onClick={async () => { const id = await needSave(); if (id) presentGraphs([id]); }}>
           {t('pres.start')}
         </Button>
-        <Button size="sm" icon="download" disabled={!r.data} onClick={async () => { const id = await needSave(); if (id) openPanel('export', { items: [{ kind: 'graph', id }] }); }}>
+        <Button size="sm" icon="download" class="graph-export" disabled={!r.data} onClick={async () => { const id = await needSave(); if (id) openPanel('export', { items: [{ kind: 'graph', id }] }); }}>
           {t('ui.export')}
         </Button>
         {!p.isNew && (
@@ -261,8 +264,9 @@ function Editor(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphDe
               <FigureView
                 figure={r.data.figure}
                 series={series}
-                xUnit={r.data.x.unit}
-                yUnit={r.data.y.unit}
+                xUnit={def.kind === 'parameter_time' ? timeUnit(r.data.x.unit) : r.data.x.unit}
+                yUnit={unitText(r.data.y.unit, def.kind === 'parameter_time' ? def.param : undefined)}
+                errStat={def.kind === 'parameter_time' ? 'sd' : def.kind === 'statistical_groups' ? def.errorBars || 'sd' : undefined}
                 interactive
                 onZoom={(view) => setVisual({ view })}
                 onReset={() => setVisual({ view: null })}
@@ -459,7 +463,7 @@ function ComparePanel(p: { r: Rendered }) {
   const cell = (s: Series, k: string) => {
     const raw = s.meta?.[k];
     if (raw === undefined) return <span class="faint">—</span>;
-    return fmtQ({ value: parseFloat(raw.replace(',', '.')), raw, unit: s.meta?.[k + '.unit'] });
+    return fmtQ({ value: parseFloat(raw.replace(',', '.')), raw, unit: s.meta?.[k + '.unit'] }, k);
   };
   return (
     <div class="col gap3">

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/science/cycle"
@@ -271,6 +272,8 @@ func meta(m model.Measurement) map[string]string {
 			out[k] = q.Raw
 			if q.UnitOrigin != "" {
 				out[k+".unitOrigin"] = q.UnitOrigin
+			}
+			if q.SourceColumn > 0 {
 				out[k+".sourceColumn"] = fmt.Sprint(q.SourceColumn)
 			}
 			if q.Unit != "" {
@@ -405,6 +408,18 @@ func scale(want string, allPositive bool, res *Result) string {
 	return "linear"
 }
 
+// NeedsUnit reports whether a parameter key (or an axis label such as
+// "param.effective_diameter") names a quantity measured in some unit, so an
+// empty unit means the file did not state it.
+func NeedsUnit(key string) bool {
+	key = strings.TrimPrefix(key, "param.")
+	switch key {
+	case model.EffectiveDiameter, model.CountRate, model.AverageCountRate, "axis.hydrodynamic_diameter":
+		return true
+	}
+	return false
+}
+
 // CycleInput adds the cycle needed by temporal graphs.
 type CycleInput struct {
 	Config      cycle.Config
@@ -455,6 +470,9 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 		res.Warnings = append(res.Warnings, "ls.user_mapping_unvalidated")
 	}
 	res.Y.Unit = unit
+	if unit == "" && NeedsUnit(def.Param) {
+		res.Warnings = append(res.Warnings, "graph.y_unit_not_stated")
+	}
 	series := cycle.Series(cy.Points, cy.Assignments, values)
 	ind := Series{ID: "individual", Label: "series.individual", Kind: "individual"}
 	mean := Series{ID: "mean", Label: "series.mean_sd", Kind: "mean"}

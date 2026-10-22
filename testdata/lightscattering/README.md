@@ -16,3 +16,8 @@ público e são usados somente em validações privadas. Veja
 `synthetic-count-rate-types.txt` contém leituras inventadas de contagem
 atual e média, com unidades e precisões diferentes, para verificar que
 as duas grandezas permanecem independentes.
+
+`synthetic-nanobrook-run-table.txt` traz o diâmetro efetivo sem unidade na
+linha de resultados e a unidade só no cabeçalho da tabela de corridas, com
+valores inventados, para verificar que a unidade vem do próprio arquivo e
+somente quando a linha Combined repete o mesmo valor.

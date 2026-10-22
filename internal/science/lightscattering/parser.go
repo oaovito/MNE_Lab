@@ -30,7 +30,7 @@ import (
 )
 
 // Version identifies this parser in provenance records.
-const Version = "lightscattering-parser/1.5.0"
+const Version = "lightscattering-parser/1.6.0"
 
 // MaxFileSize bounds imports to keep parsing predictable on small machines.
 const MaxFileSize = 32 << 20
@@ -339,6 +339,9 @@ func Parse(data []byte) Result {
 				}
 			}
 			m.Fields = append(m.Fields, f)
+		}
+		if native {
+			nanoRunUnits(blk, m.Params)
 		}
 		if timeText != "" {
 			// Separate "Date" and "Time" fields: combine them.

@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { api, get, patch, post } from '../../lib/api';
 import { markSeen, seen } from '../../lib/actions';
-import { fmtBytes, fmtDate, fmtQ, fmtTS, toLocalInput } from '../../lib/format';
+import { fmtBytes, fmtDate, fmtQ, fmtTS, toLocalInput, type Quantity } from '../../lib/format';
 import { errText, t } from '../../lib/i18n';
 import { measurementName, PARAMS, useFiles, useRelations, warnText } from '../../lib/library';
 import { navigate, useRoute } from '../../lib/route';
 import { app, openPanel, run, toast } from '../../lib/state';
 import { createStore, useStore } from '../../lib/store';
-import type { FileView, ImportInspection, ImportResult, ImportSelection, ColumnMapping, SheetSelection, ImportProfile, Measurement, MeasurementSummary, ProducerOrigin, SourceFile } from '../../lib/types';
+import type { Field as FieldT, FileView, ImportInspection, ImportResult, ImportSelection, ColumnMapping, SheetSelection, ImportProfile, Measurement, MeasurementSummary, ProducerOrigin, SourceFile } from '../../lib/types';
 import { Icon } from '../../ui/icons';
 import { Badge, Button, Check, confirmDialog, Empty, Field, Input, Menu as MenuLazy, Modal, Notice, Seg, Select, Skeleton, Spinner, Tabs, useAsync } from '../../ui/kit';
 
@@ -967,10 +967,12 @@ function MeasurementCard(p: { m: MeasurementSummary; file: FileView; full?: Meas
         {PARAMS.map((k) => (
           <div class="param">
             <div class="k">{t('param.' + k)}</div>
-            <div class="v">{m.params[k] ? fmtQ(m.params[k]) : <span class="faint">—</span>}</div>
+            <div class="v">{m.params[k] ? fmtQ(m.params[k], k) : <span class="faint">—</span>}</div>
+            {m.params[k] && <QuantitySource q={m.params[k]} />}
           </div>
         ))}
       </div>
+      {!!p.full?.fields?.length && <FileFields fields={p.full.fields} />}
       <div class="row gap1 xs faint wrap">
         {m.sourceSheet && <span>{t('ls.source_sheet', { name: m.sourceSheet })}{m.sourceRange ? ' · ' + t('col.source_range') + ': ' + m.sourceRange : ''} · </span>}
         {m.bins > 0 ? t('ls.bins', { n: m.bins }) : t('ls.no_distribution')}
@@ -982,6 +984,41 @@ function MeasurementCard(p: { m: MeasurementSummary; file: FileView; full?: Meas
       {edit && <MeasurementEdit m={m} onClose={() => setEdit(false)} />}
       {dateOpen && <DateConfirm m={m} onClose={() => setDateOpen(false)} />}
     </div>
+  );
+}
+
+/** QuantitySource says where a value and, when elsewhere, its unit were read. */
+function QuantitySource(p: { q: Quantity }) {
+  const q = p.q;
+  const header = q.unitOrigin === 'file_table_header' && q.unit && q.unitLine;
+  if (!q.line && !header) return null;
+  return (
+    <div class="xs faint">
+      {[q.line ? t('ls.value_line', { n: q.line }) : '', header ? t('ls.unit_table_header', { unit: q.unit!, n: q.unitLine! }) : ''].filter(Boolean).join(' · ')}
+    </div>
+  );
+}
+
+/** FileFields lists the file's own header fields exactly as written (drawn when opened). */
+function FileFields(p: { fields: FieldT[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details class="xs" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary class="muted">{t('ls.file_fields', { n: p.fields.length })}</summary>
+      {open && <p class="faint" style={{ margin: '4px 0' }}>{t('ls.file_fields.d')}</p>}
+      {open && <dl class="kv xs">
+        {p.fields.map((f) => (
+          <>
+            <dt>{f.label}</dt>
+            <dd>
+              {f.text}
+              {f.unit && !f.text.includes(f.unit) ? ' · ' + t('col.unit') + ': ' + f.unit : ''}
+              <span class="faint"> · {t('ls.value_line', { n: f.line })}</span>
+            </dd>
+          </>
+        ))}
+      </dl>}
+    </details>
   );
 }
 
@@ -1007,7 +1044,7 @@ function DistributionReview(p: { m: Measurement; disabled?: boolean }) {
     </div>}
     {selected && <div class="xs muted">
       <p>{t('ls.lines', { a: selected.firstLine, b: selected.lastLine })} · {t('ls.relative_intensity')}</p>
-      <table class="table"><thead><tr>{selected.columns.map((c) => <th>{c.label}</th>)}</tr></thead>
+      <table class="table"><thead><tr>{selected.columns.map((c) => <th>{c.label}{c.unit && !c.label.includes(c.unit) ? ' (' + c.unit + ')' : ''}</th>)}</tr></thead>
         <tbody>{selected.columns[0].raw.slice(0, 5).map((_, i) => <tr>{selected.columns.map((c) => <td>{c.raw[i]}</td>)}</tr>)}</tbody>
       </table>
     </div>}

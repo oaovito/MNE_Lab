@@ -2,6 +2,7 @@ package lightscattering
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/oaovito/mne_lab/internal/science/model"
@@ -207,4 +208,40 @@ func nanoBrookDistributions(blk []line) ([]model.Distribution, map[int]bool, []s
 type nanoRow struct {
 	cells []string
 	line  int
+}
+
+var runColumnGap = regexp.MustCompile(`\s{2,}`)
+
+// nanoRunUnits takes the unit of a summary value from the runs table of the
+// same report when the summary line states none ("Effective Diameter: 51.3"
+// above "Eff. Diam. (nm)"). The unit is adopted only when the table's
+// Combined row repeats the summary value exactly, so it is the file's own
+// statement about the same number; the header line is kept as its origin.
+func nanoRunUnits(blk []line, params map[string]model.Quantity) {
+	for i, l := range blk {
+		cols := runColumnGap.Split(strings.TrimSpace(l.text), -1)
+		if len(cols) < 2 || normalize(cols[0]) != "run" {
+			continue
+		}
+		for _, r := range blk[i+1:] {
+			if strings.HasPrefix(strings.TrimSpace(r.text), "****") {
+				break
+			}
+			cells := strings.Fields(r.text)
+			if len(cells) != len(cols) || normalize(cells[0]) != "combined" {
+				continue
+			}
+			for c := 1; c < len(cols); c++ {
+				label, unit := splitLabelUnit(cols[c])
+				key := lookup(summaryAliases, label)
+				q, ok := params[key]
+				if !ok || unit == "" || q.Unit != "" || q.Raw != cells[c] {
+					continue
+				}
+				q.Unit, q.UnitOrigin, q.UnitLine = unit, "file_table_header", l.n
+				params[key] = q
+			}
+			break
+		}
+	}
 }

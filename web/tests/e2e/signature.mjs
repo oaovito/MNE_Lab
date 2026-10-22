@@ -17,7 +17,7 @@ try {
       const page = await browser.newPage({ viewport: { width, height } });
       await page.goto(await launchURL(dir)); await page.waitForLoadState('networkidle');
       const state = await api(page,'GET','/api/state');
-      await api(page,'PUT','/api/profile/settings',{language:lang,theme,onboarding:{tour:true,ls:true,turbo:true},whatsNewSeen:state.version});
+      await api(page,'PUT','/api/profile/settings',{language:lang,theme,onboarding:{tutorial:true,ls:true,turbo:true},whatsNewSeen:state.version});
       await page.reload(); await page.waitForLoadState('networkidle');
       const before = await api(page,'GET','/api/files');
       await page.locator('.avatar-btn').click();

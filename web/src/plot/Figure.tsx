@@ -24,6 +24,16 @@ export function seriesLabel(label: string): string {
   return label;
 }
 
+/**
+ * errStat names what a series' error bars show, from the label the core gives
+ * it: graphs over time use the sample SD; statistical graphs use the chosen
+ * SD, SEM or confidence interval (half-width).
+ */
+export function errStat(label: string): 'sd' | 'sem' | 'ci' | '' {
+  const m = label.match(/^(?:series\.mean_|statistics:mean_)(sd|sem|ci)(?:$|:)/);
+  return m ? (m[1] as 'sd' | 'sem' | 'ci') : '';
+}
+
 function draw(ops: Op[], hidden?: Set<string>): JSX.Element[] {
   const out: JSX.Element[] = [];
   let group: JSX.Element[] | null = null;
@@ -97,6 +107,8 @@ type Props = {
   series?: Series[];
   xUnit?: string;
   yUnit?: string;
+  /** What error bars show when a series label does not say (a renamed series). */
+  errStat?: 'sd' | 'sem' | 'ci';
   interactive?: boolean;
   onZoom?: (v: View) => void;
   onReset?: () => void;
@@ -154,7 +166,9 @@ export function FigureView(p: Props) {
     for (let k = 0; k < f.hits.length; k++) {
       const h = f.hits[k];
       const d = Math.hypot(h.x - x, (h.y - y) * 0.6);
-      if (d < bd) {
+      // On a tie the later series wins: a mean drawn over a replicate of the
+      // same value shows its spread and n.
+      if (d <= bd) {
         bd = d;
         best = k;
       }
@@ -182,6 +196,7 @@ export function FigureView(p: Props) {
   };
 
   const se = hover && p.series ? p.series[hover.s] : undefined;
+  const stat = se ? errStat(se.label) || (se.kind === 'mean' ? p.errStat : '') : '';
   let tip: JSX.Element | null = null;
   if (hover && se) {
     const xv = se.x[hover.i],
@@ -199,7 +214,10 @@ export function FigureView(p: Props) {
         </div>
         {se.err?.[hover.i] !== undefined && (
           <div class="faint num">
-            ± {fmtNum(se.err[hover.i])} · n = {se.n?.[hover.i]}
+            ± {fmtNum(se.err[hover.i])}
+            {p.yUnit ? ' ' + p.yUnit : ''}
+            {stat ? ' (' + t('fig.err.' + stat) + ')' : ''}
+            {se.n?.[hover.i] !== undefined ? ' · n = ' + se.n[hover.i] : ''}
           </div>
         )}
       </div>

@@ -5,5 +5,6 @@ import { errors } from './errors';
 import { exp } from './export';
 import { help } from './help';
 import { ls } from './ls';
+import { tutorial } from './tutorial';
 
-addCatalogs(core, ls, exp, help, errors);
+addCatalogs(core, ls, exp, help, errors, tutorial);

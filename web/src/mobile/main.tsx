@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import '../styles/mobile.css';
-import { fmtDate, fmtNum, fmtRel, setDecimal } from '../lib/format';
+import { cycleUnit, fmtDate, fmtNum, fmtRel, setDecimal, unitNote } from '../lib/format';
 import { errText, setLang, t } from '../lib/i18n';
 import { createStore, useStore } from '../lib/store';
 import type { CycleView, Presentation } from '../lib/types';
@@ -426,7 +426,9 @@ function CycleScreen(p: { id: string }) {
   const v = c.data;
   const k = param || v.config.params[0];
   const rows = v.series?.[k] || [];
-  const unit = (v.items || []).find((m) => m.params[k]?.unit)?.params[k]?.unit || '';
+  const cu = cycleUnit(v, k);
+  const unit = cu.kind === 'unit' ? cu.unit : '';
+  const note = cu.kind === 'mixed' || rows.length ? unitNote(cu) : '';
   return (
     <div class="m-stack">
       <button type="button" class="m-back" onClick={() => st.set({ cycle: null })}>
@@ -444,12 +446,13 @@ function CycleScreen(p: { id: string }) {
           </button>
         ))}
       </div>
+      {note && <p class="m-foot">{note}</p>}
       <div class="m-card">
-        {rows.map((r) => (
+        {cu.kind !== 'mixed' && rows.map((r) => (
           <div class="m-row">
             <span class="m-pt">{t('point.' + v.config.unit, { n: r.offset })}</span>
             <span class="grow num" style={{ textAlign: 'right' }}>
-              {r.missing || r.summary.mean === undefined ? <span class="faint">{t('cycle.status.missing')}</span> : `${fmtNum(r.summary.mean)}${r.summary.sd !== undefined ? ' ± ' + fmtNum(r.summary.sd) : ''} ${unit}`}
+              {r.missing || r.summary.mean === undefined ? <span class="faint">{t('cycle.status.missing')}</span> : `${fmtNum(r.summary.mean)}${r.summary.sd !== undefined ? ' ± ' + fmtNum(r.summary.sd) : ''}${unit ? ' ' + unit : ''}`}
             </span>
             <span class="faint num" style={{ width: 36, textAlign: 'right' }}>
               n={r.summary.n}

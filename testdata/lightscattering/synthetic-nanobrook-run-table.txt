@@ -1,0 +1,31 @@
+    **** Brookhaven Instruments Corp.****
+Synthetic instrument-layout regression; not experimental data.
+Sample Identification: SYNTHETIC-RUN-TABLE (Combined)
+Measurement Date: Oct 21, 2026
+Measurement Time: 10:15:00
+
+    **** Measurement Parameters ****
+Temperature = 21.5
+Average Count Rate = 123.4 kcps
+
+    **** Measurement Results ****
+SYNTHETIC-RUN-TABLE (Combined)
+Effective Diameter: 87.1
+Polydispersity: 0.123
+Baseline Index: 8.7
+
+ Run   Eff. Diam. (nm)   Half Width (nm)   Polydispersity   Baseline Index
+---------------------------------------------------------------------------
+  1          86.0              9.1              0.120             8.5
+  2          88.2              9.4              0.126             8.9
+---------------------------------------------------------------------------
+Mean         87.1              9.2              0.123             8.7
+Combined     87.1              9.2              0.123             8.7
+
+    **** Lognormal Size Distribution Results ****
+GSD: 1.5
+d(nm) G(d) C(d) | d(nm) G(d) C(d)
+-----------------------------------------------------
+20 0.02 1 | 160 0.05 99
+40 0.06 12 | 320 0.01 100
+80 0.10 80 |

@@ -16,7 +16,7 @@ try {
   const page=await browser.newPage({viewport:{width:1366,height:768}});
   await page.goto(await launchURL(dir));await page.waitForLoadState('networkidle');
   const state=await api(page,'GET','/api/state');
-  await api(page,'PUT','/api/profile/settings',{language:lang,theme:'light',onboarding:{tour:true,ls:true,turbo:true},whatsNewSeen:state.version});
+  await api(page,'PUT','/api/profile/settings',{language:lang,theme:'light',onboarding:{tutorial:true,ls:true,turbo:true},whatsNewSeen:state.version});
   await page.reload();await page.waitForLoadState('networkidle');
   await page.evaluate(()=>(history.pushState(null,'','/ls/files'),dispatchEvent(new PopStateEvent('popstate'))));
   const before=await api(page,'GET','/api/files');

@@ -31,9 +31,10 @@ export async function setTheme(theme: string) {
 // ---- first-use introductions (stored only in the person's own data) ----
 
 export const seen = (key: string) => !!S()?.profile?.settings.onboarding?.[key];
-export async function markSeen(key: string) {
-  if (!S()?.profile || seen(key)) return;
-  const ob = { ...(S().profile!.settings.onboarding || {}), [key]: true };
+export async function markSeen(...keys: string[]) {
+  const fresh = keys.filter((k) => !seen(k));
+  if (!S()?.profile || !fresh.length) return;
+  const ob = { ...(S().profile!.settings.onboarding || {}), ...Object.fromEntries(fresh.map((k) => [k, true])) };
   await saveProfileSettings({ onboarding: ob }).catch(() => undefined);
 }
 

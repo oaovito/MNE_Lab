@@ -21,7 +21,7 @@ export function MeasurementPicker(p: { title: string; initial: string[]; onPick:
           name,
           file: f.name,
           when: m.measuredAt ? fmtTS(m.measuredAt) : '—',
-          ed: m.params.effective_diameter ? fmtQ(m.params.effective_diameter) : '—',
+          ed: m.params.effective_diameter ? fmtQ(m.params.effective_diameter, 'effective_diameter') : '—',
           hay: [name, f.name, m.sampleId, m.experiment, f.experiment, m.group, f.group, ...(m.tags || []), ...(f.tags || []), m.measuredAt?.raw].filter(Boolean).join(' ').toLowerCase(),
         });
       }

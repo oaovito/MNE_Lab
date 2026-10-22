@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/science/analysis"
+	"github.com/oaovito/mne_lab/internal/science/graph"
 	"github.com/oaovito/mne_lab/internal/science/model"
 	"github.com/oaovito/mne_lab/internal/secure"
 	"github.com/oaovito/mne_lab/internal/store"
@@ -254,7 +255,7 @@ func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
 	if d.ExperimentalUnits < d.N && def.Structure == "independent" {
 		d.Warnings = append(d.Warnings, "statistics.unidentified_units_reviewed")
 	}
-	if snapshot.Unit == "" {
+	if snapshot.Unit == "" && graph.NeedsUnit(def.Variable) {
 		d.Warnings = append(d.Warnings, "statistics.units_absent_not_inferred")
 	}
 	if def.Structure == "repeated" {

@@ -114,7 +114,8 @@ interface translates.
   controller.
 - Interface: homepage, My Stuff, Change Account, Turbo, command palette,
   Help with every feature, guides and keyboard shortcuts, What's New,
-  onboarding tour and first-use explanations, "made by oaovito" footer.
+  guided tutorial of every screen (shown once, reopenable by chapter from
+  Help) and first-use explanations, "made by oaovito" footer.
 - Localization: English, Portuguese (Brazil) and Spanish.
 - LIGHTSCATTERING: import, parser, file library, measurement review, size
   distribution graphs, comparisons, graphs over time, Cycles with statistics,
@@ -556,7 +557,7 @@ uncertainty rather than inventing a field or an algorithm.
 | Identifier | Status |
 |---|---|
 | `ls-spec/0.3-provisional` | Product field list; owner references consulted, instrument layout and semantic validation ongoing. |
-| `lightscattering-parser/1.5.0` | Parser version recorded in provenance. |
+| `lightscattering-parser/1.6.0` | Parser version recorded in provenance. |
 | `graph-engine/1.1.0` | Graph Engine version recorded in provenance. |
 
 ## 19. Tests

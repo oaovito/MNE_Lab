@@ -149,6 +149,11 @@ func (a *App) openProfile(acct *vault.Account, e vault.ProfileEntry, key secure.
 		a.Log.Warn("profile check reported a problem", "err", err)
 	}
 	p.St = st
+	if !deferred {
+		if err := p.adoptTableUnits(); err != nil {
+			a.Log.Warn("units from report tables not completed", "err", err)
+		}
+	}
 	p.loadSettings()
 	p.status = SyncStatus{State: SyncLocal, StorageMode: e.StorageMode, Provider: e.Provider}
 	if p.cloudBacked() {

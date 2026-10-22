@@ -4,7 +4,7 @@ import { seen } from '../../lib/actions';
 import { t } from '../../lib/i18n';
 import { useCycles, useFiles, useGraphs } from '../../lib/library';
 import { match, navigate, useRoute } from '../../lib/route';
-import { openPanel } from '../../lib/state';
+import { app, openPanel } from '../../lib/state';
 import { Tabs } from '../../ui/kit';
 import { CycleView } from './cycle';
 import { CycleLibrary } from './cycles';
@@ -23,7 +23,8 @@ export function LsModule() {
   const tab = path.startsWith('/ls/statistics') ? 'statistics' : path.startsWith('/ls/graphs') ? 'graphs' : path.startsWith('/ls/cycles') ? 'cycles' : 'files';
 
   useEffect(() => {
-    if (!seen('ls')) openPanel('ls-intro');
+    // The guided tutorial passes through here and covers the introduction.
+    if (!seen('ls') && app.get().panel !== 'tour') openPanel('ls-intro');
   }, []);
 
   const g = match('/ls/graphs/:id', path);
@@ -49,7 +50,7 @@ export function LsModule() {
           <Tabs
             value={tab}
             onValue={(v) => navigate('/ls/' + v)}
-            class="grow"
+            class="grow ls-tabs"
             tabs={[
               { value: 'files', label: t('ls.tab.files'), icon: 'files', count: files.data?.length },
               { value: 'graphs', label: t('ls.tab.graphs'), icon: 'chart', count: graphs.data?.length },

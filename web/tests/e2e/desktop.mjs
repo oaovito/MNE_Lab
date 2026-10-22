@@ -23,7 +23,7 @@ watch(page, errors, 'desktop');
 await page.goto(await launchURL(dir));
 await page.waitForLoadState('networkidle');
 
-const seenAll = { tour: true, ls: true, turbo: true, exit: true, locked: true, mobile: true, cycles: true, 'tip.portable': true, 'tip.temporary': true, 'tip.cloud': true };
+const seenAll = { tutorial: true, ls: true, turbo: true, exit: true, locked: true, mobile: true, cycles: true, 'tip.portable': true, 'tip.temporary': true, 'tip.cloud': true };
 const st = await api(page, 'GET', '/api/state');
 report.check('a profile is open', !!st.profile);
 const settings = (onboarding) => api(page, 'PUT', '/api/profile/settings', { language: lang, theme, onboarding, whatsNewSeen: st.version });
@@ -75,6 +75,15 @@ const menu = async (name) => {
 await screen('home', () => go('/'), async () => report.check('home shows "made by oaovito"', (await page.locator('text=made by oaovito').count()) > 0));
 await screen('files', () => go('/ls/files'));
 await screen('file-detail', async () => (await go('/ls/files'), await click('table tbody tr >> nth=2')));
+// Measurements of a file: each value with its unit and source line, and the
+// file's own parameters opened.
+await screen('file-measurements', async () => {
+  await go('/ls/files');
+  await click('table tbody tr >> nth=2');
+  await click('[role=tablist] >> nth=1 >> [role=tab] >> nth=1');
+  await sleep(400);
+  await click('.meas details summary');
+});
 await screen('graphs', () => go('/ls/graphs'));
 for (const kind of ['dls_distribution', 'parameter_time', 'dls_by_time']) {
   const g = graphs.find((x) => x.kind === kind);
@@ -109,30 +118,84 @@ await screen('mobile-qr', async () => (await go('/'), await click(`header button
 await api(page, 'POST', '/api/mobile/stop', {});
 await screen('turbo-first', async () => (await onboarding({ turbo: false }), await click('header button[aria-label="Turbo"]')));
 await screen('exit-confirm', async () => (await onboarding({ exit: false }), await go('/'), await click('.quick-row button.primary')));
-// The first-run tutorial: every stop after the welcome points at its control,
-// and the last one closes it for good.
+// The guided tutorial: it opens once on first use, every stop fits the window
+// and points at its control on the real screen, the last one closes it for
+// good, and it can be skipped, jumped by chapter and reopened from Help.
+const coach = () => page.locator('.coach-card');
+const settled = async () => {
+  await page.locator('.coach-card:not(.waiting)').waitFor({ timeout: 5000 });
+  await sleep(450);
+};
+const tutorialSeen = async () => (await api(page, 'GET', '/api/state')).profile?.settings?.onboarding?.tutorial === true;
 try {
-  await onboarding({ tour: false });
-  const stops = await page.locator('.coach-foot .dot').count();
-  report.check('the tutorial opens on first use', stops >= 5, String(stops));
-  for (let k = 0; k < stops; k++) {
-    if (k) await page.locator('.coach-card button.primary').click({ timeout: 3000 });
-    await sleep(500);
-    await page.screenshot({ path: path.join(out, `tour-${k + 1}.png`) });
-    for (const p of await layoutProblems(page, keys)) report.check(`tour-${k + 1}`, false, p);
-    if (k) {
+  await onboarding({ tutorial: false });
+  report.check('the tutorial opens on first use', (await coach().count()) === 1);
+  const total = Number(await page.locator('.coach-bar').getAttribute('aria-valuemax'));
+  report.check('the tutorial has its stops', total >= 40, String(total));
+  for (let k = 0; k < total; k++) {
+    if (k) await page.locator('.coach-foot button.primary').click({ timeout: 3000 });
+    await settled();
+    const n = `tour-${String(k + 1).padStart(2, '0')}`;
+    const stop = await coach().getAttribute('data-stop');
+    await page.screenshot({ path: path.join(out, `${n}.png`) });
+    for (const p of await layoutProblems(page, keys)) report.check(`${n} ${stop}`, false, p);
+    const card = await coach().boundingBox();
+    report.check(`tutorial ${stop} fits the window`, !!card && card.x >= 0 && card.y >= 0 && card.x + card.width <= W + 0.5 && card.y + card.height <= H + 0.5, JSON.stringify(card));
+    const body = await page.locator('.coach-body').evaluate((e) => e.scrollHeight - e.clientHeight);
+    report.check(`tutorial ${stop} shows all its text`, body <= 1, String(body));
+    if ((await coach().getAttribute('data-expect')) === '1') {
       const hole = await page.locator('.coach-hole').boundingBox();
-      const card = await page.locator('.coach-card').boundingBox();
-      report.check(`tutorial stop ${k + 1} points at its control`, !!hole && hole.width > 0);
-      report.check(`tutorial stop ${k + 1} fits the window`, !!card && card.x >= 0 && card.y >= 0 && card.x + card.width <= W && card.y + card.height <= H, JSON.stringify(card));
+      report.check(`tutorial ${stop} points at its control`, !!hole && hole.width > 0 && hole.height > 0);
     }
   }
-  await page.locator('.coach-card button.primary').click({ timeout: 3000 });
-  await sleep(600);
+  await page.locator('.coach-foot button.primary').click({ timeout: 3000 });
+  await sleep(800);
   report.check('the tutorial closes on the last stop', (await page.locator('.coach').count()) === 0);
-  report.check('the tutorial is not shown again', (await api(page, 'GET', '/api/state')).profile?.settings?.onboarding?.tour === true);
+  report.check('the tutorial is marked as seen', await tutorialSeen());
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await sleep(800);
+  report.check('the tutorial is not shown again', (await page.locator('.coach').count()) === 0);
+
+  await onboarding({ tutorial: false });
+  await page.locator('.coach-foot button.primary').click({ timeout: 3000 });
+  await settled();
+  await page.locator('.coach-foot button.ghost').first().click({ timeout: 3000 });
+  await sleep(800);
+  report.check('the tutorial can be skipped', (await page.locator('.coach').count()) === 0 && (await tutorialSeen()));
+
+  await onboarding({ tutorial: false });
+  await settled();
+  await page.keyboard.press('ArrowRight');
+  await settled();
+  report.check('the arrow keys move through the tutorial', (await page.locator('.coach-bar').getAttribute('aria-valuenow')) === '2');
+  await page.keyboard.press('Escape');
+  await sleep(800);
+  report.check('Esc closes the tutorial', (await page.locator('.coach').count()) === 0);
+
+  await page.keyboard.press('F1');
+  await sleep(600);
+  await page.locator('.modal button:has-text("' + label({ en: 'Open the guided tutorial', 'pt-BR': 'Abrir o tutorial guiado', es: 'Abrir el tutorial guiado' }) + '")').click({ timeout: 3000 });
+  await settled();
+  report.check('Help reopens the tutorial', (await coach().getAttribute('data-stop')) === 'tut.welcome');
+  await page.locator('.coach-card .row.gap3 button').click({ timeout: 3000 });
+  await sleep(500);
+  await page.screenshot({ path: path.join(out, 'tour-chapters.png') });
+  for (const p of await layoutProblems(page, keys)) report.check('tour-chapters', false, p);
+  await page.locator('.coach-chapters button').nth(3).click({ timeout: 3000 });
+  await settled();
+  report.check('a chapter can be opened directly', (await coach().getAttribute('data-stop')) === 'tut.graphs_library', await coach().getAttribute('data-stop'));
+  await page.keyboard.press('Escape');
+  await sleep(600);
+  await page.keyboard.press('F1');
+  await sleep(600);
+  await page.locator('.help-chapter').nth(4).click({ timeout: 3000 });
+  await settled();
+  report.check('Help opens a tutorial chapter', (await coach().getAttribute('data-stop')) === 'tut.cycles_library', await coach().getAttribute('data-stop'));
+  await page.keyboard.press('Escape');
+  await sleep(600);
 } catch (e) {
-  report.check('tour', false, e.message.split('\n')[0]);
+  report.check('tutorial', false, e.message.split('\n')[0]);
 }
 await screen('ls-intro', async () => (await onboarding({ ls: false }), await go('/ls/files')));
 await onboarding({});

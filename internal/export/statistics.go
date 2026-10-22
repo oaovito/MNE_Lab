@@ -8,6 +8,7 @@ import (
 	"github.com/go-pdf/fpdf"
 	"github.com/oaovito/mne_lab/internal/plot"
 	"github.com/oaovito/mne_lab/internal/science/analysis"
+	"github.com/oaovito/mne_lab/internal/science/graph"
 	"github.com/oaovito/mne_lab/internal/science/model"
 )
 
@@ -18,6 +19,36 @@ func statisticalTable(id, name string, keys ...string) Table {
 	}
 	return t
 }
+
+// withUnit labels the columns holding values of the analyzed variable with
+// its unit, squared for sums of squares and variances.
+func withUnit(t *Table, unit string, squared bool, keys ...string) {
+	if unit == "" {
+		return
+	}
+	if squared {
+		unit += "²"
+	}
+	for i, c := range t.Columns {
+		for _, k := range keys {
+			if c.Key == k {
+				t.Columns[i].Unit = unit
+			}
+		}
+	}
+}
+
+// unitText states the unit, or that the source files state none.
+func unitText(a analysis.StatisticalAnalysis) string {
+	switch {
+	case a.Snapshot.Unit != "":
+		return a.Snapshot.Unit
+	case graph.NeedsUnit(a.Snapshot.Definition.Variable):
+		return "not stated in the source files"
+	}
+	return "dimensionless"
+}
+
 func optional(v *float64) Cell {
 	if v == nil {
 		return text("")
@@ -30,7 +61,7 @@ func optional(v *float64) Cell {
 func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 	d := DataSet{Title: a.Snapshot.Definition.Title, Engine: a.Results.Engine, Created: a.Created,
 		Notes: append(append([]string{}, a.Results.Warnings...), a.Snapshot.Design.Warnings...),
-		Meta:  []KV{{Key: "analysis", Label: "Analysis ID", Value: a.ID}, {Key: "module", Label: "Scientific module", Value: a.Snapshot.Definition.Module}, {Key: "sourceHash", Label: "Source snapshot SHA-256", Value: a.Snapshot.SourceHash}, {Key: "method", Label: "Method", Value: a.Results.Method}, {Key: "calculation", Label: "Calculation version", Value: a.Results.Calculation}, {Key: "resultOrigin", Label: "Result origin", Value: a.ResultOrigin}}}
+		Meta:  []KV{{Key: "analysis", Label: "Analysis ID", Value: a.ID}, {Key: "module", Label: "Scientific module", Value: a.Snapshot.Definition.Module}, {Key: "sourceHash", Label: "Source snapshot SHA-256", Value: a.Snapshot.SourceHash}, {Key: "method", Label: "Method", Value: a.Results.Method}, {Key: "calculation", Label: "Calculation version", Value: a.Results.Calculation}, {Key: "resultOrigin", Label: "Result origin", Value: a.ResultOrigin}, {Key: "variable", Label: "Variable", Value: a.Snapshot.Definition.Variable}, {Key: "unit", Label: "Unit", Value: unitText(a)}}}
 	if a.Snapshot.Definition.Control != "" {
 		d.Meta = append(d.Meta, KV{Key: "control", Label: "Control group", Value: a.Snapshot.Definition.Control})
 	}
@@ -87,6 +118,11 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 			corrections.Rows = append(corrections.Rows, []Cell{text(k), num(v, -1)})
 		}
 	}
+	u := a.Snapshot.Unit
+	withUnit(&an, u, true, "SS", "MS")
+	withUnit(&groups, u, false, "mean", "SD", "SEM", "CI_lower", "CI_upper")
+	withUnit(&posthoc, u, false, "difference", "CI_lower", "CI_upper")
+	withUnit(&residuals, u, false, "residual", "ordered_residual")
 	d.Tables = []Table{an, groups, observations, posthoc, diagnostics, residuals, effects, corrections}
 	if m := a.Results.Model; m != nil {
 		tests := statisticalTable("anova", "Marginal Wald F tests", "source", "df", "denominator_df", "F", "p")
@@ -112,6 +148,8 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 			}
 			coefficients.Rows = append(coefficients.Rows, row)
 		}
+		withUnit(&model, u, true, "random_variance", "residual_variance")
+		withUnit(&coefficients, u, false, "estimate", "conditional_GLS_SE", "approximate_individual_CI_lower", "approximate_individual_CI_upper")
 		// All adapters iterate these tables: no mixed terms are presented as
 		// classical sums of squares, effect sizes or sphericity corrections.
 		d.Tables = []Table{tests, groups, observations, diagnostics, residuals, model, coefficients}
@@ -142,7 +180,7 @@ func StatisticalReport(a analysis.StatisticalAnalysis) ([]byte, error) {
 	pdf.SetFont("inter", "B", 14)
 	pdf.MultiCell(0, 7, a.Snapshot.Definition.Title, "", "L", false)
 	pdf.SetFont("inter", "", 9)
-	pdf.MultiCell(0, 5, fmt.Sprintf("MNE Lab derived analysis | %s | %s\n%s | %s\nalpha=%g | variable=%s | unit=%s\nSource snapshot SHA-256: %s", a.Snapshot.Definition.Module, a.Results.Method, a.Results.Engine, a.Results.Calculation, a.Snapshot.Definition.Alpha, a.Snapshot.Definition.Variable, a.Snapshot.Unit, a.Snapshot.SourceHash), "", "L", false)
+	pdf.MultiCell(0, 5, fmt.Sprintf("MNE Lab derived analysis | %s | %s\n%s | %s\nalpha=%g | variable=%s | unit=%s\nSource snapshot SHA-256: %s", a.Snapshot.Definition.Module, a.Results.Method, a.Results.Engine, a.Results.Calculation, a.Snapshot.Definition.Alpha, a.Snapshot.Definition.Variable, unitText(a), a.Snapshot.SourceHash), "", "L", false)
 	if a.SourceChanged {
 		pdf.MultiCell(0, 5, "Sources changed after this analysis was saved. Results retain the original snapshot.", "", "L", false)
 	}

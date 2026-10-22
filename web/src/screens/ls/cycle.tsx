@@ -3,7 +3,7 @@
 // the cycle; the measurements and their real timestamps never change.
 import { useMemo, useRef, useState } from 'preact/hooks';
 import { get, post } from '../../lib/api';
-import { fmtNum, fmtTS } from '../../lib/format';
+import { cycleUnit, fmtNum, fmtTS, unitNote } from '../../lib/format';
 import { errText, t } from '../../lib/i18n';
 import { measurementName, PARAMS, useFiles, useGraphs, useRelations, useRev } from '../../lib/library';
 import { navigate } from '../../lib/route';
@@ -37,6 +37,8 @@ function Detail(p: { v: View; set: (v: View) => void }) {
   const rel = useRelations();
   const [picking, setPicking] = useState(false);
   const [param, setParam] = useState(c.params[0] || 'effective_diameter');
+  const unit = cycleUnit(v, param);
+  const note = unit.kind === 'mixed' || v.series?.[param]?.length ? unitNote(unit) : '';
   const items = useMemo(() => new Map((v.items || []).map((m) => [m.id, m])), [v.items]);
   const as = v.assignments || [];
   const pts = v.points || [];
@@ -188,13 +190,14 @@ function Detail(p: { v: View; set: (v: View) => void }) {
               ))}
             </div>
           )}
-          <div class="card pad group">
+          <div class="card pad group cycle-results">
             <div class="row">
               <span class="section-title grow">{t('cycle.results')}</span>
               <Icon name="sigma" size="sm" />
             </div>
             {c.params.length > 1 && <Seg size="sm" value={param} onValue={setParam} options={c.params.filter((k) => (PARAMS as readonly string[]).includes(k)).map((k) => ({ value: k, label: t('param.short.' + k) }))} />}
-            <Stats rows={v.series?.[param] || []} unit={unitOf(v.items, param)} pointUnit={c.unit} />
+            {unit.kind !== 'mixed' && <Stats rows={v.series?.[param] || []} unit={unit.kind === 'unit' ? unit.unit : undefined} pointUnit={c.unit} />}
+            {note && <Notice kind="warning">{note}</Notice>}
             <span class="xs faint">{t('stats.definition')}</span>
           </div>
           <div class="card pad group">
@@ -280,12 +283,6 @@ function Stats(p: { rows: PointResult[]; unit?: string; pointUnit: string }) {
     </table>
   );
 }
-
-function unitOf(items: MeasurementSummary[] | null, param: string) {
-  for (const m of items || []) if (m.params[param]?.unit) return m.params[param].unit;
-  return undefined;
-}
-
 
 function stripView(v: View) {
   const { points, assignments, items, series, files, ...doc } = v;

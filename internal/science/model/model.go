@@ -18,6 +18,9 @@ type Quantity struct {
 	Unit  string  `json:"unit,omitempty"`
 	// UnitOrigin is explicit for manual assignments; empty preserves legacy data.
 	UnitOrigin string `json:"unitOrigin,omitempty"`
+	// UnitLine is the 1-based line that states the unit when it is not the
+	// value's own line (a table header of the same report).
+	UnitLine int `json:"unitLine,omitempty"`
 	// SourceColumn is the one-based delimited column; no source unit is inferred.
 	SourceColumn int `json:"sourceColumn,omitempty"`
 	// Label is the exact label used in the source file.
@@ -225,19 +228,22 @@ type SourceFile struct {
 	Module          string           `json:"module"`
 	Parser          string           `json:"parser"`
 	Spec            string           `json:"spec"`
-	Status          string           `json:"status"` // parsed, partial, failed
-	Measurements    []string         `json:"measurements"`
-	Encoding        string           `json:"encoding,omitempty"`
-	Delimiter       string           `json:"delimiter,omitempty"`
-	Decimal         string           `json:"decimal,omitempty"`
-	Warnings        []string         `json:"warnings,omitempty"`
-	Error           string           `json:"error,omitempty"`
-	Experiment      string           `json:"experiment,omitempty"`
-	Group           string           `json:"group,omitempty"`
-	Tags            []string         `json:"tags,omitempty"`
-	Notes           string           `json:"notes,omitempty"`
-	Origin          string           `json:"origin"` // import, sync, package
-	Trashed         bool             `json:"trashed,omitempty"`
+	// UnitsReviewed is the parser that later looked up units this file states
+	// only in a table header; values and the original parser stay as imported.
+	UnitsReviewed string   `json:"unitsReviewed,omitempty"`
+	Status        string   `json:"status"` // parsed, partial, failed
+	Measurements  []string `json:"measurements"`
+	Encoding      string   `json:"encoding,omitempty"`
+	Delimiter     string   `json:"delimiter,omitempty"`
+	Decimal       string   `json:"decimal,omitempty"`
+	Warnings      []string `json:"warnings,omitempty"`
+	Error         string   `json:"error,omitempty"`
+	Experiment    string   `json:"experiment,omitempty"`
+	Group         string   `json:"group,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+	Notes         string   `json:"notes,omitempty"`
+	Origin        string   `json:"origin"` // import, sync, package
+	Trashed       bool     `json:"trashed,omitempty"`
 }
 
 // SourceInfo describes parser coverage independently from scientific validity.
