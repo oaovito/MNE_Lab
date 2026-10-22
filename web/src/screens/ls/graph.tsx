@@ -147,10 +147,10 @@ function Editor(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphDe
         <Button size="sm" kind="ghost" icon="info" class="narrow-only" selected={insp} onClick={() => setInsp(!insp)}>
           {t('graph.details')}
         </Button>
-        <Button size="sm" icon="present" disabled={!r.data} onClick={async () => { const id = await needSave(); if (id) presentGraphs([id]); }}>
+        <Button size="sm" icon="present" class="graph-present" disabled={!r.data} onClick={async () => { const id = await needSave(); if (id) presentGraphs([id]); }}>
           {t('pres.start')}
         </Button>
-        <Button size="sm" icon="download" disabled={!r.data} onClick={async () => { const id = await needSave(); if (id) openPanel('export', { items: [{ kind: 'graph', id }] }); }}>
+        <Button size="sm" icon="download" class="graph-export" disabled={!r.data} onClick={async () => { const id = await needSave(); if (id) openPanel('export', { items: [{ kind: 'graph', id }] }); }}>
           {t('ui.export')}
         </Button>
         {!p.isNew && (

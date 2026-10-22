@@ -55,9 +55,9 @@ function Root() {
     return () => offs.forEach((f) => f());
   }, []);
 
-  // The first time a profile opens, a short tour (skippable, replayable).
+  // The first time a profile opens, the guided tutorial (skippable, replayable).
   useEffect(() => {
-    if (s?.profile && !seen('tour') && !app.get().panel && path !== '/exit') openPanel('tour');
+    if (s?.profile && !seen('tutorial') && !app.get().panel && path !== '/exit') openPanel('tour');
   }, [s?.profile?.id]);
 
   if (path === '/exit' || s?.exiting || exitSteps > 0) return <ExitScreen />;

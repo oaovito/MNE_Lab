@@ -12,7 +12,7 @@ try {
  page.on('pageerror',e=>messages.push(e.message));page.on('console',m=>{if(m.type()==='error')messages.push(m.text())});
  await page.goto(await launchURL(dir));await page.waitForLoadState('networkidle');
  const state=await api(page,'GET','/api/state');
- await api(page,'PUT','/api/profile/settings',{language:'en',theme:'light',onboarding:{tour:true,ls:true,turbo:true},whatsNewSeen:state.version});
+ await api(page,'PUT','/api/profile/settings',{language:'en',theme:'light',onboarding:{tutorial:true,ls:true,turbo:true},whatsNewSeen:state.version});
  await page.reload();await page.waitForLoadState('networkidle');
  const hint=page.getByRole('button',{name:'Got it',exact:true});if(await hint.count())await hint.click();
  const scope={'X-Account-ID':state.account.id,'X-Profile-ID':state.profile.id,'X-MNE-Lab':'1'};
@@ -66,7 +66,7 @@ try {
  const figure=await request('POST','/api/graphs/render',{definition:graph,width:900,height:600});
  report.check('shared Graph Engine renders original Mixed observations',JSON.stringify(figure).includes('mixed-random-intercept/2') && graph.kind==='statistical_groups');
  for(const [language,theme,width,height]of [['en','light',1366,768],['en','dark',1024,600],['pt-BR','light',1366,768],['pt-BR','dark',1024,600],['es','light',1366,768],['es','dark',1024,600]]) {
-  await api(page,'PUT','/api/profile/settings',{language,theme,onboarding:{tour:true,ls:true,turbo:true},whatsNewSeen:state.version});await page.setViewportSize({width,height});
+  await api(page,'PUT','/api/profile/settings',{language,theme,onboarding:{tutorial:true,ls:true,turbo:true},whatsNewSeen:state.version});await page.setViewportSize({width,height});
   await page.goto(new URL('/ls/statistics/'+saved.id,page.url()).href);await page.waitForLoadState('networkidle');await page.locator('.statistics-page table').first().waitFor();
   const problems=await layoutProblems(page,translationKeys());report.check(`Mixed saved layout ${language}/${theme}/${width}x${height}`,problems.length===0,problems.join('; '));
   await page.screenshot({path:path.join(out,`saved-${language}-${theme}.png`)});

@@ -1736,7 +1736,7 @@
   color: var(--accent);
   margin-top: 1px;
 }
-/* first-run tutorial: a cut-out over the real control and a card under it */
+/* guided tutorial: a cut-out over the real control and a card beside it */
 .coach {
   position: fixed;
   inset: 0;
@@ -1759,22 +1759,20 @@
   position: absolute;
   display: flex;
   flex-direction: column;
-  gap: var(--s4);
-  padding: var(--s5);
+  gap: var(--s3);
+  max-height: calc(100vh - 32px);
+  padding: var(--s4) var(--s5);
   background: var(--raised);
   border: 1px solid var(--border-2);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-pop);
-  transition: left var(--t3) var(--ease-out), top var(--t3) var(--ease-out);
+  transition: left var(--t3) var(--ease-out), top var(--t3) var(--ease-out), opacity var(--t2) var(--ease);
   animation: pop-in var(--t3) var(--ease-out);
 }
-.coach-card.coach-center {
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  padding: var(--s6);
-  transition: none;
-  animation: fade-in var(--t3) var(--ease);
+/* while the screen behind it is still opening */
+.coach-card.waiting {
+  opacity: 0;
+  pointer-events: none;
 }
 .coach-card h3 {
   font-size: var(--fs-lg);
@@ -1783,17 +1781,60 @@
   margin: 0;
   line-height: 1.5;
 }
+.coach-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  animation: fade-in var(--t2) var(--ease);
+}
+.coach-bar {
+  flex: none;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.coach-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--t3) var(--ease-out);
+}
 .coach-caret {
   position: absolute;
-  top: -7px;
   width: 12px;
   height: 12px;
-  margin-left: -6px;
   background: var(--raised);
-  border-left: 1px solid var(--border-2);
-  border-top: 1px solid var(--border-2);
+  border: 0 solid var(--border-2);
   transform: rotate(45deg);
-  transition: left var(--t3) var(--ease-out);
+  transition: left var(--t3) var(--ease-out), top var(--t3) var(--ease-out);
+}
+.coach-caret.top {
+  top: -7px;
+  margin-left: -6px;
+  border-left-width: 1px;
+  border-top-width: 1px;
+}
+.coach-caret.bottom {
+  bottom: -7px;
+  margin-left: -6px;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+}
+.coach-caret.left {
+  left: -7px;
+  margin-top: -6px;
+  border-left-width: 1px;
+  border-bottom-width: 1px;
+}
+.coach-caret.right {
+  right: -7px;
+  margin-top: -6px;
+  border-right-width: 1px;
+  border-top-width: 1px;
 }
 .coach-icon {
   display: grid;
@@ -1806,17 +1847,21 @@
   color: var(--accent);
 }
 .coach-points,
-.coach-flow {
+.coach-flow,
+.coach-legend {
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.coach-points {
+.coach-points,
+.coach-legend {
   display: grid;
   gap: var(--s2);
 }
-.coach-points li {
+.coach-points li,
+.coach-legend li {
   display: flex;
+  align-items: flex-start;
   gap: var(--s2);
   font-size: var(--fs-sm);
   color: var(--text-2);
@@ -1826,9 +1871,20 @@
   margin-top: 2px;
   color: var(--accent);
 }
+.coach-legend .dot {
+  flex: none;
+  margin-top: 6px;
+}
+.coach-legend .badge {
+  flex: none;
+}
+.coach-legend b {
+  color: var(--text);
+  font-weight: 600;
+}
 .coach-flow {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--s2);
   counter-reset: flow;
 }
@@ -1836,14 +1892,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: var(--s3) 4px;
+  gap: 4px;
+  padding: var(--s2) 4px;
   border-radius: var(--r);
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-2);
   font-size: var(--fs-xs);
   text-align: center;
+  overflow-wrap: anywhere;
   counter-increment: flow;
 }
 .coach-flow li::before {
@@ -1855,13 +1912,60 @@
 .coach-flow .icon {
   color: var(--accent);
 }
-.coach-foot {
+.coach-chapters {
+  display: grid;
+  gap: 2px;
+}
+.coach-chapters button,
+.help-chapter {
+  display: flex;
   align-items: center;
-  margin-top: var(--s1);
+  gap: var(--s2);
+  width: 100%;
+  padding: 6px var(--s2);
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.coach-chapters button:hover,
+.help-chapter:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.coach-chapters button.on {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+.coach-chapters .icon,
+.help-chapter .icon {
+  flex: none;
+  color: var(--accent);
+}
+.coach-chapters .num {
+  width: 1.4em;
+  text-align: right;
+}
+.coach-foot {
+  flex: none;
+  align-items: center;
+}
+.help-chapters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px var(--s2);
+}
+.help-chapter {
+  border-color: var(--border);
 }
 @media (max-width: 520px) {
-  .coach-flow {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .help-chapters {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .tip {

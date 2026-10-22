@@ -190,7 +190,7 @@ function Detail(p: { v: View; set: (v: View) => void }) {
               ))}
             </div>
           )}
-          <div class="card pad group">
+          <div class="card pad group cycle-results">
             <div class="row">
               <span class="section-title grow">{t('cycle.results')}</span>
               <Icon name="sigma" size="sm" />

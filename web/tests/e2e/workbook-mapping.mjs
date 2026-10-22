@@ -16,7 +16,7 @@ try {
   const page=await browser.newPage({viewport:{width:1366,height:768}});
   await page.goto(await launchURL(dir));await page.waitForLoadState('networkidle');
   const state=await api(page,'GET','/api/state');
-  await api(page,'PUT','/api/profile/settings',{language:lang,theme:'light',onboarding:{tour:true,ls:true,turbo:true},whatsNewSeen:state.version});
+  await api(page,'PUT','/api/profile/settings',{language:lang,theme:'light',onboarding:{tutorial:true,ls:true,turbo:true},whatsNewSeen:state.version});
   await page.reload();await page.waitForLoadState('networkidle');
   await page.evaluate(()=>(history.pushState(null,'','/ls/files'),dispatchEvent(new PopStateEvent('popstate'))));
   const before=await api(page,'GET','/api/files');
@@ -66,7 +66,7 @@ try {
   report.check(`${lang}: missing and zero stay distinct without inventing units or independence`,Object.keys(file.items[1].params).length===0&&file.items[2].params.effective_diameter.raw==='0.0000'&&!file.items[0].experimentalUnitId);
   const original=await page.request.get(new URL(`/api/files/${file.id}/original?download=1`,page.url()).href);report.check(`${lang}: original bytes unchanged`,Buffer.compare(await original.body(),data)===0);
   await page.getByRole('button',{name:l.done,exact:true}).click();
-  await api(page,'PUT','/api/profile/settings',{language:lang,theme:'dark',onboarding:{tour:true,ls:true,turbo:true},whatsNewSeen:state.version});await page.setViewportSize({width:1024,height:600});await page.reload();await page.waitForLoadState('networkidle');
+  await api(page,'PUT','/api/profile/settings',{language:lang,theme:'dark',onboarding:{tutorial:true,ls:true,turbo:true},whatsNewSeen:state.version});await page.setViewportSize({width:1024,height:600});await page.reload();await page.waitForLoadState('networkidle');
   await choose(`workbook-dark-${lang}.xlsx`);await page.getByRole('button',{name:l.done,exact:true}).waitFor();await page.getByRole('combobox',{name:l.saved,exact:true}).selectOption(saved.id);
   const darkProblems=await layoutProblems(page,translationKeys());report.check(`${lang}: mapping dark small-window layout`,darkProblems.length===0,darkProblems.join('; '));await page.screenshot({path:path.join(out,`workbook-mapping-${lang}-dark.png`)});
   await page.getByRole('button',{name:l.cancel,exact:true}).click();report.check(`${lang}: dark preview cancellation keeps library unchanged`,JSON.stringify(after)===JSON.stringify(await api(page,'GET','/api/files')));

@@ -114,7 +114,8 @@ interface translates.
   controller.
 - Interface: homepage, My Stuff, Change Account, Turbo, command palette,
   Help with every feature, guides and keyboard shortcuts, What's New,
-  onboarding tour and first-use explanations, "made by oaovito" footer.
+  guided tutorial of every screen (shown once, reopenable by chapter from
+  Help) and first-use explanations, "made by oaovito" footer.
 - Localization: English, Portuguese (Brazil) and Spanish.
 - LIGHTSCATTERING: import, parser, file library, measurement review, size
   distribution graphs, comparisons, graphs over time, Cycles with statistics,

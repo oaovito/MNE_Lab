@@ -25,7 +25,7 @@ function walk(dir, ext, out = []) {
 async function loadCatalogs() {
   const tmp = mkdtempSync(join(tmpdir(), 'mnelab-i18n-'));
   const all = {};
-  for (const name of ['core', 'ls', 'export', 'help', 'errors']) {
+  for (const name of ['core', 'ls', 'export', 'help', 'errors', 'tutorial']) {
     const code = transformSync(readFileSync(join(src, 'i18n', name + '.ts'), 'utf8'), { loader: 'ts', format: 'esm' }).code;
     const f = join(tmp, name + '.mjs');
     writeFileSync(f, code);
@@ -84,8 +84,8 @@ test('static keys used by the interface exist', () => {
 });
 
 test('slides, tips and news have their descriptions', () => {
-  const keys = list(/\bkey:\s*'((?:tour|lsi|tip|news\.0)\.[a-z0-9_]+)'/g, ui)
-    .filter((k) => !k.startsWith('tour.p.'))
+  const keys = list(/\bkey:\s*'((?:tour|tut|lsi|tip|news\.0)\.[a-z0-9_]+)'/g, ui)
+    .filter((k) => !/^(tour\.p|tut\.p|tut\.l)\./.test(k))
     .map((k) => k + '.d');
   assert.deepEqual(missing(keys), []);
 });

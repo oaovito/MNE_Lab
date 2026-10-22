@@ -59,6 +59,7 @@ function Box() {
       if (s.profile!.storageMode !== 'usb_only') act('sync', 'refresh', t('status.sync_now'), syncNow);
       act('turbo', 'gauge', s.settings.turbo ? t('hdr.turbo_on') : t('hdr.turbo_off'), toggleTurbo, 'turbo');
       act('mobile', 'qr', t('hdr.mobile'), () => openPanel('mobile'), 'qr phone mobile');
+      act('tutorial', 'play', t('help.replay_tour'), () => openPanel('tour'), 'tutorial tour guide');
       act('switch', 'users', t('menu.switch_profile'), switchProfile);
       act('change', 'logout', t('hdr.change_account'), changeAccount);
       act('exit', 'power', t('menu.exit'), exitApp, 'quit close');

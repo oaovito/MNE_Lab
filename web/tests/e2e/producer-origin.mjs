@@ -19,7 +19,7 @@ try {
    const page = await browser.newPage({viewport:{width:theme==='light'?1366:1024,height:theme==='light'?768:600}});
    await page.goto(await launchURL(dir));await page.waitForLoadState('networkidle');
    const state = await api(page,'GET','/api/state');
-   await api(page,'PUT','/api/profile/settings',{language:lang,theme,onboarding:{tour:true,ls:true,turbo:true},whatsNewSeen:state.version});
+   await api(page,'PUT','/api/profile/settings',{language:lang,theme,onboarding:{tutorial:true,ls:true,turbo:true},whatsNewSeen:state.version});
    const files = await api(page,'GET','/api/files');
    const file = files.find(f=>f.items?.some(m=>m.params?.effective_diameter));
    if(!file) throw Error('seeded scientific file missing');

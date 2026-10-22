@@ -20,7 +20,7 @@ watch(desk, errors, 'desktop');
 await desk.goto(await launchURL(dir));
 await desk.waitForLoadState('networkidle');
 const st0 = await api(desk, 'GET', '/api/state');
-await api(desk, 'PUT', '/api/profile/settings', { language: lang, theme: 'dark', onboarding: { tour: true, ls: true, mobile: true }, whatsNewSeen: st0.version });
+await api(desk, 'PUT', '/api/profile/settings', { language: lang, theme: 'dark', onboarding: { tutorial: true, ls: true, mobile: true }, whatsNewSeen: st0.version });
 
 const info = await api(desk, 'POST', '/api/mobile/start');
 report.check('mobile access starts with a QR code', info.active && String(info.qr || '').startsWith('<svg'));

@@ -13,7 +13,7 @@ try {
   await page.goto(await launchURL(dir));
   await page.waitForLoadState('networkidle');
   const before = await api(page, 'GET', '/api/state');
-  await api(page, 'PUT', '/api/profile/settings', { language: 'en', theme: 'light', onboarding: { tour: true, ls: true, turbo: true }, whatsNewSeen: before.version });
+  await api(page, 'PUT', '/api/profile/settings', { language: 'en', theme: 'light', onboarding: { tutorial: true, ls: true, turbo: true }, whatsNewSeen: before.version });
   await page.reload();
   await page.waitForLoadState('networkidle');
   await page.evaluate(() => (history.pushState(null, '', '/ls/files'), dispatchEvent(new PopStateEvent('popstate'))));

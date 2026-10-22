@@ -21,7 +21,7 @@ try {
     try {
       await page.goto(await launchURL(dir));
       const state = await api(page, 'GET', '/api/state');
-      await api(page, 'PUT', '/api/profile/settings', { language: lang, onboarding: { tour: true, ls: true, cycle: true, cycles: true, 'tip.portable': true }, whatsNewSeen: state.version });
+      await api(page, 'PUT', '/api/profile/settings', { language: lang, onboarding: { tutorial: true, ls: true, cycle: true, cycles: true, 'tip.portable': true }, whatsNewSeen: state.version });
       await page.reload();
       await page.waitForLoadState('networkidle');
       for (const known of [false, true]) {

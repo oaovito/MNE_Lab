@@ -18,7 +18,7 @@ try {
   await page.goto(await launchURL(dir));
   await page.waitForLoadState('networkidle');
   const state = await api(page, 'GET', '/api/state');
-  await api(page, 'PUT', '/api/profile/settings', { language: lang, theme: 'light', onboarding: { tour: true, ls: true, turbo: true }, whatsNewSeen: state.version });
+  await api(page, 'PUT', '/api/profile/settings', { language: lang, theme: 'light', onboarding: { tutorial: true, ls: true, turbo: true }, whatsNewSeen: state.version });
   await page.reload(); await page.waitForLoadState('networkidle');
   await page.evaluate(() => (history.pushState(null, '', '/ls/files'), dispatchEvent(new PopStateEvent('popstate'))));
   const choose = async (name, buffer) => {
@@ -49,7 +49,7 @@ try {
   await page.screenshot({ path: path.join(out, `literal-table-${lang}.png`) });
   await page.getByRole('button', { name: l.done, exact: true }).click();
   for (const [theme, viewport] of [['light', { width: 1366, height: 768 }], ['dark', { width: 1024, height: 600 }]]) {
-   await api(page, 'PUT', '/api/profile/settings', { language: lang, theme, onboarding: { tour: true, ls: true, turbo: true }, whatsNewSeen: state.version });
+   await api(page, 'PUT', '/api/profile/settings', { language: lang, theme, onboarding: { tutorial: true, ls: true, turbo: true }, whatsNewSeen: state.version });
    await page.setViewportSize(viewport); await page.reload(); await page.waitForLoadState('networkidle');
    await choose(`invented-${lang}.ods`, fs.readFileSync('../testdata/ods-preview/invented.ods'));
    await page.getByRole('button', { name: l.done, exact: true }).waitFor();
@@ -62,7 +62,7 @@ try {
    await page.screenshot({ path: path.join(out, `ods-${lang}-${theme}.png`) });
    await page.getByRole('button', { name: l.done, exact: true }).click();
   }
-  await api(page, 'PUT', '/api/profile/settings', { language: lang, theme: 'light', onboarding: { tour: true, ls: true, turbo: true }, whatsNewSeen: state.version });
+  await api(page, 'PUT', '/api/profile/settings', { language: lang, theme: 'light', onboarding: { tutorial: true, ls: true, turbo: true }, whatsNewSeen: state.version });
   await page.setViewportSize({ width: 1366, height: 768 }); await page.reload(); await page.waitForLoadState('networkidle');
   await choose(`invalid-${lang}.txt`, Buffer.from('Unrecognized synthetic report'));
   await page.getByRole('button', { name: l.done, exact: true }).waitFor();

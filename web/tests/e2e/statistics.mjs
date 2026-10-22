@@ -33,7 +33,7 @@ try {
   await api(page, "PUT", "/api/profile/settings", {
     language: "en",
     theme: "light",
-    onboarding: { tour: true, ls: true, turbo: true },
+    onboarding: { tutorial: true, ls: true, turbo: true },
     whatsNewSeen: state.version,
   });
   await page.reload();
@@ -277,7 +277,7 @@ try {
   await page.screenshot({ path: path.join(out, "annotated-graph.png") });
   await Promise.all([page.waitForResponse(r=>new URL(r.url()).pathname==='/api/graphs'&&r.request().method()==='POST'&&r.status()===200),page.getByRole('button',{name:'Save',exact:true}).click()]);
   for(const [language,theme,width,height]of [['en','light',1366,768],['en','dark',1024,600],['pt-BR','light',1366,768],['pt-BR','dark',1024,600],['es','light',1366,768],['es','dark',1024,600]]){
-   await api(page,'PUT','/api/profile/settings',{language,theme,onboarding:{tour:true,ls:true,turbo:true},whatsNewSeen:state.version});
+   await api(page,'PUT','/api/profile/settings',{language,theme,onboarding:{tutorial:true,ls:true,turbo:true},whatsNewSeen:state.version});
    await page.setViewportSize({width,height});
    await page.goto(new URL('/ls/statistics/'+saved.id,page.url()).href);
    await page.waitForLoadState('networkidle');

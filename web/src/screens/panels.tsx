@@ -6,8 +6,9 @@ import { ExportDialog } from './export';
 import { HelpCenter, WhatsNew } from './help';
 import { CycleWizard } from './ls/cycles';
 import { MyStuff } from './mystuff';
-import { Busy, ExitConfirm, LsIntro, MobilePanel, Tour, TurboPanel } from './overlays';
+import { Busy, ExitConfirm, LsIntro, MobilePanel, TurboPanel } from './overlays';
 import { Settings } from './settings';
+import { Tutorial } from './tutorial';
 import { VerifySignature } from './signature';
 
 export function Panels() {
@@ -39,7 +40,7 @@ export function Panels() {
     case 'mystuff':
       return <MyStuff />;
     case 'tour':
-      return <Tour />;
+      return <Tutorial arg={arg} />;
     case 'ls-intro':
       return <LsIntro />;
     case 'turbo':
