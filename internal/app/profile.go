@@ -36,6 +36,9 @@ const (
 	CollUnits          = "science.experimental_unit"
 	CollReadings       = "ls.reading"
 	CollDesigns        = "science.design"
+	// Measurement units (units of measure), unrelated to experimental units.
+	CollUnitDefs         = "science.unit_definition"
+	CollUnitReplacements = "science.unit_replacement"
 )
 
 // ProfileSettings are the preferences of one profile (synchronized).

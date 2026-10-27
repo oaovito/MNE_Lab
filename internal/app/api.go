@@ -85,6 +85,7 @@ func pathID(r *http.Request) string { return r.PathValue("id") }
 func (s *Server) routes() {
 	s.statisticsRoutes()
 	s.designRoutes()
+	s.measurementUnitRoutes()
 	a := s.app
 	ctxT := func(r *http.Request, d time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithTimeout(r.Context(), d)
