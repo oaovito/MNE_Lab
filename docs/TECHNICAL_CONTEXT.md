@@ -393,8 +393,9 @@ from the SVG masters with `node ../scripts/brand_icons.mjs` from `web/`,
 after `npm ci` and `npx playwright-core install chromium` (or with
 `MNELAB_CHROMIUM` pointing to a Chromium build).
 Layouts are checked at 1366×768 and 1024×600 and on a 390×844 phone. Below
-1180 px the graph editor's inspector becomes a drawer opened by the Details
-button, so the graph keeps the full width. Turbo turns off cosmetic
+1180 px the Graph Builder's settings panel becomes a drawer opened by the
+Settings button in the page header, so the preview keeps the width; the
+Series Explorer and the action bar stay in place. Turbo turns off cosmetic
 animations and smooth scrolling for older computers.
 
 ## 16. Feature discovery and onboarding
@@ -484,6 +485,57 @@ normalized measurements into series, axes, statistics and provenance:
 
 A measurement without the needed distribution or weighting is left out with
 a note naming it; the graph fails only when nothing remains.
+
+- values per series (`series_values`): one summary quantity or instrument
+  reading per selected series on a categorical axis, refused when the
+  selection mixes parameters or units.
+
+Graph definitions are stored with `schema: 2` (engine `graph-engine/1.3.0`).
+Schema 2 only adds fields; a schema 1 definition renders exactly as before
+(`internal/plot/compat_test.go` compares against a golden file):
+
+- `seriesIds`: the selection by SeriesID. The core derives `measurements`,
+  `weighting`/`param` and the pinned distribution candidates from it on
+  save, so older readers still see a valid definition. A SeriesID that no
+  longer resolves (file trashed, candidate removed) is left out with the
+  warning `graph.missing_series`, never a failure.
+- display options: `focusSeries` (others drawn muted, out of the legend),
+  `subtitle`, `xLabel`/`yLabel`, `yScale` (log only with positive values),
+  `displayUnit` (shown unit with an exact factor only: nm/µm/m,
+  cps/kcps/Mcps, s/min/h/d; the stored values do not change and the axis
+  records `conversion {from, to, factor}`), `showIndividual`,
+  `connectMeans`, `textNotes`, `visual.margin` and `visual.preset`.
+- error bars are always named on the figure (legend, metadata or a note):
+  SD by default, SEM on request; a confidence interval only for a
+  statistical graph from a saved analysis.
+- `derivedFrom` (lineage, written only by the core), `sourceFiles`,
+  `parserVersions` and `calculationVersion` (snapshots taken on save).
+
+`POST /api/graphs/{id}/duplicate` (optional `title`) stores a copy with a
+new ID and `derivedFrom: [{graphId, relation: "duplicate", title,
+definitionHash, at}]`, where the hash is the SHA-256 of the stored original;
+the original record is not touched and a graph in the trash is refused.
+Relations list `derivedFrom`/`derived` for each graph. The render handler
+passes the request context down to the series loading and stops with
+`graph.render_cancelled` when the request is cancelled; the interface aborts
+a preview as soon as a newer one supersedes it and shows a Stop control
+when one takes noticeable time.
+
+### Graph Builder
+
+The graph screen (`web/src/screens/ls/graph.tsx`) has the Series Explorer
+(`series-explorer.tsx`), Data and a Groups placeholder on the left, the live
+preview in the centre, the settings (type and variables, axes and units,
+error bars and points, lines and markers, legend, labels and notes,
+publication preset), per-series style and details (provenance with lineage
+and version snapshots, comparison, notes) on the right, and Save,
+Duplicate, Combine and Analyze (placeholders for the next phase), Present and
+Export below. The Explorer reads `GET /api/series`, draws only the rows in
+view (fixed row height), searches and filters by file, condition, time,
+replicate kind (instrument readings included) and unit, selects one, a
+Shift range or everything listed, and offers per-series hide and focus.
+Selecting series stores only their IDs; series left out and every record
+stay unchanged.
 
 ### Cycles
 
@@ -597,7 +649,7 @@ uncertainty rather than inventing a field or an algorithm.
 | `lightscattering-parser/1.7.0` | Parser version recorded in provenance. |
 | `experimental-design/1` | Experimental design record version. |
 | `series-catalog/1` | Series catalog (SeriesID scheme) version. |
-| `graph-engine/1.1.0` | Graph Engine version recorded in provenance. |
+| `graph-engine/1.3.0` | Graph Engine version recorded in provenance; graph definitions are stored as schema 2. |
 
 ## 19. Tests
 
@@ -619,7 +671,11 @@ uncertainty rather than inventing a field or an algorithm.
   used link refused). It fails on script errors, failed requests, raw
   translation keys, cut text, a page that scrolls, an empty graph or a
   command-palette search that misses a feature, and saves screenshots to
-  `out/e2e/` for visual review.
+  `out/e2e/` for visual review. `builder.mjs` runs the Graph Builder on twenty
+  synthetic series (`testdata/lightscattering/synthetic-twenty-series.txt`):
+  search, filter, select three, edit, save, reopen, duplicate with lineage
+  and stopped previews, checking that the other seventeen series and the
+  file's records do not change.
 
 ## 20. Known issues
 

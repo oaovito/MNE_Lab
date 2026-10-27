@@ -186,7 +186,7 @@ export const help: Record<string, readonly [string, string, string]> = {
   'feat.provenance': ['Provenance', 'Rastreabilidade', 'Trazabilidad'],
   'feat.provenance.what': ['Every value can be traced to its file, line and transformation.', 'Cada valor pode ser rastreado até o arquivo, a linha e a transformação.', 'Cada valor se puede rastrear hasta su archivo, línea y transformación.'],
   'feat.provenance.when': ['When reviewing results or writing methods.', 'Ao revisar resultados ou escrever a metodologia.', 'Al revisar resultados o redactar la metodología.'],
-  'feat.provenance.how': ['A graph, Provenance; also inside every export.', 'Um gráfico, Rastreabilidade; também em cada exportação.', 'Un gráfico, Trazabilidad; también en cada exportación.'],
+  'feat.provenance.how': ['A graph, Details, Provenance; also inside every export.', 'Um gráfico, Detalhes, Rastreabilidade; também em cada exportação.', 'Un gráfico, Detalles, Trazabilidad; también en cada exportación.'],
   'feat.dls_graph': ['DLS graph', 'Gráfico DLS', 'Gráfico DLS'],
   'feat.dls_graph.what': ['Size distribution: hydrodynamic diameter (nm, logarithmic) against intensity, volume or number.', 'Distribuição de tamanho: diâmetro hidrodinâmico (nm, logarítmico) contra intensidade, volume ou número.', 'Distribución de tamaño: diámetro hidrodinámico (nm, logarítmico) frente a intensidad, volumen o número.'],
   'feat.dls_graph.when': ['To look at one measurement.', 'Para olhar uma medição.', 'Para mirar una medición.'],

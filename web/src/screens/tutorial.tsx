@@ -205,11 +205,24 @@ export const CHAPTERS: Chapter[] = [
         ],
       },
       {
+        key: 'tut.graph_series',
+        icon: 'listChecks',
+        route: GRAPH,
+        target: ['.builder-left .sx'],
+        alt: ['.builder-left'],
+        click: DRAWER_CLOSE,
+        points: [
+          { icon: 'search', key: 'tut.p.series_find' },
+          { icon: 'listChecks', key: 'tut.p.series_select' },
+          { icon: 'eye', key: 'tut.p.series_focus' },
+        ],
+      },
+      {
         key: 'tut.graph_setup',
         icon: 'sliders',
         route: GRAPH,
-        target: ['.split.graph .side-panel > .card:first-child'],
-        click: DRAWER_CLOSE,
+        target: ['.builder-right .gb-settings'],
+        click: DRAWER_OPEN,
         points: [
           { icon: 'info', key: 'tut.p.setup_weighting' },
           { icon: 'cycle', key: 'tut.p.setup_cycle' },
@@ -217,9 +230,9 @@ export const CHAPTERS: Chapter[] = [
         ],
       },
       { key: 'tut.graph_figure', icon: 'zoom', route: GRAPH, target: ['.figure-wrap'], click: DRAWER_CLOSE, points: [{ icon: 'warning', key: 'tut.p.figure_notes' }] },
-      { key: 'tut.graph_display', icon: 'palette', route: GRAPH, target: ['.split.graph .side-panel > .card:last-child'], click: DRAWER_CLOSE },
-      { key: 'tut.graph_inspector', icon: 'panel', route: GRAPH, target: ['.split.graph > .inspector'], click: DRAWER_OPEN },
-      { key: 'tut.graph_save', icon: 'save', route: GRAPH, target: ['.page-head .btn.primary'] },
+      { key: 'tut.graph_display', icon: 'palette', route: GRAPH, target: ['.builder-right .gb-sec-lines'], alt: ['.builder-right'], click: DRAWER_OPEN },
+      { key: 'tut.graph_inspector', icon: 'panel', route: GRAPH, target: ['.builder > .builder-right'], click: DRAWER_OPEN },
+      { key: 'tut.graph_save', icon: 'save', route: GRAPH, target: ['.builder-bar .gb-save'], click: DRAWER_CLOSE },
     ],
   },
   {
@@ -294,7 +307,7 @@ export const CHAPTERS: Chapter[] = [
         key: 'tut.present',
         icon: 'present',
         route: GRAPH,
-        target: ['.page-head .graph-present'],
+        target: ['.builder-bar .graph-present'],
         points: [
           { icon: 'listChecks', key: 'tut.p.present_many' },
           { icon: 'cycle', key: 'tut.p.present_cycle' },
@@ -314,7 +327,7 @@ export const CHAPTERS: Chapter[] = [
         key: 'tut.export',
         icon: 'download',
         route: GRAPH,
-        target: ['.page-head .graph-export'],
+        target: ['.builder-bar .graph-export'],
         points: [
           { icon: 'image', key: 'tut.p.export_figures' },
           { icon: 'table', key: 'tut.p.export_raw' },
@@ -326,7 +339,7 @@ export const CHAPTERS: Chapter[] = [
         key: 'tut.export_safe',
         icon: 'shieldOk',
         route: GRAPH,
-        target: ['.page-head .graph-export'],
+        target: ['.builder-bar .graph-export'],
         points: [
           { icon: 'files', key: 'tut.p.export_where' },
           { icon: 'archive', key: 'tut.p.export_recent' },
