@@ -160,5 +160,13 @@
  "note.unit_not_stated": "unit not stated in the source files",
  "meta.note": "Note",
  "note.ls.user_mapping_unvalidated": "Values mapped by the user with a declared unit; not validated against the instrument.",
- "note.statistics.units_absent_not_inferred": "The source files state no unit for this variable; none was inferred."
+ "note.statistics.units_absent_not_inferred": "The source files state no unit for this variable; none was inferred.",
+ "graph.kind.series_values": "Values by series",
+ "axis.series": "Series",
+ "series.mean_sem": "Mean ± SEM",
+ "series.reading": "{name} · reading {run}",
+ "plot.meta.stats_sem": "Mean ± standard error of the mean (sample SD (n−1) / √n); individual replicates shown",
+ "plot.error_bars.sd": "Error bars: sample standard deviation (SD)",
+ "plot.error_bars.sem": "Error bars: standard error of the mean (SEM)",
+ "plot.error_bars.ci": "Error bars: confidence interval from the saved analysis"
 }

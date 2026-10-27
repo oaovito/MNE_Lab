@@ -160,5 +160,13 @@
  "note.unit_not_stated": "unidade não informada nos arquivos de origem",
  "meta.note": "Observação",
  "note.ls.user_mapping_unvalidated": "Valores mapeados pelo usuário com unidade declarada; sem validação com o instrumento.",
- "note.statistics.units_absent_not_inferred": "Os arquivos de origem não informam a unidade desta variável; nenhuma foi deduzida."
+ "note.statistics.units_absent_not_inferred": "Os arquivos de origem não informam a unidade desta variável; nenhuma foi deduzida.",
+ "graph.kind.series_values": "Valores por série",
+ "axis.series": "Série",
+ "series.mean_sem": "Média ± EPM",
+ "series.reading": "{name} · leitura {run}",
+ "plot.meta.stats_sem": "Média ± erro padrão da média (DP amostral (n−1) / √n); réplicas individuais exibidas",
+ "plot.error_bars.sd": "Barras de erro: desvio padrão amostral (DP)",
+ "plot.error_bars.sem": "Barras de erro: erro padrão da média (EPM)",
+ "plot.error_bars.ci": "Barras de erro: intervalo de confiança da análise salva"
 }

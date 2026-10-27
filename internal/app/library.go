@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/plot"
@@ -11,6 +13,7 @@ import (
 	"github.com/oaovito/mne_lab/internal/science/cycle"
 	"github.com/oaovito/mne_lab/internal/science/graph"
 	"github.com/oaovito/mne_lab/internal/science/model"
+	"github.com/oaovito/mne_lab/internal/science/series"
 	"github.com/oaovito/mne_lab/internal/secure"
 	"github.com/oaovito/mne_lab/internal/store"
 )
@@ -22,6 +25,8 @@ var (
 	ErrGraphKind          = errors.New("graph.invalid_kind")
 	ErrNoCycle            = errors.New("graph.cycle_required")
 	ErrDistributionChoice = errors.New("ls.invalid_distribution_choice")
+	ErrRenderCancelled    = errors.New("graph.render_cancelled")
+	ErrGraphTrashed       = errors.New("graph.in_trash")
 )
 
 // ---- Graph Library ----
@@ -29,6 +34,9 @@ var (
 // SaveGraph creates or updates a reproducible graph definition (files,
 // series, parameters, scale and visual configuration — never just an image).
 func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
+	if err := normalizeSelection(&def); err != nil {
+		return def, err
+	}
 	switch def.Kind {
 	case graph.KindStatistical:
 		if def.AnalysisID == "" {
@@ -40,7 +48,7 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 		if def.ErrorBars != "sd" && def.ErrorBars != "sem" && def.ErrorBars != "ci" {
 			return def, analysis.ErrDefinition
 		}
-	case graph.KindDistribution:
+	case graph.KindDistribution, graph.KindSeriesValues:
 		if len(def.Measurements) == 0 {
 			return def, graph.ErrNoData
 		}
@@ -52,10 +60,14 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 		return def, ErrGraphKind
 	}
 	now := time.Now().UTC()
-	def.Schema = 1
+	def.Schema = graph.DefinitionSchema
 	def.Title = clean(def.Title, 160)
+	def.Subtitle = clean(def.Subtitle, 200)
+	def.XLabel, def.YLabel = clean(def.XLabel, 120), clean(def.YLabel, 120)
+	def.DisplayUnit = clean(def.DisplayUnit, 40)
 	def.Notes = clean(def.Notes, 4000)
 	def.Tags = cleanTags(def.Tags)
+	cleanDisplay(&def)
 	if def.Visual.LineWidth == 0 {
 		def.Visual = graph.DefaultVisual()
 	}
@@ -78,18 +90,38 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 				def.Measurements = append(def.Measurements, o.MeasurementID)
 			}
 		}
+		// Lineage is written only by the server (Duplicate); a client can
+		// neither invent nor drop it.
+		def.DerivedFrom = nil
 		if def.ID == "" {
 			def.ID, def.Created = secure.NewID(), now
 		} else {
 			var old graph.Definition
 			if _, err := t.Get(CollGraphs, def.ID, &old); err == nil {
 				def.Created = old.Created
-				if def.Distributions == nil {
+				def.DerivedFrom = old.DerivedFrom
+				if def.Distributions == nil && len(def.SeriesIDs) == 0 {
 					def.Distributions = old.Distributions
 				}
 			}
 		}
-		if def.Kind == graph.KindDistribution || def.Kind == graph.KindDistributionAt {
+		if def.Kind == graph.KindDistribution && len(def.SeriesIDs) > 0 {
+			// The pins follow the selected curves, so readers of schema 1
+			// see the same candidates; a missing measurement is left for
+			// the graph to report.
+			pins := map[string]string{}
+			for _, id := range def.SeriesIDs {
+				ref, _ := series.Parse(id)
+				var m model.Measurement
+				if _, err := t.Get(CollMeasurements, ref.MeasurementID, &m); err != nil || len(m.Distributions) == 0 {
+					continue
+				}
+				if _, ok := pins[ref.MeasurementID]; !ok {
+					pins[ref.MeasurementID] = ref.Distribution
+				}
+			}
+			def.Distributions = pins
+		} else if def.Kind == graph.KindDistribution || def.Kind == graph.KindDistributionAt {
 			ids := def.Measurements
 			if def.Kind == graph.KindDistributionAt {
 				var cy CycleDoc
@@ -125,11 +157,159 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 			}
 			def.Distributions = pins
 		}
+		snapshotVersions(t, &def)
 		def.Updated = now
 		_, err := t.Put(CollGraphs, def.ID, def)
 		return err
 	})
 	return def, err
+}
+
+// normalizeSelection checks a selection by SeriesID and derives the
+// schema 1 fields from it (measurements, weighting, parameter), so older
+// readers, exports and relations see the same data.
+func normalizeSelection(def *graph.Definition) error {
+	if len(def.SeriesIDs) == 0 {
+		def.SeriesIDs = nil
+		if def.Kind == graph.KindSeriesValues {
+			return graph.ErrNoData
+		}
+		return nil
+	}
+	if def.Kind != graph.KindDistribution && def.Kind != graph.KindSeriesValues {
+		return graph.ErrSeriesKind
+	}
+	seen := map[string]bool{}
+	ids := []string{}
+	variable := ""
+	for _, id := range def.SeriesIDs {
+		ref, err := series.Parse(id)
+		if err != nil || len(id) > 400 {
+			return graph.ErrInvalidSeries
+		}
+		switch {
+		case def.Kind == graph.KindDistribution && ref.Kind != series.KindCurve,
+			def.Kind == graph.KindSeriesValues && ref.Kind == series.KindCurve:
+			return graph.ErrSeriesKind
+		}
+		v := ref.Param
+		if ref.Kind == series.KindCurve {
+			v = ref.Weighting
+		}
+		if variable == "" {
+			variable = v
+		} else if v != variable {
+			return graph.ErrMixedVariables
+		}
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) > graph.MaxSeries {
+		return graph.ErrInvalidSeries
+	}
+	def.SeriesIDs = ids
+	def.Measurements = graph.SelectionMeasurements(ids)
+	if def.Kind == graph.KindDistribution {
+		def.Weighting = variable
+	} else {
+		def.Param = variable
+	}
+	keep := func(list []string) []string {
+		var out []string
+		for _, id := range list {
+			if seen[id] {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+	def.FocusSeries = keep(def.FocusSeries)
+	return nil
+}
+
+// cleanDisplay bounds the display options of a definition.
+func cleanDisplay(def *graph.Definition) {
+	if def.YScale != "log" {
+		def.YScale = ""
+	}
+	if def.ErrorBars != "" && def.ErrorBars != "sd" && def.ErrorBars != "sem" && def.ErrorBars != "ci" {
+		def.ErrorBars = ""
+	}
+	if def.Visual.Margin < 0 || def.Visual.Margin > 40 {
+		def.Visual.Margin = 0
+	}
+	def.Visual.Preset = clean(def.Visual.Preset, 40)
+	var notes []graph.TextAnnotation
+	for _, n := range def.TextNotes {
+		if n.Text = clean(n.Text, 200); n.Text != "" && len(notes) < graph.MaxTextNotes {
+			notes = append(notes, n)
+		}
+	}
+	def.TextNotes = notes
+	if len(def.FocusSeries) > graph.MaxSeries {
+		def.FocusSeries = def.FocusSeries[:graph.MaxSeries]
+	}
+}
+
+// snapshotVersions records the source files and the parser and engine
+// versions in force when the graph is saved (addendum B §12).
+func snapshotVersions(t *store.Tx, def *graph.Definition) {
+	ids := def.Measurements
+	def.CalculationVersion = graph.EngineVersion
+	switch def.Kind {
+	case graph.KindParameterTime, graph.KindDistributionAt:
+		var cy CycleDoc
+		if _, err := t.Get(CollCycles, def.CycleID, &cy); err == nil {
+			ids = cy.Measurements
+		}
+	case graph.KindStatistical:
+		def.CalculationVersion = graph.EngineVersion + "; " + analysis.CalculationVersion
+	}
+	files, parsers := map[string]bool{}, map[string]bool{}
+	def.SourceFiles, def.ParserVersions = nil, nil
+	for _, id := range ids {
+		var m model.Measurement
+		if _, err := t.Get(CollMeasurements, id, &m); err != nil {
+			continue
+		}
+		if !files[m.FileID] {
+			files[m.FileID] = true
+			def.SourceFiles = append(def.SourceFiles, m.FileID)
+		}
+		if v := strings.TrimSpace(m.Parser + " " + m.Spec); v != "" && !parsers[v] {
+			parsers[v] = true
+			def.ParserVersions = append(def.ParserVersions, v)
+		}
+	}
+	sort.Strings(def.ParserVersions)
+}
+
+// DuplicateGraph copies a saved graph into a new, independent definition
+// that records where it came from. The original record is only read.
+func (p *Profile) DuplicateGraph(id, title string) (graph.Definition, error) {
+	var out graph.Definition
+	err := p.St.Update(func(t *store.Tx) error {
+		rec, err := t.Get(CollGraphs, id, &out)
+		if err != nil {
+			return err
+		}
+		if out.Trashed {
+			return ErrGraphTrashed
+		}
+		now := time.Now().UTC()
+		parent := graph.Lineage{GraphID: out.ID, Relation: graph.RelationDuplicate, Title: out.Title, DefinitionHash: graph.Hash(rec.Data), At: now}
+		if title = clean(title, 160); title != "" {
+			out.Title = title
+		}
+		out.ID, out.Created, out.Updated = secure.NewID(), now, now
+		out.DerivedFrom = []graph.Lineage{parent}
+		out.Schema = graph.DefinitionSchema
+		_, err = t.Put(CollGraphs, out.ID, out)
+		return err
+	})
+	return out, err
 }
 
 // Graphs lists saved graphs.
@@ -188,6 +368,27 @@ func (p *Profile) DeleteGraph(id string) error {
 
 // Compute recalculates a graph from its definition and the current data.
 func (p *Profile) Compute(def graph.Definition) (graph.Result, error) {
+	return p.ComputeContext(context.Background(), def)
+}
+
+// ComputeContext is Compute that gives up as soon as ctx is cancelled (a
+// newer preview replaced this one), so superseded work does not pile up.
+func (p *Profile) ComputeContext(ctx context.Context, def graph.Definition) (graph.Result, error) {
+	if ctx.Err() != nil {
+		return graph.Result{}, ErrRenderCancelled
+	}
+	res, err := p.compute(ctx, def)
+	if err != nil {
+		return res, err
+	}
+	if ctx.Err() != nil {
+		return graph.Result{}, ErrRenderCancelled
+	}
+	graph.Finish(def, &res)
+	return res, nil
+}
+
+func (p *Profile) compute(ctx context.Context, def graph.Definition) (graph.Result, error) {
 	switch def.Kind {
 	case graph.KindStatistical:
 		saved, err := p.Analysis(def.AnalysisID)
@@ -195,10 +396,17 @@ func (p *Profile) Compute(def graph.Definition) (graph.Result, error) {
 			return graph.Result{}, err
 		}
 		return graph.StatisticalGroups(def, saved)
-	case graph.KindDistribution:
-		in, err := p.Input(def.Measurements)
+	case graph.KindDistribution, graph.KindSeriesValues:
+		ids := def.Measurements
+		if len(def.SeriesIDs) > 0 {
+			ids = graph.SelectionMeasurements(def.SeriesIDs)
+		}
+		in, err := p.inputContext(ctx, ids, def.Kind == graph.KindSeriesValues)
 		if err != nil {
 			return graph.Result{}, err
+		}
+		if def.Kind == graph.KindSeriesValues {
+			return graph.SeriesValues(def, in)
 		}
 		return graph.Distribution(def, in)
 	case graph.KindParameterTime, graph.KindDistributionAt:
@@ -220,7 +428,12 @@ func (p *Profile) Compute(def graph.Definition) (graph.Result, error) {
 
 // Render lays out a graph for the screen or an export preview.
 func (p *Profile) Render(def graph.Definition, spec plot.Spec) (plot.Figure, graph.Result, error) {
-	res, err := p.Compute(def)
+	return p.RenderContext(context.Background(), def, spec)
+}
+
+// RenderContext is Render that stops when ctx is cancelled.
+func (p *Profile) RenderContext(ctx context.Context, def graph.Definition, spec plot.Spec) (plot.Figure, graph.Result, error) {
+	res, err := p.ComputeContext(ctx, def)
 	if err != nil {
 		return plot.Figure{}, res, err
 	}
@@ -561,6 +774,10 @@ type FileRel struct {
 type GraphRel struct {
 	Files []string `json:"files"`
 	Cycle string   `json:"cycle,omitempty"`
+	// Lineage: the graphs this one was derived from, and those derived
+	// from it.
+	DerivedFrom []string `json:"derivedFrom,omitempty"`
+	Derived     []string `json:"derived,omitempty"`
 }
 
 // CycleRel lists what a cycle uses and what uses it.
@@ -651,9 +868,20 @@ func (p *Profile) Relations() (Relations, error) {
 		if gr.Files == nil {
 			gr.Files = []string{}
 		}
+		for _, l := range g.DerivedFrom {
+			gr.DerivedFrom = append(gr.DerivedFrom, l.GraphID)
+		}
 		r.Graphs[g.ID] = gr
 		for _, f := range gr.Files {
 			addFile(f, func(fr *FileRel) { fr.Graphs = append(fr.Graphs, g.ID) })
+		}
+	}
+	for _, g := range graphs {
+		for _, parent := range r.Graphs[g.ID].DerivedFrom {
+			if pr, ok := r.Graphs[parent]; ok && !contains(pr.Derived, g.ID) {
+				pr.Derived = append(pr.Derived, g.ID)
+				r.Graphs[parent] = pr
+			}
 		}
 	}
 	// Snapshots retain original file identities after source deletion.

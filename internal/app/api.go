@@ -741,6 +741,24 @@ func (s *Server) routes() {
 		}
 		return p.Graph(pathID(r))
 	})
+	// Duplicate copies a saved graph on the server into a new definition
+	// with its own ID and a Derived From record; the original is untouched.
+	s.handle("POST /api/graphs/{id}/duplicate", func(w http.ResponseWriter, r *http.Request) (any, error) {
+		p, err := prof()
+		if err != nil {
+			return nil, err
+		}
+		var in struct {
+			Title string `json:"title"`
+		}
+		if r.ContentLength != 0 {
+			if err := decode(r, &in); err != nil {
+				return nil, err
+			}
+		}
+		defer a.hub.Publish("library", nil)
+		return p.DuplicateGraph(pathID(r), in.Title)
+	})
 	s.handle("POST /api/graphs/{id}/trash", trashRoute(a, func(p *Profile, id string, t bool) error { return p.TrashGraph(id, t) }))
 	s.handle("DELETE /api/graphs/{id}", func(w http.ResponseWriter, r *http.Request) (any, error) {
 		p, err := prof()
@@ -766,7 +784,8 @@ func (s *Server) routes() {
 			return nil, err
 		}
 		spec := screenSpec(in.Width, in.Height, in.Definition.Visual)
-		fig, res, err := p.Render(in.Definition, spec)
+		// A newer preview cancels this request: stop computing for it.
+		fig, res, err := p.RenderContext(r.Context(), in.Definition, spec)
 		if err != nil {
 			return nil, err
 		}

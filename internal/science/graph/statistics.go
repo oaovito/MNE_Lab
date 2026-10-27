@@ -65,6 +65,7 @@ func StatisticalGroups(def Definition, saved analysis.StatisticalAnalysis) (Resu
 		Y: Axis{Label: "param." + s.Definition.Variable, Unit: s.Unit, Scale: "linear", Min: math.Inf(1), Max: math.Inf(-1)},
 		Provenance: Provenance{Engine: saved.Results.Engine, Spec: analysis.CalculationVersion, ComputedAt: saved.Created,
 			Statistics: "MNE Lab derived; " + def.ErrorBars + "; alpha=" + number(s.Definition.Alpha), Transformations: []string{"immutable analysis " + saved.ID, "source snapshot " + s.SourceHash}, Rules: []string{"statistics.explicit_design", "statistics.missing_not_zero"}}}
+	r.ErrorBars = def.ErrorBars
 	if saved.SourceChanged {
 		r.Warnings = append(r.Warnings, "statistics.source_changed_saved_graph")
 	}

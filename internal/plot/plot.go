@@ -260,6 +260,12 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		ts := fs * 1.25
 		fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: top + ts, Text: fit(fig.Title, FontSansBold, ts, right-left), Size: ts, Font: FontSansBold, Fill: inkText, Anchor: "start", Role: "title"})
 		top += ts * 1.7
+		if res.Subtitle != "" {
+			ss := fs * 0.95
+			top -= ts * 0.35
+			fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: top + ss, Text: fit(res.Subtitle, FontSans, ss, right-left), Size: ss, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "subtitle"})
+			top += ss * 1.7
+		}
 	}
 
 	// Series colours, line patterns and markers, then the legend entries.
@@ -284,6 +290,11 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		res.Series[i].Marker = ""
 		if looks[i].shown() {
 			res.Series[i].Marker = looks[i].marker
+		}
+		if se.Muted {
+			// Focus mode: series outside the focus stay as muted context
+			// and are not listed.
+			continue
 		}
 		switch res.Visual.LegendMode {
 		case LegendAll:
@@ -341,6 +352,15 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 			bottom -= nfs * 1.4
 		}
 		bottom -= nfs * .5
+	}
+	// Error bars are never drawn without saying what they show: when
+	// neither the legend nor the metadata does, a short note does.
+	if !s.Legend && !s.Metadata {
+		if bars := errorBarsShown(res); bars != "" {
+			nfs := fs * .72
+			fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: bottom, Text: fit(T("plot.error_bars."+bars), FontSans, nfs, right-left), Size: nfs, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "error-note"})
+			bottom -= nfs * 1.9
+		}
 	}
 	// Metadata block at the bottom.
 	if s.Metadata {
@@ -521,12 +541,28 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		return false
 	}
 	curve := 0 // visible curves so far, to stagger their markers
+	order := make([]int, 0, len(res.Series))
 	for si, se := range res.Series {
+		if se.Muted {
+			order = append(order, si)
+		}
+	}
+	for si, se := range res.Series {
+		if !se.Muted {
+			order = append(order, si)
+		}
+	}
+	for _, si := range order {
+		se := res.Series[si]
 		if se.Hidden {
 			continue
 		}
 		lk := looks[si]
 		c := lk.color
+		if se.Muted {
+			lk.color, lk.every, lk.sparse = inkGap, false, false
+			c = inkGap
+		}
 		switch se.Kind {
 		case "individual":
 			r := fs * 0.26
@@ -538,7 +574,7 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		case "mean":
 			var pts []float64
 			flush := func() {
-				if len(pts) >= 4 {
+				if len(pts) >= 4 && !se.NoLine {
 					fig.Ops = append(fig.Ops, Op{K: "poly", Pts: pts, Stroke: c, SW: lw, Dash: lk.dash, Role: "series"})
 				}
 				pts = nil
@@ -598,6 +634,9 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 			}
 		}
 	}
+	for _, n := range res.TextNotes {
+		fig.Ops = append(fig.Ops, Op{K: "text", X: mx(n.X), Y: my(n.Y), Text: fit(n.Text, FontSans, fs*.85, (pr-pl)*.6), Size: fs * .85, Font: FontSans, Fill: inkText, Anchor: "middle", Role: "note"})
+	}
 	for _, annotation := range res.Annotations {
 		x1, x2, y := mx(annotation.X1), mx(annotation.X2), my(annotation.Y)
 		label := annotation.Label
@@ -620,8 +659,13 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 	tfs := fs * 0.92
 	for i, v := range xa.ticks {
 		x := mx(v)
+		label := xa.labels[i]
+		if len(res.X.Categories) > 0 {
+			// Category names share the axis: each gets its own slot.
+			label = fit(SeriesLabel(label, T), FontSans, tfs, (pr-pl)/float64(len(xa.ticks))-tfs*0.4)
+		}
 		fig.Ops = append(fig.Ops, Op{K: "line", X: x, Y: pb, X2: x, Y2: pb + tick, Stroke: inkAxis, SW: aw, Role: "axis"},
-			Op{K: "text", X: x, Y: pb + tick + tfs*1.05, Text: xa.labels[i], Size: tfs, Font: FontSans, Fill: inkMuted, Anchor: "middle", Role: "tick"})
+			Op{K: "text", X: x, Y: pb + tick + tfs*1.05, Text: label, Size: tfs, Font: FontSans, Fill: inkMuted, Anchor: "middle", Role: "tick"})
 	}
 	for _, v := range xa.minor {
 		x := mx(v)
@@ -881,6 +925,9 @@ func FormatNumber(v float64, decimals int, dec string) string {
 // AxisLabel returns the localized label of an axis with its unit.
 func AxisLabel(a graph.Axis, T Translator) string {
 	l := T(a.Label)
+	if a.Title != "" {
+		l = a.Title
+	}
 	if a.Unit == "" && graph.NeedsUnit(a.Label) {
 		return fmt.Sprintf("%s (%s)", l, T("plot.unit_not_stated"))
 	}
@@ -901,6 +948,11 @@ func SeriesLabel(label string, T Translator) string {
 		}
 	case strings.HasPrefix(label, "series."):
 		return T(label)
+	case strings.HasPrefix(label, "reading:"):
+		parts := strings.SplitN(label, ":", 3) // reading:<run>:<series label>
+		if len(parts) == 3 {
+			return T("series.reading", "name", parts[2], "run", parts[1])
+		}
 	case strings.HasPrefix(label, "point:"):
 		parts := strings.Split(label, ":") // point:<unit>:<offset>[:<replicate>]
 		if len(parts) == 3 {
@@ -931,7 +983,11 @@ func metadataLines(res graph.Result, T Translator, dec string) []string {
 	var out []string
 	switch res.Kind {
 	case graph.KindParameterTime:
-		out = append(out, T("plot.meta.stats"))
+		if res.ErrorBars == "sem" {
+			out = append(out, T("plot.meta.stats_sem"))
+		} else {
+			out = append(out, T("plot.meta.stats"))
+		}
 		if len(res.Gaps) > 0 {
 			var g []string
 			for _, x := range res.Gaps {
@@ -979,4 +1035,22 @@ func description(res graph.Result) string {
 		b.WriteString("; " + t)
 	}
 	return b.String()
+}
+
+// errorBarsShown names the error bars drawn in a graph ("" when none are).
+func errorBarsShown(res graph.Result) string {
+	for _, se := range res.Series {
+		if se.Hidden || se.Kind != "mean" {
+			continue
+		}
+		for _, e := range se.Err {
+			if e > 0 {
+				if res.ErrorBars != "" {
+					return res.ErrorBars
+				}
+				return "sd"
+			}
+		}
+	}
+	return ""
 }

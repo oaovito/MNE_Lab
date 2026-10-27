@@ -158,6 +158,9 @@ func WithVisual(s plot.Spec, v graph.Visual) plot.Spec {
 	if v.FontScale > 0 {
 		s.FontSize *= v.FontScale
 	}
+	if v.Margin > 0 {
+		s.Margin = v.Margin
+	}
 	return s
 }
 
@@ -453,7 +456,7 @@ func singleDate(in graph.Input) time.Time {
 func (p *Profile) graphName(def graph.Definition, res graph.Result, in graph.Input) string {
 	n := export.NameInfo{Title: def.Title, Samples: samplesOf(in), Module: "DLS"}
 	switch def.Kind {
-	case graph.KindDistribution:
+	case graph.KindDistribution, graph.KindSeriesValues:
 		n.Date = singleDate(in)
 	case graph.KindParameterTime:
 		n.Subject = export.ParamToken(def.Param)
@@ -485,7 +488,7 @@ func (p *Profile) graphOutputs(def graph.Definition, formats []string, spec plot
 			return nil, "", e
 		}
 		in = analysisInput(saved)
-	} else if def.Kind != graph.KindDistribution {
+	} else if def.Kind != graph.KindDistribution && def.Kind != graph.KindSeriesValues {
 		cy, err := p.Cycle(def.CycleID)
 		if err != nil {
 			return nil, "", err
