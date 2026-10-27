@@ -458,6 +458,7 @@ function Settings(p: {
           <Field label={t('gb.y_variable')}>
             <Seg
               size="sm"
+              label={t('gb.y_variable')}
               value={def.weighting || 'intensity'}
               onValue={(w) => (def.kind === 'dls_distribution' ? p.setVariable(w) : set({ weighting: w }))}
               options={WEIGHTINGS.map((w) => ({ value: w, label: t('axis.' + w), tip: r?.weightings && !r.weightings.includes(w) ? t('graph.weighting_absent') : undefined }))}
@@ -481,6 +482,7 @@ function Settings(p: {
           <Field label={t('graph.xscale')}>
             <Seg
               size="sm"
+              label={t('graph.xscale')}
               value={def.xScale || 'auto'}
               onValue={(xScale) => set({ xScale })}
               options={[
@@ -494,6 +496,7 @@ function Settings(p: {
         <Field label={t('gb.yscale')}>
           <Seg
             size="sm"
+            label={t('gb.yscale')}
             value={def.yScale || ''}
             onValue={(v) => set({ yScale: v as '' | 'log' })}
             options={[
@@ -527,6 +530,7 @@ function Settings(p: {
           <Field label={t('stat.error_bars')} hint={t('gb.bars.d')}>
             <Seg
               size="sm"
+              label={t('stat.error_bars')}
               value={def.errorBars || 'sd'}
               onValue={(errorBars) => set({ errorBars: errorBars as 'sd' | 'sem' | 'ci' })}
               options={[
