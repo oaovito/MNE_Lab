@@ -30,6 +30,11 @@ import {
   PairedResults,
 } from "./statistics-paired";
 
+// What a graph, group or condition choice leaves out of a design analysis:
+// how many rows it keeps, the one condition left (Time-only route), or too
+// little to analyse.
+type GraphScope = { name: string; shown: number; total: number; one: string; nothing: boolean } | null;
+
 export function StatisticalModule(p: { id?: string }) {
   const s = useStore(app, (x) => x.s);
   return (
@@ -244,6 +249,7 @@ function AnalysisEditor(p: { cycleId: string }) {
     [],
   );
   const [unitLabel, setUnitLabel] = useState("");
+  const [scope, setScope] = useState<GraphScope>(null);
   const [picking, setPicking] = useState(false);
   const [def, setDef] = useState<AnalysisDefinition>({
     schema: 1,
@@ -297,13 +303,36 @@ function AnalysisEditor(p: { cycleId: string }) {
     // The structure comes from the saved design revision; the person
     // reviews it here and corrects it in the design, never rebuilds it.
     if (!designView.data || (groupParam && group.loading) || (graphParam && graph.loading)) return;
+    // A graph analyzes exactly the measurements it draws (its saved list:
+    // parts, conditions and the group members pinned in it); a group or a
+    // condition choice without a graph analyzes those. Every other
+    // measurement of the design stays in the definition, excluded with that
+    // reason, so the analysis keeps the saved design (and its pairing) and
+    // its provenance shows what was left out.
+    const g = graph.data;
+    const drawn = g?.measurements?.length ? new Set(g.measurements) : null;
     const members = group.data ? new Set(group.data.measurements) : null;
-    setDef((d) => {
-      const next = definitionFromDesign(designView.data!, { ...d, title: d.title || graph.data?.title || group.data?.name || "" });
-      // A graph that draws some conditions or groups analyzes those only.
-      const observations = next.observations.filter((o) => (!conditionsParam.length || conditionsParam.includes(o.factorA)) && (!members || members.has(o.measurementId)));
-      return { ...next, observations };
-    });
+    const name = g ? g.title || t("graph.kind." + g.kind) : group.data?.name || "";
+    const reason = g ? t("stat.graph_excluded", { name }) : group.data ? t("stat.group_excluded", { name }) : t("stat.condition_excluded");
+    const shown = (o: AnalysisDefinition["observations"][0]) =>
+      drawn ? drawn.has(o.measurementId) : (!conditionsParam.length || conditionsParam.includes(o.factorA)) && (!members || members.has(o.measurementId));
+    const next = definitionFromDesign(designView.data!, def);
+    const observations = next.observations.map((o) => (shown(o) ? o : { ...o, excludeReason: reason }));
+    const kept = observations.filter((o) => !o.excludeReason);
+    const conditions = [...new Set(kept.map((o) => o.factorA))];
+    const times = [...new Set(kept.map((o) => o.factorB))];
+    const units = new Set(kept.map((o) => o.unitId).filter(Boolean));
+    let scope: GraphScope = kept.length === observations.length ? null : { name, shown: kept.length, total: observations.length, one: "", nothing: false };
+    let layout: Partial<AnalysisDefinition> = {};
+    if (scope && (times.length < 2 || units.size < 2)) scope = { ...scope, nothing: true };
+    else if (scope && next.design === "within_within" && conditions.length === 1) {
+      // Condition × Time needs two conditions. One condition over time is
+      // the validated one-within-factor repeated layout (Time within units).
+      scope = { ...scope, one: conditions[0] };
+      layout = { design: "", structure: "repeated", method: "repeated", postHoc: "none", adjustment: "", sphericityCorrection: "GG" };
+    }
+    setScope(scope);
+    setDef((d) => ({ ...definitionFromDesign(designView.data!, { ...d, title: d.title || g?.title || group.data?.name || "" }), ...layout, observations }));
   }, [designView.data, group.data, group.loading, graph.data, graph.loading]);
   useEffect(() => {
     // A group without a design: its measurements, as the picker would add them.
@@ -507,6 +536,21 @@ function AnalysisEditor(p: { cycleId: string }) {
           </Notice>
         )}
         {group.data && !graph.data && <Notice kind="info">{t("ga.from_group", { name: group.data.name })}</Notice>}
+        {scope && !scope.nothing && graph.data && (
+          <Notice kind="info">
+            <span class="stat-graph-subset">{t("stat.graph_subset", { name: scope.name, shown: scope.shown, total: scope.total })}</span>
+          </Notice>
+        )}
+        {scope?.one && (
+          <Notice kind="warning">
+            <span class="stat-graph-one">{t("stat.graph_one_condition", { name: scope.one })}</span>
+          </Notice>
+        )}
+        {scope?.nothing && (
+          <Notice kind="danger">
+            <span class="stat-graph-nothing">{t("stat.graph_nothing")}</span>
+          </Notice>
+        )}
         {suggested && (
           <Notice kind="info">
             <span class="col gap2">

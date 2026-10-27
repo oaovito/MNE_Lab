@@ -89,7 +89,19 @@ mne_mixed <- function(d,alpha) {
 # Paired Condition x Time design: A (condition) and B (time) both vary within
 # each explicit experimental unit. Technical readings that share a unit x A x B
 # cell are averaged here and counted, never used as N. Every df comes from R.
-mne_paired_levels <- function(x) factor(x, levels=sort(unique(x), method="radix"))
+# Levels in the order the core states (conditions as the design declares
+# them, times by their offset); without one, byte order. The order only
+# arranges levels and contrast directions; it never changes a test.
+mne_paired_levels <- function(x, declared=NULL) {
+  present <- unique(x)
+  if (length(declared)) {
+    declared <- as.character(declared)
+    lv <- declared[declared %in% present]
+    if (anyDuplicated(declared) || !setequal(lv, present)) stop("statistics.invalid_definition")
+    return(factor(x, levels=lv))
+  }
+  factor(x, levels=sort(present, method="radix"))
+}
 mne_paired_sphericity <- function(mlm, idata, X, M, pp) {
   out <- list()
   ssd <- SSD(mlm)
@@ -266,7 +278,7 @@ mne_paired <- function(input) {
   rows <- split(seq_len(nrow(raw)), factor(key, levels=unique(key)))
   first <- vapply(rows, function(i) i[1L], 0L)
   d <- data.frame(y=vapply(rows, function(i) mean(raw$y[i]), 0), readings=lengths(rows), A=raw$A[first], B=raw$B[first], unit=raw$unit[first], stringsAsFactors=FALSE)
-  d$A <- mne_paired_levels(d$A); d$B <- mne_paired_levels(d$B); d$unit <- factor(d$unit, levels=unique(d$unit))
+  d$A <- mne_paired_levels(d$A, input$levelsA); d$B <- mne_paired_levels(d$B, input$levelsB); d$unit <- factor(d$unit, levels=unique(d$unit))
   rownames(d) <- NULL
   if (nlevels(d$A) < 2L || nlevels(d$B) < 2L || nlevels(d$unit) < 2L) stop("statistics.incompatible_design")
   complete <- all(table(d$unit, d$A, d$B) == 1L)
@@ -289,7 +301,6 @@ mne_paired <- function(input) {
   if (method == "repeated") {
     rm <- mne_paired_rm(d, "AB", alpha, input$correction)
     terms <- rm$terms; corrections <- rm$corrections; diagnostics <- c(diagnostics, rm$diagnostics); warnings <- c(warnings, rm$warnings)
-    if ("statistics.sphericity_not_testable" %in% warnings) warnings <- c(warnings, "statistics.mixed_model_recommended")
     # Residuals of the unit x A x B stratum (all other strata removed).
     residual <- residuals(lm(y ~ unit*A + unit*B + A:B, data=d))
     ssType <- "repeated_within_within_strata"
@@ -298,8 +309,8 @@ mne_paired <- function(input) {
     mixed <- mne_paired_mixed(d, alpha)
     terms <- mixed$terms; residual <- mixed$residuals; mixedModel <- mixed$model
     ssType <- "not_applicable_marginal_Wald_F"
-    diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("mixed_model", details="REML; random intercepts for unit and for condition within unit (1|unit/A); A and B within unit; sum contrasts; marginal Wald F with nlme containment denominator df; conditional GLS SE; response residuals; relative SD boundary tolerance=1e-4 for each random component")
-    warnings <- c(warnings, "statistics.mixed_covariance_assumption")
+    diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("mixed_model", details="REML; random intercepts for unit and for condition within unit (1|unit/A); A and B within unit; compound symmetry within each unit and within each unit x condition: A is tested against unit-by-condition variation, B and A:B against one pooled within-unit residual (unit x B and unit x A x B variation together), a stronger assumption than sphericity; sum contrasts; marginal Wald F with nlme containment denominator df as returned; conditional GLS SE; response residuals; relative SD boundary tolerance=1e-4 for each random component")
+    warnings <- c(warnings, "statistics.mixed_covariance_assumption", "statistics.paired_mixed_pooled_error")
   }
   if (length(residual) != nrow(d) || any(!is.finite(residual))) stop("statistics.invalid_numeric")
   if (postHoc == "simple_effects") {
@@ -312,7 +323,10 @@ mne_paired <- function(input) {
     shapiro <- shapiro.test(residual)
     diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("shapiro_wilk", unname(shapiro$statistic), shapiro$p.value)
   } else warnings <- c(warnings, "statistics.shapiro_not_applicable")
-  interaction <- Filter(function(t) t$source == "A:B", terms)
+  # The interaction is read with the sphericity correction the person chose
+  # (applied:A:B) when one applies, otherwise as tested.
+  interactionSource <- if (method == "repeated" && !is.null(corrections[["applied:A:B"]])) paste0("A:B_", input$correction) else "A:B"
+  interaction <- Filter(function(t) identical(t$source, interactionSource), terms)
   if (postHoc != "simple_effects" && length(interaction) && !is.null(interaction[[1]]$p) && interaction[[1]]$p < alpha) warnings <- c(warnings, "statistics.interaction_requires_simple_effects")
   qq <- qqnorm(residual, plot.it=FALSE)
   engine <- "webR/0.6.0; R/4.6.0"

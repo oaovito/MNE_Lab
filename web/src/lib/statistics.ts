@@ -3,6 +3,7 @@ import code from "./statistics-engine.R";
 import mbessNCF from "./vendor/mbess/conf.limits.ncf.R";
 import mbessPVAF from "./vendor/mbess/ci.pvaf.R";
 import type { Design } from "./types";
+import { pairedLevels } from "./levels";
 
 export type AnalysisDefinition = {
   schema: number;
@@ -231,6 +232,7 @@ export async function calculateStatistics(
         correction: d.method === "mixed" ? "" : d.sphericityCorrection || "GG",
         design: d.design || "",
         adjustment: d.adjustment || "",
+        ...(d.design === "within_within" ? pairedLevels(snapshot) : {}),
       });
       await r.objs.globalEnv.bind("mne_input", input);
       if(d.effectCI) await r.evalRVoid((mbessNCF+"\n"+mbessPVAF).replaceAll("\r\n","\n"));

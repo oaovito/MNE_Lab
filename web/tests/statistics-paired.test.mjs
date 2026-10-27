@@ -108,7 +108,12 @@ try {
     assert.equal(engineA.denominatorDF, actual.terms.find((t) => t.source === "residual_unit:A").df);
     for (const t of actual.terms) assert.ok(![16, 18].includes(t.denominatorDF) && ![16, 18].includes(t.df), `pseudoreplicated df in ${t.source}`);
     assert.ok(actual.diagnostics.some((d) => d.code === "mauchly_not_estimable"));
-    assert.ok(actual.warnings.includes("statistics.sphericity_not_testable") && actual.warnings.includes("statistics.mixed_model_recommended"));
+    // Untestable sphericity is said; the conservative reading is the GG, HF
+    // and lower-bound results, never an automatic switch to the mixed model,
+    // whose pooled within-unit error assumes more (compound symmetry).
+    assert.ok(actual.warnings.includes("statistics.sphericity_not_testable"));
+    assert.ok(!actual.warnings.includes("statistics.mixed_model_recommended"));
+    for (const s of ["B_GG", "B_LB", "A:B_GG", "A:B_LB"]) assert.ok(actual.terms.some((t) => t.source === s), s);
   });
   await test("technical readings are averaged per cell and never counted", async () => {
     const c = golden.cases.find((c) => c.name === "technical_readings_repeated_gg_holm");
@@ -126,6 +131,33 @@ try {
     const actual = await calculate({ ...base, unitId: base.unitId.map((u) => relabel[u]) });
     assert.equal(new Set(actual.groups.flatMap((g) => g.units)).size, 3);
     assert.equal(actual.residuals.length, 24);
+  });
+  await test("time levels follow the order the core gives, never text order", async () => {
+    const base = golden.cases.find((c) => c.name === "owner_3x2x4_repeated_gg_holm").input;
+    const days = [...new Set(base.factorB)].sort();
+    const relabel = Object.fromEntries(days.map((d, i) => [d, ["0", "7", "14", "21"][i]]));
+    const numeric = { ...base, factorB: base.factorB.map((b) => relabel[b]) };
+    const ordered = await calculate({ ...numeric, levelsA: ["F-SR", "C-SR"].filter((a) => base.factorA.includes(a)).length === 2 ? ["F-SR", "C-SR"] : [...new Set(base.factorA)], levelsB: ["0", "7", "14", "21"] });
+    assert.deepEqual([...new Set(ordered.groups.map((g) => g.factorB))], ["0", "7", "14", "21"]);
+    const within = ordered.comparisons.filter((c) => c.family === "B_within_A").slice(0, 6).map((c) => c.contrast);
+    assert.deepEqual(within, ["7-0", "14-0", "14-7", "21-0", "21-7", "21-14"]);
+    // The order arranges levels only: every test is the same.
+    const text = await calculate(numeric);
+    for (const t of text.terms) near(ordered.terms.find((x) => x.source === t.source)[t.f === undefined ? "ss" : "f"], t.f === undefined ? t.ss : t.f, t.source, 1e-10);
+    await assert.rejects(calculate({ ...numeric, levelsB: ["0", "7", "14"] }), /statistics.invalid_definition/);
+  });
+  await test("the interaction warning reads the correction that was applied", async () => {
+    // Invented 4 units x 2 conditions x 4 times: A:B uncorrected p = 0.035,
+    // Greenhouse-Geisser p = 0.088.
+    const y = [99.4, 100.1, 101.2, 103.8, 92.2, 97, 95, 99.7, 99.3, 101.8, 102.6, 103, 94, 95.4, 99.3, 103, 100.6, 101.1, 103.2, 102, 95.8, 96.4, 100.3, 105.3, 98.6, 98, 102, 103, 94.8, 95.8, 95.2, 102.1];
+    const units = ["u1", "u2", "u3", "u4"].flatMap((u) => Array(8).fill(u));
+    const a = units.map((_, i) => (i % 8 < 4 ? "F" : "C"));
+    const b = units.map((_, i) => ["0", "7", "14", "21"][i % 4]);
+    const input = { values: y, factorA: a, factorB: b, unitId: units, alpha: 0.05, method: "repeated", postHoc: "none", effectCI: false, control: "", structure: "repeated", correction: "GG", design: "within_within", adjustment: "", levelsA: ["F", "C"], levelsB: ["0", "7", "14", "21"] };
+    const gg = await calculate(input);
+    const p = (s) => gg.terms.find((t) => t.source === s).p;
+    assert.ok(p("A:B") < 0.05 && p("A:B_GG") > 0.05, `${p("A:B")} ${p("A:B_GG")}`);
+    assert.ok(!gg.warnings.includes("statistics.interaction_requires_simple_effects"));
   });
   for (const c of golden.rejections.filter((c) => !c.ciOnly))
     await test(`paired rejection: ${c.name}`, async () => await assert.rejects(calculate(c.input), new RegExp(`statistics.${c.error}`)));
@@ -152,6 +184,9 @@ try {
       assert.equal(m.family, "nested_random_intercepts");
       assert.equal(m.estimation, "REML");
       assert.equal(m.random, "1|unit/A");
+      // The pooled within-unit error is stated with every paired mixed result.
+      assert.ok(actual.warnings.includes("statistics.paired_mixed_pooled_error"));
+      assert.ok(!actual.warnings.includes("statistics.mixed_model_recommended"));
       assert.deepEqual(m.levelsA, e.levelsA);
       assert.deepEqual(m.levelsB, e.levelsB);
       for (const k of ["randomVariance", "residualVariance"]) near(m[k], e[k], `${c.name}.${k}`, 1e-5);

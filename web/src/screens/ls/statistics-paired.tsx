@@ -5,6 +5,7 @@
 // separately with their own error strata, sphericity notes, simple effects,
 // effect sizes, estimated differences and every unit's own observations.
 import { fmtNum, squared } from '../../lib/format';
+import { pairedLevels } from '../../lib/levels';
 import { t } from '../../lib/i18n';
 import { navigate } from '../../lib/route';
 import type { AnalysisDefinition, AnalysisSnapshot, StatisticalResults } from '../../lib/statistics';
@@ -15,7 +16,6 @@ const num = (n: number | undefined | null) => (n == null ? '—' : fmtNum(n, 6))
 const pvalue = (n: number | undefined | null) => (n == null ? '—' : n === 0 ? t('stat.p_underflow') : n < 0.000001 ? n.toExponential(4) : fmtNum(n, 6));
 // Degrees of freedom as returned: whole numbers plainly, corrected ones to 4 decimals.
 const dfText = (n: number | undefined | null) => (n == null ? '—' : Number.isInteger(n) ? String(n) : fmtNum(n, 4));
-const natural = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 
 /** The definition the editor proposes for a saved design revision. */
 export function definitionFromDesign(v: DesignView, base: AnalysisDefinition): AnalysisDefinition {
@@ -41,22 +41,15 @@ export function definitionFromDesign(v: DesignView, base: AnalysisDefinition): A
   };
 }
 
-/** Levels in the order the design declares them, else in natural order. */
-export function levelOrder(levels: string[], declared?: string[]) {
-  const out = (declared || []).filter((l) => levels.includes(l));
-  return [...out, ...levels.filter((l) => !out.includes(l)).sort(natural)];
-}
 
 export function unitName(s: AnalysisSnapshot, id: string) {
   return s.unitLabels?.[id] || s.experimentalDesign?.units.find((u) => u.id === id)?.label || id.slice(0, 8);
 }
 
+/** Conditions in the design's order, times by their offset (the core's rule). */
 function order(s: AnalysisSnapshot) {
-  const d = s.experimentalDesign;
-  return {
-    a: levelOrder(s.design.levelsA || [], d?.conditions.map((c) => c.label)),
-    b: levelOrder(s.design.levelsB || [], d?.times.map((x) => x.label)),
-  };
+  const { levelsA, levelsB } = pairedLevels(s);
+  return { a: levelsA, b: levelsB };
 }
 
 /**
