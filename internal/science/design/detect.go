@@ -214,7 +214,7 @@ func Detect(d Design, info map[string]MeasurementInfo) Structure {
 	if len(s.Missing) > 0 && s.ExperimentalUnits > 0 {
 		s.Findings = append(s.Findings, Finding{Code: "design.incomplete"})
 	}
-	s.Findings = append(s.Findings, assess(d, s, info)...)
+	s.Findings = append(s.Findings, Assess(d, info)...)
 	return s
 }
 
@@ -260,9 +260,18 @@ func cellName(c Cell) string {
 	return strings.Trim(strings.Join([]string{c.Condition, c.Time}, " · "), " ·")
 }
 
-// assess looks for organizations that would make one preparation count as
-// several independent units (pseudoreplication).
-func assess(d Design, s Structure, info map[string]MeasurementInfo) []Finding {
+// Finding codes of Assess.
+const (
+	FindingUnitsSplitByCondition = "design.units_split_by_condition"
+	FindingSampleInSeveralUnits  = "design.sample_in_several_units"
+)
+
+// Assess looks for organizations that would make one preparation count as
+// several independent units (pseudoreplication): units whose names differ
+// only by a condition label, each observed under one condition, and one
+// sample identification placed under several units. info is optional. The
+// findings are evidence for review; they never change the design.
+func Assess(d Design, info map[string]MeasurementInfo) []Finding {
 	var out []Finding
 	// Units whose names differ only by a condition label ("F-SR A" and
 	// "C-SR A"), each observed under a single condition: the condition was
@@ -294,7 +303,7 @@ func assess(d Design, s Structure, info map[string]MeasurementInfo) []Finding {
 	}
 	for _, stem := range stemOrder {
 		if ids := stems[stem]; len(ids) > 1 {
-			out = append(out, Finding{Code: "design.units_split_by_condition", Units: ids, Subject: stem})
+			out = append(out, Finding{Code: FindingUnitsSplitByCondition, Units: ids, Subject: stem})
 		}
 	}
 	// The same sample identification under different units.
@@ -314,7 +323,7 @@ func assess(d Design, s Structure, info map[string]MeasurementInfo) []Finding {
 		for _, sid := range sampleOrder {
 			if ids := bySample[sid]; len(ids) > 1 {
 				sort.Strings(ids)
-				out = append(out, Finding{Code: "design.sample_in_several_units", Units: ids, Subject: sid})
+				out = append(out, Finding{Code: FindingSampleInSeveralUnits, Units: ids, Subject: sid})
 			}
 		}
 	}

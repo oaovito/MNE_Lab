@@ -66,6 +66,9 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 	if a.Snapshot.Definition.Control != "" {
 		d.Meta = append(d.Meta, KV{Key: "control", Label: "Control group", Value: a.Snapshot.Definition.Control})
 	}
+	d.Meta = append(d.Meta, designMeta(a)...)
+	paired := a.Snapshot.Definition.Design == analysis.DesignWithinWithin
+	labelled := len(a.Snapshot.UnitLabels) > 0
 	an := statisticalTable("anova", "ANOVA", "source", "SS", "df", "MS", "F", "p", "eta_squared", "partial_eta_squared", "omega_squared")
 	effects := statisticalTable("effects", "Effect sizes", "source", "eta_squared", "partial_eta_squared", "omega_squared")
 	for _, r := range a.Results.Terms {
@@ -81,6 +84,10 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 	for _, o := range a.Snapshot.Observations {
 		mapped = mapped || (o.Quantity != nil && o.Quantity.UnitOrigin == "user_mapping")
 	}
+	if labelled {
+		// The unit's name beside its identifier, as recorded in the snapshot.
+		observations.Columns = append(observations.Columns[:6], append([]Column{{Key: "unit_label", Label: "unit_label"}}, observations.Columns[6:]...)...)
+	}
 	if mapped {
 		observations.Columns = append(observations.Columns, mappingColumns("quantity")...)
 	}
@@ -91,7 +98,15 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 			raw = o.Quantity.Raw
 			unit = o.Quantity.Unit
 		}
-		row := []Cell{text(o.MeasurementID), text(o.FileID), text(o.SampleID), text(o.FactorA), text(o.FactorB), text(o.UnitID), v, text(raw), text(unit), text(fmt.Sprint(o.Missing)), text(o.ExcludeReason)}
+		row := []Cell{text(o.MeasurementID), text(o.FileID), text(o.SampleID), text(o.FactorA), text(o.FactorB), text(o.UnitID)}
+		if labelled {
+			label := ""
+			if o.UnitID != "" {
+				label = unitName(a, o.UnitID)
+			}
+			row = append(row, text(label))
+		}
+		row = append(row, v, text(raw), text(unit), text(fmt.Sprint(o.Missing)), text(o.ExcludeReason))
 		if mapped {
 			q := model.Quantity{}
 			if o.Quantity != nil {
@@ -136,6 +151,19 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 	withUnit(&posthoc, u, false, "difference", "CI_lower", "CI_upper")
 	withUnit(&residuals, u, false, "residual", "ordered_residual")
 	d.Tables = []Table{an, groups, observations, posthoc, diagnostics, residuals, effects, corrections}
+	if paired && a.Results.Model == nil {
+		effects = statisticalTable("effects", "Effect sizes", "source", "eta_squared", "partial_eta_squared", "generalized_eta_squared")
+		for _, r := range a.Results.Terms {
+			if r.PartialEtaSquared != nil {
+				effects.Rows = append(effects.Rows, []Cell{text(r.Source), optional(r.EtaSquared), optional(r.PartialEtaSquared), optional(r.GeneralizedEtaSquared)})
+			}
+		}
+		pt := pairedTables(a, u)
+		d.Tables = append([]Table{pt[0], groups, observations}, pt[1:]...)
+		d.Tables = append(d.Tables, diagnostics, residuals, effects, corrections, designTable(a))
+	} else if a.Snapshot.ExperimentalDesign != nil && a.Results.Model == nil {
+		d.Tables = append(d.Tables, designTable(a))
+	}
 	if m := a.Results.Model; m != nil {
 		tests := statisticalTable("anova", "Marginal Wald F tests", "source", "df", "denominator_df", "F", "p")
 		for _, r := range a.Results.Terms {
@@ -165,6 +193,12 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 		// All adapters iterate these tables: no mixed terms are presented as
 		// classical sums of squares, effect sizes or sphericity corrections.
 		d.Tables = []Table{tests, groups, observations, diagnostics, residuals, model, coefficients}
+		if paired {
+			d.Tables = append(d.Tables, pairedTables(a, u)...)
+		}
+		if paired || a.Snapshot.ExperimentalDesign != nil {
+			d.Tables = append(d.Tables, designTable(a))
+		}
 	}
 	if len(a.Results.EffectIntervals) > 0 {
 		ci := statisticalTable("effect_intervals", "Population eta squared intervals", "source", "effect", "nominal_confidence_level", "method", "status", "lower", "upper", "lower_at_boundary")
@@ -193,6 +227,9 @@ func StatisticalReport(a analysis.StatisticalAnalysis) ([]byte, error) {
 	pdf.MultiCell(0, 7, a.Snapshot.Definition.Title, "", "L", false)
 	pdf.SetFont("inter", "", 9)
 	pdf.MultiCell(0, 5, fmt.Sprintf("MNE Lab derived analysis | %s | %s\n%s | %s\nalpha=%g | variable=%s | unit=%s\nSource snapshot SHA-256: %s", a.Snapshot.Definition.Module, a.Results.Method, a.Results.Engine, a.Results.Calculation, a.Snapshot.Definition.Alpha, a.Snapshot.Definition.Variable, unitText(a), a.Snapshot.SourceHash), "", "L", false)
+	for _, kv := range designMeta(a) {
+		pdf.MultiCell(0, 5, kv.Label+": "+kv.Value, "", "L", false)
+	}
 	if a.SourceChanged {
 		pdf.MultiCell(0, 5, "Sources changed after this analysis was saved. Results retain the original snapshot.", "", "L", false)
 	}

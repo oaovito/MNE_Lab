@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/science/analysis"
+	"github.com/oaovito/mne_lab/internal/science/design"
 	"github.com/oaovito/mne_lab/internal/science/graph"
 	"github.com/oaovito/mne_lab/internal/science/model"
 	"github.com/oaovito/mne_lab/internal/secure"
@@ -59,7 +60,7 @@ func (p *Profile) CreateExperimentalUnit(label string) (analysis.ExperimentalUni
 }
 
 func sourceHash(snapshot analysis.Snapshot) (string, error) {
-	snapshot.Receipt, snapshot.SourceHash, snapshot.AccountID, snapshot.ProfileID = "", "", "", ""
+	snapshot.Receipt, snapshot.SourceHash, snapshot.AccountID, snapshot.ProfileID, snapshot.UnitLabels = "", "", "", "", nil
 	data, err := json.Marshal(snapshot)
 	if err != nil {
 		return "", err
@@ -154,13 +155,168 @@ func (p *Profile) analysisSnapshotTx(tx *store.Tx, def analysis.Definition) (ana
 	if err != nil {
 		return analysis.Snapshot{}, err
 	}
-	design, err := detectAnalysisDesign(out)
+	if err := bindExperimentalDesignTx(tx, &out); err != nil {
+		return analysis.Snapshot{}, err
+	}
+	labels, err := unitLabelsTx(tx)
 	if err != nil {
 		return analysis.Snapshot{}, err
 	}
-	out.Design = design
+	for _, o := range out.Observations {
+		if o.UnitID != "" {
+			if out.UnitLabels == nil {
+				out.UnitLabels = map[string]string{}
+			}
+			out.UnitLabels[o.UnitID] = labels[o.UnitID]
+		}
+	}
+	guard, err := assessPseudoreplicationTx(tx, out, labels)
+	if err != nil {
+		return analysis.Snapshot{}, err
+	}
+	layout, err := detectAnalysisDesign(out)
+	if err != nil {
+		return analysis.Snapshot{}, err
+	}
+	if guard.sameUnitNames {
+		layout.Warnings = append(layout.Warnings, "statistics.pseudoreplication")
+	}
+	if guard.repeatedSamples {
+		layout.Warnings = append(layout.Warnings, "statistics.repeated_samples_without_units")
+	}
+	out.Design = layout
 	out.SourceHash, err = sourceHash(out)
 	return out, err
+}
+
+// bindExperimentalDesignTx checks that a definition taken from a saved
+// design revision still follows it exactly: the same measurements, each
+// with the unit, condition and time that revision assigns. The person may
+// exclude an observation (with a reason) but never rebuilds the structure.
+// The revision itself and the current heads of its design enter the
+// snapshot, so a later revision marks the analysis Source Changed.
+func bindExperimentalDesignTx(tx *store.Tx, out *analysis.Snapshot) error {
+	id := out.Definition.DesignID
+	if id == "" {
+		return nil
+	}
+	all, err := allDesignsTx(tx)
+	if err != nil {
+		return err
+	}
+	var rev *design.Design
+	for i := range all {
+		if all[i].ID == id {
+			rev = &all[i]
+		}
+	}
+	if rev == nil {
+		return design.ErrNotFound
+	}
+	if len(rev.Assignments) != len(out.Observations) {
+		return analysis.ErrDesignMismatch
+	}
+	for _, o := range out.Observations {
+		a, ok := rev.Assignment(o.MeasurementID)
+		if !ok || a.UnitID != o.UnitID || a.Condition != o.FactorA || a.Time != o.FactorB {
+			return analysis.ErrDesignMismatch
+		}
+	}
+	out.ExperimentalDesign = rev
+	out.DesignHeads = []string{}
+	for _, h := range design.Heads(all) {
+		if h.Root == rev.Root {
+			out.DesignHeads = append(out.DesignHeads, h.ID)
+		}
+	}
+	sort.Strings(out.DesignHeads)
+	return nil
+}
+
+type pseudoreplicationGuard struct {
+	sameUnitNames   bool // distinct units that look like one preparation
+	repeatedSamples bool // one sample identification repeated without units
+}
+
+// assessPseudoreplicationTx is the guard of addendum B §37 and A §14. A
+// saved design is the person's own statement of which measurements come
+// from the same experimental unit: the design named by the definition, or
+// else the current revision of every design that places these measurements.
+// Treating observations of one design unit as independent, or giving them
+// several unit identities, is refused. Names and sample identifications are
+// weaker evidence (design.Assess): they only warn.
+func assessPseudoreplicationTx(tx *store.Tx, s analysis.Snapshot, labels map[string]string) (pseudoreplicationGuard, error) {
+	var g pseudoreplicationGuard
+	included := []analysis.Observation{}
+	for _, o := range s.Observations {
+		if o.ExcludeReason == "" && !o.Missing {
+			included = append(included, o)
+		}
+	}
+	designs := []design.Design{}
+	if s.ExperimentalDesign != nil {
+		designs = append(designs, *s.ExperimentalDesign)
+	} else {
+		all, err := allDesignsTx(tx)
+		if err != nil {
+			return g, err
+		}
+		for _, h := range design.Heads(all) {
+			for _, o := range included {
+				if a, ok := h.Assignment(o.MeasurementID); ok && a.UnitID != "" {
+					designs = append(designs, h)
+					break
+				}
+			}
+		}
+	}
+	for _, d := range designs {
+		count, ids := map[string]int{}, map[string]map[string]bool{}
+		for _, o := range included {
+			a, ok := d.Assignment(o.MeasurementID)
+			if !ok || a.UnitID == "" {
+				continue
+			}
+			count[a.UnitID]++
+			if ids[a.UnitID] == nil {
+				ids[a.UnitID] = map[string]bool{}
+			}
+			if o.UnitID != "" {
+				ids[a.UnitID][o.UnitID] = true
+			}
+			if (s.Definition.Structure == "independent" && count[a.UnitID] > 1) || len(ids[a.UnitID]) > 1 {
+				return g, analysis.ErrPseudoreplication
+			}
+		}
+		if len(design.Assess(d, nil)) > 0 {
+			g.sameUnitNames = true
+		}
+	}
+	// The observations as organized in this definition.
+	own := design.Design{}
+	seenUnit, seenCondition := map[string]bool{}, map[string]bool{}
+	info := map[string]design.MeasurementInfo{}
+	samples := map[string]int{}
+	for _, o := range included {
+		info[o.MeasurementID] = design.MeasurementInfo{SampleID: o.SampleID}
+		own.Assignments = append(own.Assignments, design.Assignment{MeasurementID: o.MeasurementID, UnitID: o.UnitID, Condition: o.FactorA, Time: o.FactorB})
+		if o.UnitID != "" && !seenUnit[o.UnitID] {
+			seenUnit[o.UnitID] = true
+			own.Units = append(own.Units, design.Unit{ID: o.UnitID, Label: labels[o.UnitID]})
+		}
+		if o.FactorA != "" && !seenCondition[o.FactorA] {
+			seenCondition[o.FactorA] = true
+			own.Conditions = append(own.Conditions, design.Condition{Label: o.FactorA})
+		}
+		if sid := strings.TrimSpace(o.SampleID); o.UnitID == "" && sid != "" {
+			samples[sid]++
+			g.repeatedSamples = g.repeatedSamples || samples[sid] > 1
+		}
+	}
+	if len(design.Assess(own, info)) > 0 {
+		g.sameUnitNames = true
+	}
+	return g, nil
 }
 
 func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
@@ -188,17 +344,18 @@ func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
 		cells[o.FactorA+"\x00"+o.FactorB]++
 		if o.UnitID != "" {
 			if def.Structure == "independent" && units[o.UnitID] {
-				return d, analysis.ErrStructure
+				return d, analysis.ErrPseudoreplication
 			}
 			units[o.UnitID] = true
+			if old, ok := unitGroup[o.UnitID]; ok && old != o.FactorA {
+				// Condition varies within the unit: the paired design applies.
+				return d, analysis.ErrPairedDetected
+			}
 			key := o.UnitID + "\x00" + o.FactorB
 			if unitTime[key] && def.Structure == "repeated" {
 				return d, analysis.ErrDesign
 			}
 			unitTime[key] = true
-			if old, ok := unitGroup[o.UnitID]; ok && old != o.FactorA {
-				return d, analysis.ErrDesign
-			}
 			unitGroup[o.UnitID] = o.FactorA
 		} else if def.Structure == "repeated" {
 			return d, analysis.ErrStructure

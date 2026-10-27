@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/oaovito/mne_lab/internal/science/design"
 	"github.com/oaovito/mne_lab/internal/science/model"
 )
 
@@ -58,7 +59,27 @@ var (
 	ErrDesign     = errors.New("statistics.incompatible_design")
 	ErrControl    = errors.New("statistics.control_required")
 	ErrFamily     = errors.New("statistics.dunnett_family_limit")
+	// ErrDesignMismatch refuses observations that do not follow the saved
+	// experimental design revision the definition names.
+	ErrDesignMismatch = errors.New("statistics.design_mismatch")
+	// ErrPseudoreplication refuses treating repeated observations of the
+	// same experimental unit as independent subjects (addendum B §37). It is
+	// a structure refusal: errors.Is(err, ErrStructure) holds.
+	ErrPseudoreplication error = &codedError{"statistics.pseudoreplication", ErrStructure}
+	// ErrPairedDetected refuses the original layout (condition between
+	// units) when every unit is observed under several conditions and times,
+	// and points to the paired Condition x Time design (addendum A §57).
+	ErrPairedDetected error = &codedError{"statistics.paired_longitudinal_detected", ErrDesign}
 )
+
+// codedError is a stable identifier that is also a more general refusal.
+type codedError struct {
+	code   string
+	parent error
+}
+
+func (e *codedError) Error() string { return e.code }
+func (e *codedError) Unwrap() error { return e.parent }
 
 // ExperimentalUnit has an identity independent of the visible sample name.
 // IDs are created and resolved in the current Profile, never inferred from
@@ -97,7 +118,11 @@ type Definition struct {
 	Design string `json:"design,omitempty"`
 	// Adjustment is the multiplicity correction of paired simple effects
 	// (holm or bonferroni); empty for every other post-hoc choice.
-	Adjustment   string                  `json:"adjustment,omitempty"`
+	Adjustment string `json:"adjustment,omitempty"`
+	// DesignID names the saved experimental design revision the unit,
+	// condition and time of every observation were taken from; empty when
+	// the person organized the observations in the editor.
+	DesignID     string                  `json:"designId,omitempty"`
 	Observations []ObservationDefinition `json:"observations"`
 }
 
@@ -128,6 +153,14 @@ type Snapshot struct {
 	Receipt      string          `json:"receipt,omitempty"`
 	AccountID    string          `json:"accountId"`
 	ProfileID    string          `json:"profileId"`
+	// ExperimentalDesign is the immutable design revision named by
+	// Definition.DesignID; DesignHeads are the current revisions of that
+	// design, so a later revision marks the analysis Source Changed.
+	ExperimentalDesign *design.Design `json:"experimentalDesign,omitempty"`
+	DesignHeads        []string       `json:"designHeads,omitempty"`
+	// UnitLabels are the names of the experimental units when the snapshot
+	// was taken. Names are presentation: they never enter the source hash.
+	UnitLabels map[string]string `json:"unitLabels,omitempty"`
 }
 
 type Design struct {
@@ -302,6 +335,9 @@ func (d Definition) Validate() error {
 	if !d.StructureReviewed || (d.Structure != "independent" && d.Structure != "repeated") {
 		return ErrStructure
 	}
+	if !ValidText(d.DesignID, 96) {
+		return ErrDefinition
+	}
 	if d.Design != "" {
 		return d.validateWithinWithin()
 	}
@@ -381,7 +417,8 @@ func (d Definition) validateWithinWithin() error {
 		return ErrDefinition
 	}
 	if d.Structure != "repeated" {
-		return ErrStructure
+		// Both factors vary within each unit: independence is pseudoreplication.
+		return ErrPseudoreplication
 	}
 	switch d.Method {
 	case "repeated":
