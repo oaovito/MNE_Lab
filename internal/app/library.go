@@ -1,16 +1,20 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/oaovito/mne_lab/internal/plot"
 	"github.com/oaovito/mne_lab/internal/science/analysis"
 	"github.com/oaovito/mne_lab/internal/science/cycle"
+	"github.com/oaovito/mne_lab/internal/science/design"
 	"github.com/oaovito/mne_lab/internal/science/graph"
 	"github.com/oaovito/mne_lab/internal/science/model"
+	"github.com/oaovito/mne_lab/internal/science/series"
 	"github.com/oaovito/mne_lab/internal/secure"
 	"github.com/oaovito/mne_lab/internal/store"
 )
@@ -22,6 +26,8 @@ var (
 	ErrGraphKind          = errors.New("graph.invalid_kind")
 	ErrNoCycle            = errors.New("graph.cycle_required")
 	ErrDistributionChoice = errors.New("ls.invalid_distribution_choice")
+	ErrRenderCancelled    = errors.New("graph.render_cancelled")
+	ErrGraphTrashed       = errors.New("graph.in_trash")
 )
 
 // ---- Graph Library ----
@@ -29,6 +35,23 @@ var (
 // SaveGraph creates or updates a reproducible graph definition (files,
 // series, parameters, scale and visual configuration — never just an image).
 func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
+	return p.saveGraph(def, "", "")
+}
+
+// saveGraph saves def. With duplicateOf it saves def as a new graph derived
+// from that saved graph (Duplicate of the editor's current state): the
+// parent record is only read, for its lineage hash and for what only the
+// server writes (combined parts, pinned groups).
+func (p *Profile) saveGraph(def graph.Definition, duplicateOf, title string) (graph.Definition, error) {
+	if duplicateOf != "" {
+		def.ID = ""
+		if title = clean(title, 160); title != "" {
+			def.Title = title
+		}
+	}
+	if err := normalizeSelection(&def); err != nil {
+		return def, err
+	}
 	switch def.Kind {
 	case graph.KindStatistical:
 		if def.AnalysisID == "" {
@@ -40,7 +63,7 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 		if def.ErrorBars != "sd" && def.ErrorBars != "sem" && def.ErrorBars != "ci" {
 			return def, analysis.ErrDefinition
 		}
-	case graph.KindDistribution:
+	case graph.KindDistribution, graph.KindSeriesValues:
 		if len(def.Measurements) == 0 {
 			return def, graph.ErrNoData
 		}
@@ -48,18 +71,61 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 		if def.CycleID == "" {
 			return def, ErrNoCycle
 		}
+		if def.ErrorBars == "sem" || def.ErrorBars == "ci" {
+			// n at a cycle point counts measurements, not experimental
+			// units (SEM), and a CI needs a saved analysis: SD is drawn.
+			def.ErrorBars = "sd"
+		}
+	case graph.KindDesignTime, graph.KindPairedCondition:
+		if def.DesignID == "" {
+			return def, graph.ErrDesignRequired
+		}
+		if !graph.DesignVariable(def.Param) {
+			return def, graph.ErrVariable
+		}
+		if def.ErrorBars == "" {
+			def.ErrorBars = "sd"
+		}
+		if err := cleanDesignGraph(&def); err != nil {
+			return def, err
+		}
 	default:
 		return def, ErrGraphKind
 	}
 	now := time.Now().UTC()
-	def.Schema = 1
+	def.Schema = graph.DefinitionSchema
 	def.Title = clean(def.Title, 160)
+	def.Subtitle = clean(def.Subtitle, 200)
+	def.XLabel, def.YLabel = clean(def.XLabel, 120), clean(def.YLabel, 120)
+	def.DisplayUnit = clean(def.DisplayUnit, 40)
 	def.Notes = clean(def.Notes, 4000)
 	def.Tags = cleanTags(def.Tags)
+	cleanDisplay(&def)
 	if def.Visual.LineWidth == 0 {
 		def.Visual = graph.DefaultVisual()
 	}
 	err := p.St.Update(func(t *store.Tx) error {
+		// The stored record this save builds on: the graph itself, or the
+		// graph being duplicated.
+		var old *graph.Definition
+		var parent graph.Lineage
+		if duplicateOf != "" {
+			var src graph.Definition
+			rec, err := t.Get(CollGraphs, duplicateOf, &src)
+			if err != nil {
+				return err
+			}
+			if src.Trashed {
+				return ErrGraphTrashed
+			}
+			old = &src
+			parent = graph.Lineage{GraphID: src.ID, Relation: graph.RelationDuplicate, Title: src.Title, DefinitionHash: graph.Hash(rec.Data), At: now}
+		} else if def.ID != "" {
+			var stored graph.Definition
+			if _, err := t.Get(CollGraphs, def.ID, &stored); err == nil {
+				old = &stored
+			}
+		}
 		if def.Kind == graph.KindStatistical {
 			var saved analysis.StatisticalAnalysis
 			if _, err := t.Get(CollAnalyses, def.AnalysisID, &saved); err != nil {
@@ -78,18 +144,58 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 				def.Measurements = append(def.Measurements, o.MeasurementID)
 			}
 		}
-		if def.ID == "" {
+		if def.Kind == graph.KindDesignTime || def.Kind == graph.KindPairedCondition {
+			// Combined parts are written only by Combine: they come from
+			// the stored record, never from the client.
+			def.Parts = nil
+			var pinned []graph.GroupSnapshot
+			if old != nil && (old.Kind == graph.KindDesignTime || old.Kind == graph.KindPairedCondition) && old.DesignID == def.DesignID {
+				if def.Kind == graph.KindDesignTime {
+					def.Parts = old.Parts
+				}
+				pinned = old.GroupSnapshots
+			}
+			if err := checkDesignGraphTx(t, &def, pinned); err != nil {
+				return err
+			}
+		} else {
+			def.GroupSnapshots, def.Parts = nil, nil
+		}
+		// Lineage is written only by the server (Duplicate); a client can
+		// neither invent nor drop it.
+		def.DerivedFrom = nil
+		if duplicateOf != "" {
+			def.ID, def.Created = secure.NewID(), now
+			def.DerivedFrom = []graph.Lineage{parent}
+		} else if def.ID == "" {
 			def.ID, def.Created = secure.NewID(), now
 		} else {
 			var old graph.Definition
 			if _, err := t.Get(CollGraphs, def.ID, &old); err == nil {
 				def.Created = old.Created
-				if def.Distributions == nil {
+				def.DerivedFrom = old.DerivedFrom
+				if def.Distributions == nil && len(def.SeriesIDs) == 0 {
 					def.Distributions = old.Distributions
 				}
 			}
 		}
-		if def.Kind == graph.KindDistribution || def.Kind == graph.KindDistributionAt {
+		if def.Kind == graph.KindDistribution && len(def.SeriesIDs) > 0 {
+			// The pins follow the selected curves, so readers of schema 1
+			// see the same candidates; a missing measurement is left for
+			// the graph to report.
+			pins := map[string]string{}
+			for _, id := range def.SeriesIDs {
+				ref, _ := series.Parse(id)
+				var m model.Measurement
+				if _, err := t.Get(CollMeasurements, ref.MeasurementID, &m); err != nil || len(m.Distributions) == 0 {
+					continue
+				}
+				if _, ok := pins[ref.MeasurementID]; !ok {
+					pins[ref.MeasurementID] = ref.Distribution
+				}
+			}
+			def.Distributions = pins
+		} else if def.Kind == graph.KindDistribution || def.Kind == graph.KindDistributionAt {
 			ids := def.Measurements
 			if def.Kind == graph.KindDistributionAt {
 				var cy CycleDoc
@@ -125,11 +231,379 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 			}
 			def.Distributions = pins
 		}
+		snapshotVersions(t, &def)
 		def.Updated = now
 		_, err := t.Put(CollGraphs, def.ID, def)
 		return err
 	})
 	return def, err
+}
+
+// cleanDesignGraph bounds the design fields of a definition.
+func cleanDesignGraph(def *graph.Definition) error {
+	var conds []string
+	for _, c := range def.Conditions {
+		if c = clean(c, 80); c != "" && !contains(conds, c) {
+			conds = append(conds, c)
+		}
+	}
+	if len(conds) > 50 {
+		return analysis.ErrDefinition
+	}
+	def.Conditions = conds
+	def.PairedAt = clean(def.PairedAt, 80)
+	var groups []string
+	for _, g := range def.Groups {
+		if g = clean(g, 80); g != "" && !contains(groups, g) {
+			groups = append(groups, g)
+		}
+	}
+	if len(groups) > 20 {
+		return analysis.ErrDefinition
+	}
+	def.Groups = groups
+	// Selection fields of other kinds never apply to a design graph.
+	def.SeriesIDs, def.Distributions, def.CycleID, def.Weighting = nil, nil, "", ""
+	if def.AnalysisID == "" {
+		def.Annotations, def.AnnotationStyle = nil, ""
+		if def.ErrorBars == "ci" {
+			// A confidence interval is drawn only from a saved analysis.
+			def.ErrorBars = "sd"
+		}
+	}
+	return nil
+}
+
+// designOfGraphTx loads the design revision a graph names.
+func designOfGraphTx(t *store.Tx, id string) (design.Design, error) {
+	all, err := allDesignsTx(t)
+	if err != nil {
+		return design.Design{}, err
+	}
+	hist := design.History(all, id)
+	if len(hist) == 0 {
+		return design.Design{}, design.ErrNotFound
+	}
+	return hist[0], nil
+}
+
+// checkDesignGraphTx verifies a design graph against its design, groups
+// and linked analysis, and derives the measurements it reads (references
+// for relations, exports and the source snapshot). The members of its
+// groups are pinned in the definition (pinned: the snapshots already
+// stored for this graph); a combined graph keeps its parents' parts.
+func checkDesignGraphTx(t *store.Tx, def *graph.Definition, pinned []graph.GroupSnapshot) error {
+	d, err := designOfGraphTx(t, def.DesignID)
+	if err != nil {
+		return err
+	}
+	labels := map[string]bool{}
+	for _, c := range d.Conditions {
+		labels[c.Label] = true
+	}
+	for _, c := range def.Conditions {
+		if !labels[c] {
+			return graph.ErrUnknownCondition
+		}
+	}
+	if def.Kind == graph.KindPairedCondition {
+		if _, ok := d.Time(graph.PairedConditionAt(*def, d)); !ok {
+			return graph.ErrUnknownTime
+		}
+	} else {
+		def.PairedAt = ""
+	}
+	din := graph.DesignInput{Design: d}
+	if len(def.Parts) > 0 {
+		// Each part draws what its parent drew; the union of conditions
+		// and groups is kept for older readers and relations.
+		def.Conditions, def.Groups, def.GroupSnapshots = nil, nil, nil
+		for _, part := range def.Parts {
+			for _, c := range part.Conditions {
+				if !labels[c] {
+					return graph.ErrUnknownCondition
+				}
+				if !contains(def.Conditions, c) {
+					def.Conditions = append(def.Conditions, c)
+				}
+			}
+			for _, g := range part.Groups {
+				if !contains(def.Groups, g.ID) {
+					def.Groups = append(def.Groups, g.ID)
+				}
+			}
+		}
+	} else {
+		if def.GroupSnapshots, err = pinGroupsTx(t, def.Groups, def.GroupSnapshots, pinned); err != nil {
+			return err
+		}
+		din.Members = pinnedMembers(def.GroupSnapshots)
+	}
+	if def.Measurements, err = graph.DesignMeasurements(*def, din); err != nil {
+		return err
+	}
+	if def.AnalysisID != "" {
+		var saved analysis.StatisticalAnalysis
+		if _, err := t.Get(CollAnalyses, def.AnalysisID, &saved); err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return errors.New("statistics.not_found")
+			}
+			return err
+		}
+		if err := graph.CompatibleAnalysis(*def, saved, d); err != nil {
+			return err
+		}
+		if err := graph.ValidateDesignAnnotations(*def, saved, d); err != nil {
+			return err
+		}
+		// An interval or brackets of the analysis are drawn only around
+		// the values it analysed.
+		in := graph.Input{Measurements: map[string]model.Measurement{}}
+		for _, id := range def.Measurements {
+			var m model.Measurement
+			if _, err := t.Get(CollMeasurements, id, &m); err == nil {
+				in.Measurements[id] = m
+			}
+		}
+		din.Analysis = &saved
+		if err := graph.CheckAnalysisData(*def, in, din); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// pinGroupsTx returns the member snapshots of a graph's groups. A snapshot
+// the graph already holds is kept, so the graph redraws the same
+// measurements after a group is edited; a group without one is pinned with
+// its current members. A snapshot sent by the client is accepted only when
+// it is the stored one or the group's current members (the person chose to
+// follow the group's change).
+func pinGroupsTx(t *store.Tx, ids []string, sent, stored []graph.GroupSnapshot) ([]graph.GroupSnapshot, error) {
+	find := func(list []graph.GroupSnapshot, id string) (graph.GroupSnapshot, bool) {
+		for _, g := range list {
+			if g.ID == id {
+				return g, true
+			}
+		}
+		return graph.GroupSnapshot{}, false
+	}
+	var out []graph.GroupSnapshot
+	for _, id := range ids {
+		var g Group
+		if _, err := t.Get(CollGroups, id, &g); err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return nil, ErrGroupMissing
+			}
+			return nil, err
+		}
+		live := graph.PinGroup(g.ID, g.Name, g.Measurements)
+		old, hasOld := find(stored, id)
+		if s, ok := find(sent, id); ok {
+			switch graph.MembersHash(s.Measurements) {
+			case live.Hash:
+				out = append(out, live)
+			case old.Hash:
+				if !hasOld {
+					return nil, analysis.ErrDefinition
+				}
+				out = append(out, old)
+			default:
+				return nil, analysis.ErrDefinition
+			}
+			continue
+		}
+		if hasOld {
+			out = append(out, old)
+		} else {
+			out = append(out, live)
+		}
+	}
+	return out, nil
+}
+
+// pinnedMembers is the union of pinned group members (nil: no group).
+func pinnedMembers(gs []graph.GroupSnapshot) map[string]bool {
+	if len(gs) == 0 {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, g := range gs {
+		for _, m := range g.Measurements {
+			out[m] = true
+		}
+	}
+	return out
+}
+
+// changedGroupsTx names the pinned groups whose current members differ
+// from the pinned ones (or that no longer exist).
+func changedGroupsTx(t *store.Tx, def graph.Definition) []string {
+	var out []string
+	for _, s := range def.PinnedGroups() {
+		var g Group
+		if _, err := t.Get(CollGroups, s.ID, &g); err != nil || graph.MembersHash(g.Measurements) != s.Hash {
+			name := firstNonEmpty(s.Name, g.Name, s.ID)
+			if !contains(out, name) {
+				out = append(out, name)
+			}
+		}
+	}
+	return out
+}
+
+// normalizeSelection checks a selection by SeriesID and derives the
+// schema 1 fields from it (measurements, weighting, parameter), so older
+// readers, exports and relations see the same data.
+func normalizeSelection(def *graph.Definition) error {
+	if len(def.SeriesIDs) == 0 {
+		def.SeriesIDs = nil
+		if def.Kind == graph.KindSeriesValues {
+			return graph.ErrNoData
+		}
+		return nil
+	}
+	if def.Kind != graph.KindDistribution && def.Kind != graph.KindSeriesValues {
+		return graph.ErrSeriesKind
+	}
+	seen := map[string]bool{}
+	ids := []string{}
+	variable := ""
+	for _, id := range def.SeriesIDs {
+		ref, err := series.Parse(id)
+		if err != nil || len(id) > 400 {
+			return graph.ErrInvalidSeries
+		}
+		switch {
+		case def.Kind == graph.KindDistribution && ref.Kind != series.KindCurve,
+			def.Kind == graph.KindSeriesValues && ref.Kind == series.KindCurve:
+			return graph.ErrSeriesKind
+		}
+		v := ref.Param
+		if ref.Kind == series.KindCurve {
+			v = ref.Weighting
+		}
+		if variable == "" {
+			variable = v
+		} else if v != variable {
+			return graph.ErrMixedVariables
+		}
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) > graph.MaxSeries {
+		return graph.ErrInvalidSeries
+	}
+	def.SeriesIDs = ids
+	def.Measurements = graph.SelectionMeasurements(ids)
+	if def.Kind == graph.KindDistribution {
+		def.Weighting = variable
+	} else {
+		def.Param = variable
+	}
+	keep := func(list []string) []string {
+		var out []string
+		for _, id := range list {
+			if seen[id] {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+	def.FocusSeries = keep(def.FocusSeries)
+	return nil
+}
+
+// cleanDisplay bounds the display options of a definition.
+func cleanDisplay(def *graph.Definition) {
+	if def.YScale != "log" {
+		def.YScale = ""
+	}
+	if def.ErrorBars != "" && def.ErrorBars != "sd" && def.ErrorBars != "sem" && def.ErrorBars != "ci" {
+		def.ErrorBars = ""
+	}
+	if def.Visual.Margin < 0 || def.Visual.Margin > 40 {
+		def.Visual.Margin = 0
+	}
+	def.Visual.Preset = clean(def.Visual.Preset, 40)
+	var notes []graph.TextAnnotation
+	for _, n := range def.TextNotes {
+		if n.Text = clean(n.Text, 200); n.Text != "" && len(notes) < graph.MaxTextNotes {
+			notes = append(notes, n)
+		}
+	}
+	def.TextNotes = notes
+	if len(def.FocusSeries) > graph.MaxSeries {
+		def.FocusSeries = def.FocusSeries[:graph.MaxSeries]
+	}
+}
+
+// snapshotVersions records the source files and the parser and engine
+// versions in force when the graph is saved (addendum B §12).
+func snapshotVersions(t *store.Tx, def *graph.Definition) {
+	ids := def.Measurements
+	def.CalculationVersion = graph.EngineVersion
+	switch def.Kind {
+	case graph.KindParameterTime, graph.KindDistributionAt:
+		var cy CycleDoc
+		if _, err := t.Get(CollCycles, def.CycleID, &cy); err == nil {
+			ids = cy.Measurements
+		}
+	case graph.KindStatistical:
+		def.CalculationVersion = graph.EngineVersion + "; " + analysis.CalculationVersion
+	}
+	files, parsers := map[string]bool{}, map[string]bool{}
+	def.SourceFiles, def.ParserVersions = nil, nil
+	for _, id := range ids {
+		var m model.Measurement
+		if _, err := t.Get(CollMeasurements, id, &m); err != nil {
+			continue
+		}
+		if !files[m.FileID] {
+			files[m.FileID] = true
+			def.SourceFiles = append(def.SourceFiles, m.FileID)
+		}
+		if v := strings.TrimSpace(m.Parser + " " + m.Spec); v != "" && !parsers[v] {
+			parsers[v] = true
+			def.ParserVersions = append(def.ParserVersions, v)
+		}
+	}
+	sort.Strings(def.ParserVersions)
+}
+
+// DuplicateEdited saves the editor's current state of a saved graph as a new
+// graph derived from it. The saved graph is only read: its unsaved edits go
+// into the copy, never into it.
+func (p *Profile) DuplicateEdited(id, title string, edited graph.Definition) (graph.Definition, error) {
+	return p.saveGraph(edited, id, title)
+}
+
+// DuplicateGraph copies a saved graph into a new, independent definition
+// that records where it came from. The original record is only read.
+func (p *Profile) DuplicateGraph(id, title string) (graph.Definition, error) {
+	var out graph.Definition
+	err := p.St.Update(func(t *store.Tx) error {
+		rec, err := t.Get(CollGraphs, id, &out)
+		if err != nil {
+			return err
+		}
+		if out.Trashed {
+			return ErrGraphTrashed
+		}
+		now := time.Now().UTC()
+		parent := graph.Lineage{GraphID: out.ID, Relation: graph.RelationDuplicate, Title: out.Title, DefinitionHash: graph.Hash(rec.Data), At: now}
+		if title = clean(title, 160); title != "" {
+			out.Title = title
+		}
+		out.ID, out.Created, out.Updated = secure.NewID(), now, now
+		out.DerivedFrom = []graph.Lineage{parent}
+		out.Schema = graph.DefinitionSchema
+		_, err = t.Put(CollGraphs, out.ID, out)
+		return err
+	})
+	return out, err
 }
 
 // Graphs lists saved graphs.
@@ -188,6 +662,27 @@ func (p *Profile) DeleteGraph(id string) error {
 
 // Compute recalculates a graph from its definition and the current data.
 func (p *Profile) Compute(def graph.Definition) (graph.Result, error) {
+	return p.ComputeContext(context.Background(), def)
+}
+
+// ComputeContext is Compute that gives up as soon as ctx is cancelled (a
+// newer preview replaced this one), so superseded work does not pile up.
+func (p *Profile) ComputeContext(ctx context.Context, def graph.Definition) (graph.Result, error) {
+	if ctx.Err() != nil {
+		return graph.Result{}, ErrRenderCancelled
+	}
+	res, err := p.compute(ctx, def)
+	if err != nil {
+		return res, err
+	}
+	if ctx.Err() != nil {
+		return graph.Result{}, ErrRenderCancelled
+	}
+	graph.Finish(def, &res)
+	return res, nil
+}
+
+func (p *Profile) compute(ctx context.Context, def graph.Definition) (graph.Result, error) {
 	switch def.Kind {
 	case graph.KindStatistical:
 		saved, err := p.Analysis(def.AnalysisID)
@@ -195,10 +690,17 @@ func (p *Profile) Compute(def graph.Definition) (graph.Result, error) {
 			return graph.Result{}, err
 		}
 		return graph.StatisticalGroups(def, saved)
-	case graph.KindDistribution:
-		in, err := p.Input(def.Measurements)
+	case graph.KindDistribution, graph.KindSeriesValues:
+		ids := def.Measurements
+		if len(def.SeriesIDs) > 0 {
+			ids = graph.SelectionMeasurements(def.SeriesIDs)
+		}
+		in, err := p.inputContext(ctx, ids, def.Kind == graph.KindSeriesValues)
 		if err != nil {
 			return graph.Result{}, err
+		}
+		if def.Kind == graph.KindSeriesValues {
+			return graph.SeriesValues(def, in)
 		}
 		return graph.Distribution(def, in)
 	case graph.KindParameterTime, graph.KindDistributionAt:
@@ -214,13 +716,86 @@ func (p *Profile) Compute(def graph.Definition) (graph.Result, error) {
 			return graph.ParameterTime(def, in, ci)
 		}
 		return graph.DistributionAtPoints(def, in, ci)
+	case graph.KindDesignTime, graph.KindPairedCondition:
+		din, ids, err := p.designInput(def)
+		if err != nil {
+			return graph.Result{}, err
+		}
+		in, err := p.inputContext(ctx, ids, false)
+		if err != nil {
+			return graph.Result{}, err
+		}
+		if def.Kind == graph.KindDesignTime {
+			return graph.DesignTime(def, in, din)
+		}
+		return graph.PairedCondition(def, in, din)
 	}
 	return graph.Result{}, ErrGraphKind
 }
 
+// designInput gathers what a design graph reads: the pinned design
+// revision, the current unit names, the members of its groups and its
+// linked saved analysis (checked to be of the same design and variable).
+func (p *Profile) designInput(def graph.Definition) (graph.DesignInput, []string, error) {
+	var din graph.DesignInput
+	var ids []string
+	err := p.St.View(func(t *store.Tx) error {
+		d, err := designOfGraphTx(t, def.DesignID)
+		if err != nil {
+			return err
+		}
+		din.Design = d
+		if din.UnitLabels, err = unitLabelsTx(t); err != nil {
+			return err
+		}
+		// The members pinned when the graph was saved; a graph saved
+		// before pinning reads the group as it is now.
+		snaps := def.GroupSnapshots
+		var unpinned []string
+		for _, id := range def.Groups {
+			found := false
+			for _, s := range snaps {
+				found = found || s.ID == id
+			}
+			if !found && len(def.Parts) == 0 {
+				unpinned = append(unpinned, id)
+			}
+		}
+		if len(unpinned) > 0 {
+			if snaps, err = pinGroupsTx(t, unpinned, nil, snaps); err != nil {
+				return err
+			}
+			snaps = append(append([]graph.GroupSnapshot(nil), def.GroupSnapshots...), snaps...)
+		}
+		din.Members = pinnedMembers(snaps)
+		din.GroupsChanged = changedGroupsTx(t, def)
+		if ids, err = graph.DesignMeasurements(def, din); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil || def.AnalysisID == "" {
+		return din, ids, err
+	}
+	saved, err := p.Analysis(def.AnalysisID)
+	if err != nil {
+		return din, ids, err
+	}
+	if err := graph.CompatibleAnalysis(def, saved, din.Design); err != nil {
+		return din, ids, err
+	}
+	din.Analysis = &saved
+	return din, ids, nil
+}
+
 // Render lays out a graph for the screen or an export preview.
 func (p *Profile) Render(def graph.Definition, spec plot.Spec) (plot.Figure, graph.Result, error) {
-	res, err := p.Compute(def)
+	return p.RenderContext(context.Background(), def, spec)
+}
+
+// RenderContext is Render that stops when ctx is cancelled.
+func (p *Profile) RenderContext(ctx context.Context, def graph.Definition, spec plot.Spec) (plot.Figure, graph.Result, error) {
+	res, err := p.ComputeContext(ctx, def)
 	if err != nil {
 		return plot.Figure{}, res, err
 	}
@@ -240,11 +815,14 @@ type CycleDoc struct {
 	Config       cycle.Config        `json:"config"`
 	Measurements []string            `json:"measurements"`
 	Overrides    map[string]Override `json:"overrides,omitempty"`
-	Tags         []string            `json:"tags,omitempty"`
-	Notes        string              `json:"notes,omitempty"`
-	Created      time.Time           `json:"created"`
-	Updated      time.Time           `json:"updated"`
-	Trashed      bool                `json:"trashed,omitempty"`
+	// GroupID names the saved group the cycle's measurements were taken
+	// from (a reference kept for provenance; the list above is the cycle's).
+	GroupID string    `json:"groupId,omitempty"`
+	Tags    []string  `json:"tags,omitempty"`
+	Notes   string    `json:"notes,omitempty"`
+	Created time.Time `json:"created"`
+	Updated time.Time `json:"updated"`
+	Trashed bool      `json:"trashed,omitempty"`
 }
 
 // Override is a confirmed assignment (Point -1 excludes the measurement).
@@ -293,6 +871,7 @@ func (p *Profile) SaveCycle(doc CycleDoc) (CycleDoc, error) {
 	doc.Schema = 1
 	doc.Tags = cleanTags(doc.Tags)
 	doc.Notes = clean(doc.Notes, 4000)
+	doc.GroupID = clean(doc.GroupID, 80)
 	if len(doc.Config.Params) == 0 {
 		doc.Config.Params = []string{model.EffectiveDiameter, model.Polydispersity}
 	}
@@ -548,6 +1127,7 @@ type Relations struct {
 	Files  map[string]FileRel  `json:"files"`
 	Graphs map[string]GraphRel `json:"graphs"`
 	Cycles map[string]CycleRel `json:"cycles"`
+	Groups map[string]GroupRel `json:"groups"`
 }
 
 // FileRel lists what uses a file.
@@ -555,12 +1135,33 @@ type FileRel struct {
 	Graphs   []string `json:"graphs"`
 	Cycles   []string `json:"cycles"`
 	Analyses []string `json:"analyses"`
+	Groups   []string `json:"groups,omitempty"`
+}
+
+// GroupRel lists the files a group references and what uses the group.
+type GroupRel struct {
+	Files  []string `json:"files"`
+	Graphs []string `json:"graphs"`
+	Cycles []string `json:"cycles"`
 }
 
 // GraphRel lists what a graph uses.
 type GraphRel struct {
 	Files []string `json:"files"`
 	Cycle string   `json:"cycle,omitempty"`
+	// Lineage: the graphs this one was derived from, and those derived
+	// from it.
+	DerivedFrom []string `json:"derivedFrom,omitempty"`
+	Derived     []string `json:"derived,omitempty"`
+	// ChangedParents are parents whose stored definition changed since
+	// this graph was derived (changes never propagate on their own).
+	ChangedParents []string `json:"changedParents,omitempty"`
+	// ChangedGroups name the groups whose members changed since this graph
+	// pinned them (the graph keeps drawing the pinned members).
+	ChangedGroups []string `json:"changedGroups,omitempty"`
+	Design        string   `json:"design,omitempty"`
+	Groups        []string `json:"groups,omitempty"`
+	Analysis      string   `json:"analysis,omitempty"`
 }
 
 // CycleRel lists what a cycle uses and what uses it.
@@ -573,9 +1174,22 @@ type CycleRel struct {
 // Relations computes the relation index (trashed objects included, so the
 // trash can warn too).
 func (p *Profile) Relations() (Relations, error) {
-	r := Relations{Files: map[string]FileRel{}, Graphs: map[string]GraphRel{}, Cycles: map[string]CycleRel{}}
+	r := Relations{Files: map[string]FileRel{}, Graphs: map[string]GraphRel{}, Cycles: map[string]CycleRel{}, Groups: map[string]GroupRel{}}
 	fileOf := map[string]string{}
+	graphHash := map[string]string{}
 	err := p.St.View(func(t *store.Tx) error {
+		gs, err := t.List(CollGraphs)
+		if err != nil {
+			return err
+		}
+		for _, rec := range gs {
+			var g struct {
+				ID string `json:"id"`
+			}
+			if jsonUnmarshal(rec.Data, &g) == nil {
+				graphHash[g.ID] = graph.Hash(rec.Data)
+			}
+		}
 		rs, err := t.List(CollMeasurements)
 		if err != nil {
 			return err
@@ -651,9 +1265,55 @@ func (p *Profile) Relations() (Relations, error) {
 		if gr.Files == nil {
 			gr.Files = []string{}
 		}
+		for _, l := range g.DerivedFrom {
+			gr.DerivedFrom = append(gr.DerivedFrom, l.GraphID)
+			if h, ok := graphHash[l.GraphID]; ok && l.DefinitionHash != "" && h != l.DefinitionHash && !contains(gr.ChangedParents, l.GraphID) {
+				gr.ChangedParents = append(gr.ChangedParents, l.GraphID)
+			}
+		}
+		gr.Design, gr.Groups, gr.Analysis = g.DesignID, g.Groups, g.AnalysisID
+		if len(g.PinnedGroups()) > 0 {
+			p.St.View(func(t *store.Tx) error {
+				gr.ChangedGroups = changedGroupsTx(t, g)
+				return nil
+			})
+		}
 		r.Graphs[g.ID] = gr
 		for _, f := range gr.Files {
 			addFile(f, func(fr *FileRel) { fr.Graphs = append(fr.Graphs, g.ID) })
+		}
+	}
+	groups, err := p.Groups()
+	if err != nil {
+		return r, err
+	}
+	for _, gp := range groups {
+		gr := GroupRel{Files: filesOf(gp.Measurements), Graphs: []string{}, Cycles: []string{}}
+		for _, f := range gr.Files {
+			addFile(f, func(fr *FileRel) { fr.Groups = append(fr.Groups, gp.ID) })
+		}
+		r.Groups[gp.ID] = gr
+	}
+	for _, g := range graphs {
+		for _, id := range g.Groups {
+			if gr, ok := r.Groups[id]; ok && !contains(gr.Graphs, g.ID) {
+				gr.Graphs = append(gr.Graphs, g.ID)
+				r.Groups[id] = gr
+			}
+		}
+	}
+	for _, c := range cycles {
+		if gr, ok := r.Groups[c.GroupID]; ok && !contains(gr.Cycles, c.ID) {
+			gr.Cycles = append(gr.Cycles, c.ID)
+			r.Groups[c.GroupID] = gr
+		}
+	}
+	for _, g := range graphs {
+		for _, parent := range r.Graphs[g.ID].DerivedFrom {
+			if pr, ok := r.Graphs[parent]; ok && !contains(pr.Derived, g.ID) {
+				pr.Derived = append(pr.Derived, g.ID)
+				r.Graphs[parent] = pr
+			}
 		}
 	}
 	// Snapshots retain original file identities after source deletion.
@@ -683,4 +1343,111 @@ func (p *Profile) Relations() (Relations, error) {
 		return nil
 	})
 	return r, err
+}
+
+// ---- Combine ----
+
+// ErrCombineChanged refuses a combination when a parent changed while it
+// was being checked.
+var ErrCombineChanged = errors.New("graph.combine_conflict")
+
+// combineParents loads and computes the graphs to combine. A parent that
+// cannot be drawn gives an empty result, which the check reports.
+func (p *Profile) combineParents(ids []string) ([]graph.Definition, []graph.Result, error) {
+	var defs []graph.Definition
+	var results []graph.Result
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if len(defs) >= graph.MaxCombine {
+			return nil, nil, graph.ErrCombine
+		}
+		def, err := p.Graph(id)
+		if err != nil {
+			return nil, nil, err
+		}
+		res, err := p.Compute(def)
+		if err != nil {
+			res = graph.Result{}
+		}
+		defs = append(defs, def)
+		results = append(results, res)
+	}
+	return defs, results, nil
+}
+
+// CheckCombine tells whether saved graphs can be combined and which exact
+// display-unit conversions are available when their units differ.
+func (p *Profile) CheckCombine(ids []string, displayUnit string) (graph.CombineCheck, error) {
+	defs, results, err := p.combineParents(ids)
+	if err != nil {
+		return graph.CombineCheck{}, err
+	}
+	return graph.CheckCombine(defs, results, clean(displayUnit, 40)), nil
+}
+
+// CombineGraphs creates a new graph from the definitions and data of saved
+// graphs (never from their images). The parents are only read; the new
+// definition records one Derived From entry per parent with the hash of
+// the parent's stored record.
+func (p *Profile) CombineGraphs(ids []string, title, displayUnit string) (graph.Definition, graph.CombineCheck, error) {
+	defs, results, err := p.combineParents(ids)
+	if err != nil {
+		return graph.Definition{}, graph.CombineCheck{}, err
+	}
+	ck := graph.CheckCombine(defs, results, clean(displayUnit, 40))
+	if !ck.Compatible {
+		return graph.Definition{}, ck, graph.ErrCombine
+	}
+	var out graph.Definition
+	err = p.St.Update(func(t *store.Tx) error {
+		hashes := make([]string, len(defs))
+		for i, d := range defs {
+			var cur graph.Definition
+			rec, err := t.Get(CollGraphs, d.ID, &cur)
+			if err != nil {
+				return err
+			}
+			if !cur.Updated.Equal(d.Updated) || cur.Trashed {
+				return ErrCombineChanged
+			}
+			hashes[i] = graph.Hash(rec.Data)
+		}
+		now := time.Now().UTC()
+		parents := make([]graph.Definition, len(defs))
+		for i, d := range defs {
+			parents[i] = d
+			if d.Kind == graph.KindDesignTime && len(d.Parts) == 0 && len(d.GroupSnapshots) < len(d.Groups) {
+				// A parent saved before groups were pinned: its groups as
+				// they are now, which is what it currently draws.
+				snaps, err := pinGroupsTx(t, d.Groups, nil, d.GroupSnapshots)
+				if err != nil {
+					return err
+				}
+				parents[i].GroupSnapshots = snaps
+			}
+		}
+		c, err := graph.Combine(parents, results, hashes, clean(title, 160), ck, secure.NewID(), now)
+		if err != nil {
+			return err
+		}
+		switch c.Kind {
+		case graph.KindDesignTime:
+			if err := checkDesignGraphTx(t, &c, nil); err != nil {
+				return err
+			}
+		default:
+			if err := normalizeSelection(&c); err != nil {
+				return err
+			}
+		}
+		snapshotVersions(t, &c)
+		out = c
+		_, err = t.Put(CollGraphs, c.ID, c)
+		return err
+	})
+	return out, ck, err
 }

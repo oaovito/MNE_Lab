@@ -122,7 +122,7 @@ function CycleCard(p: { c: CycleDoc; files: number; graphs: number; trash: boole
 const defaultConfig = (): CycleConfig => ({ name: '', experiment: '', sampleId: '', start: new Date().toISOString(), startTzKnown: false, interval: 1, unit: 'days', duration: 7, replicates: 3, params: ['effective_diameter', 'polydispersity'] });
 
 /** CycleWizard creates a cycle, or edits one (arg.edit). */
-export function CycleWizard(p: { arg: { measurements: string[]; edit?: CycleDoc } }) {
+export function CycleWizard(p: { arg: { measurements: string[]; edit?: CycleDoc; groupId?: string } }) {
   const edit = p.arg.edit;
   const files = useFiles();
   const byId = useMemo(() => allMeasurements(files.data || []), [files.data]);
@@ -159,7 +159,9 @@ export function CycleWizard(p: { arg: { measurements: string[]; edit?: CycleDoc 
 
   const doc = (): CycleDoc => {
     const start = cfg.startTzKnown ? new Date(startLocal).toISOString() : startLocal + ':00Z';
-    return { ...(edit || {}), config: { ...cfg, name: cfg.name.trim(), start }, measurements: ms } as CycleDoc;
+    // A cycle started from a group keeps a reference to it (never a copy).
+    const groupId = edit ? edit.groupId : p.arg.groupId;
+    return { ...(edit || {}), config: { ...cfg, name: cfg.name.trim(), start }, measurements: ms, ...(groupId ? { groupId } : {}) } as CycleDoc;
   };
   const validCfg = cfg.name.trim() && startLocal && cfg.interval >= 1 && cfg.interval <= 99 && cfg.duration >= 1 && cfg.duration <= 99 && cfg.interval <= cfg.duration && cfg.params.length > 0;
 

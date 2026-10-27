@@ -255,3 +255,50 @@ type SourceInfo struct {
 	ScientificValidation string          `json:"scientificValidation"`
 	Details              json.RawMessage `json:"details,omitempty"`
 }
+
+// ReadingTable is the per-run part of an instrument report's explicit runs
+// table ("Run  Eff. Diam. (nm)  ..." with rows 1..N). Each row is one
+// instrument reading of the same measurement: it is kept verbatim with the
+// header's unit and never counts as an experimental unit or as N. The
+// summary rows of the table (Mean, Combined) are not readings.
+type ReadingTable struct {
+	// Measurement is the measurement's position in the file; MeasurementID
+	// is filled in when the table is stored next to an imported measurement.
+	Measurement   int             `json:"measurement"`
+	MeasurementID string          `json:"measurementId,omitempty"`
+	HeaderLine    int             `json:"headerLine"`
+	Columns       []ReadingColumn `json:"columns"`
+	Rows          []Reading       `json:"rows"`
+}
+
+// ReadingColumn is one value column of a runs table.
+type ReadingColumn struct {
+	Header string `json:"header"`         // exact header cell, e.g. "Eff. Diam. (nm)"
+	Label  string `json:"label"`          // the header without its unit
+	Unit   string `json:"unit,omitempty"` // unit written in the header, verbatim
+	Key    string `json:"key,omitempty"`  // recognized summary parameter, when the label is one
+}
+
+// Reading is one run row: values in column order, each with its exact text.
+type Reading struct {
+	Index  int            `json:"index"` // 1-based position among the run rows
+	Run    string         `json:"run"`   // the run cell as written
+	Line   int            `json:"line"`
+	Values []ReadingValue `json:"values"`
+}
+
+// ReadingValue keeps the cell text; Value is absent when it is not a number.
+type ReadingValue struct {
+	Raw   string   `json:"raw"`
+	Value *float64 `json:"value,omitempty"`
+}
+
+// FileReadings stores the runs tables read from one original file. It lives
+// in its own collection so that measurement records stay exactly as they
+// were imported; an empty Tables list records that the file has none.
+type FileReadings struct {
+	FileID string         `json:"fileId"`
+	Parser string         `json:"parser"`
+	Spec   string         `json:"spec"`
+	Tables []ReadingTable `json:"tables"`
+}

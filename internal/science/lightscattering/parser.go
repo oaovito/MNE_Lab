@@ -30,7 +30,7 @@ import (
 )
 
 // Version identifies this parser in provenance records.
-const Version = "lightscattering-parser/1.6.0"
+const Version = "lightscattering-parser/1.7.0"
 
 // MaxFileSize bounds imports to keep parsing predictable on small machines.
 const MaxFileSize = 32 << 20
@@ -63,10 +63,13 @@ type Result struct {
 	Delimiter    string              `json:"delimiter,omitempty"`
 	Decimal      string              `json:"decimal,omitempty"`
 	Recognized   []string            `json:"recognized"`
-	Warnings     []string            `json:"warnings,omitempty"`
-	Error        string              `json:"error,omitempty"`
-	Parser       string              `json:"parser"`
-	Spec         string              `json:"spec"`
+	// Readings are the runs tables of instrument reports (read-only
+	// instrument readings), each naming its measurement by position.
+	Readings []model.ReadingTable `json:"readings,omitempty"`
+	Warnings []string             `json:"warnings,omitempty"`
+	Error    string               `json:"error,omitempty"`
+	Parser   string               `json:"parser"`
+	Spec     string               `json:"spec"`
 }
 
 // Stable error identifiers.
@@ -340,8 +343,12 @@ func Parse(data []byte) Result {
 			}
 			m.Fields = append(m.Fields, f)
 		}
+		var readings *model.ReadingTable
 		if native {
 			nanoRunUnits(blk, m.Params)
+			var w []string
+			readings, w = nanoRunReadings(blk)
+			res.Warnings = append(res.Warnings, w...)
 		}
 		if timeText != "" {
 			// Separate "Date" and "Time" fields: combine them.
@@ -352,6 +359,10 @@ func Parse(data []byte) Result {
 			}
 		}
 		if len(m.Params) > 0 || m.Dist != nil || len(m.Distributions) > 0 {
+			if readings != nil {
+				readings.Measurement = len(res.Measurements)
+				res.Readings = append(res.Readings, *readings)
+			}
 			res.Measurements = append(res.Measurements, m)
 		}
 	}

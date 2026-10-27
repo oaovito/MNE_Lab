@@ -22,6 +22,15 @@ type StatisticalAnnotation struct {
 	Label        string  `json:"label"`
 	AdjustedP    float64 `json:"adjustedP"`
 	Correction   string  `json:"correction"`
+	// Design graphs also carry the stored contrast, its context and family,
+	// and the estimated difference with its interval, exactly as saved.
+	AnalysisID string   `json:"analysisId,omitempty"`
+	Contrast   string   `json:"contrast,omitempty"`
+	Context    string   `json:"context,omitempty"`
+	Family     string   `json:"family,omitempty"`
+	Difference *float64 `json:"difference,omitempty"`
+	Lower      *float64 `json:"lower,omitempty"`
+	Upper      *float64 `json:"upper,omitempty"`
 }
 
 func ValidateAnnotations(def Definition, saved analysis.StatisticalAnalysis) error {
@@ -65,6 +74,7 @@ func StatisticalGroups(def Definition, saved analysis.StatisticalAnalysis) (Resu
 		Y: Axis{Label: "param." + s.Definition.Variable, Unit: s.Unit, Scale: "linear", Min: math.Inf(1), Max: math.Inf(-1)},
 		Provenance: Provenance{Engine: saved.Results.Engine, Spec: analysis.CalculationVersion, ComputedAt: saved.Created,
 			Statistics: "MNE Lab derived; " + def.ErrorBars + "; alpha=" + number(s.Definition.Alpha), Transformations: []string{"immutable analysis " + saved.ID, "source snapshot " + s.SourceHash}, Rules: []string{"statistics.explicit_design", "statistics.missing_not_zero"}}}
+	r.ErrorBars = def.ErrorBars
 	if saved.SourceChanged {
 		r.Warnings = append(r.Warnings, "statistics.source_changed_saved_graph")
 	}
@@ -129,7 +139,7 @@ func StatisticalGroups(def Definition, saved analysis.StatisticalAnalysis) (Resu
 		}
 		for _, series := range []*Series{&raw, &mean} {
 			if st, ok := def.Series[series.ID]; ok {
-				series.Hidden, series.Color = st.Hidden, st.Color
+				series.Hidden, series.Color, series.Marker, series.LineStyle = st.Hidden, st.Color, st.Marker, st.LineStyle
 				if st.Label != "" {
 					series.Label = st.Label
 				}

@@ -21,9 +21,19 @@ import {
   type StatisticalAnalysis,
   type StatisticalResults,
 } from "../../lib/statistics";
-import type { CycleView } from "../../lib/types";
+import type { CycleView, DesignView, GraphDef, Group } from "../../lib/types";
 import { Button, Empty, Notice, Skeleton, useAsync } from "../../ui/kit";
 import { MeasurementPicker } from "./picker";
+import {
+  DesignReviewCard,
+  definitionFromDesign,
+  PairedResults,
+} from "./statistics-paired";
+
+// What a graph, group or condition choice leaves out of a design analysis:
+// how many rows it keeps, the one condition left (Time-only route), or too
+// little to analyse.
+type GraphScope = { name: string; shown: number; total: number; one: string; nothing: boolean } | null;
 
 export function StatisticalModule(p: { id?: string }) {
   const s = useStore(app, (x) => x.s);
@@ -38,6 +48,8 @@ function StatisticalPage(p: { id?: string }) {
   const rev = useRev();
   const { path } = useRoute();
   const cycleId = new URL(location.href).searchParams.get("cycle") || "";
+  // Saved from an analysis started in a graph: offer to annotate it.
+  const fromGraph = new URL(location.href).searchParams.get("graph") || "";
   const saved = useAsync(
     () =>
       p.id && p.id !== "new"
@@ -47,7 +59,8 @@ function StatisticalPage(p: { id?: string }) {
         : Promise.resolve(null),
     [p.id, rev],
   );
-  if (p.id === "new") return <AnalysisEditor cycleId={cycleId} />;
+  if (p.id === "new")
+    return <AnalysisEditor key={location.search} cycleId={cycleId} />;
   if (p.id) {
     if (saved.error)
       return <Notice kind="danger">{errText(saved.error)}</Notice>;
@@ -95,6 +108,25 @@ function StatisticalPage(p: { id?: string }) {
         </div>
         {saved.data.sourceChanged && (
           <Notice kind="warning">{t("stat.changed")}</Notice>
+        )}
+        {fromGraph && (
+          <Notice
+            kind="info"
+            action={
+              <Button
+                kind="primary"
+                icon="chart"
+                class="stat-annotate"
+                onClick={() =>
+                  navigate(`/ls/graphs/${fromGraph}?analysis=${saved.data!.id}`)
+                }
+              >
+                {t("ga.annotate")}
+              </Button>
+            }
+          >
+            {t("ga.annotate.d")}
+          </Notice>
         )}
         <AnalysisResults
           snapshot={saved.data.snapshot}
@@ -167,6 +199,41 @@ function AnalysisLibrary() {
 function AnalysisEditor(p: { cycleId: string }) {
   const files = useFiles();
   const previousId = new URL(location.href).searchParams.get("previous") || "";
+  const params = new URL(location.href).searchParams;
+  const designParam = params.get("design") || "";
+  // Graph → Analyze and Groups → Analyze prefill (the person still reviews).
+  const variableParam = params.get("variable") || "";
+  // One parameter per condition, so a label may itself contain a comma.
+  const conditionsParam = params.getAll("conditions").filter(Boolean);
+  const groupParam = params.get("group") || "";
+  const graphParam = params.get("graph") || "";
+  const group = useAsync(
+    () =>
+      groupParam
+        ? Promise.all(groupParam.split(",").map((id) => get<Group>("/api/groups/" + id, { headers: statisticsHeaders() }))).then(
+            (gs): Group => ({ name: gs.map((g) => g.name).join(" · "), measurements: [...new Set(gs.flatMap((g) => g.measurements))] }),
+          )
+        : Promise.resolve(null),
+    [groupParam],
+  );
+  const graph = useAsync(
+    () => (graphParam ? get<GraphDef>("/api/graphs/" + graphParam) : Promise.resolve(null)),
+    [graphParam],
+  );
+  const designs = useAsync(
+    () =>
+      get<DesignView[]>("/api/designs", { headers: statisticsHeaders() }),
+    [],
+  );
+  const designView = useAsync(
+    () =>
+      designParam
+        ? get<DesignView>("/api/designs/" + designParam, {
+            headers: statisticsHeaders(),
+          })
+        : Promise.resolve(null),
+    [designParam],
+  );
   const cycle = useAsync(
     () =>
       p.cycleId
@@ -182,13 +249,14 @@ function AnalysisEditor(p: { cycleId: string }) {
     [],
   );
   const [unitLabel, setUnitLabel] = useState("");
+  const [scope, setScope] = useState<GraphScope>(null);
   const [picking, setPicking] = useState(false);
   const [def, setDef] = useState<AnalysisDefinition>({
     schema: 1,
     module: "lightscattering",
     title: "",
     cycleId: p.cycleId || undefined,
-    variable: "effective_diameter",
+    variable: (PARAMS as readonly string[]).includes(variableParam) ? variableParam : "effective_diameter",
     factorAName: "",
     factorBName: "",
     structure: "",
@@ -202,6 +270,7 @@ function AnalysisEditor(p: { cycleId: string }) {
   const [snapshot, setSnapshot] = useState<AnalysisSnapshot | null>(null),
     [result, setResult] = useState<StatisticalResults | null>(null),
     [error, setError] = useState(""),
+    [errorCode, setErrorCode] = useState(""),
     [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
@@ -231,6 +300,56 @@ function AnalysisEditor(p: { cycleId: string }) {
     }));
   }, [cycle.data]);
   useEffect(() => {
+    // The structure comes from the saved design revision; the person
+    // reviews it here and corrects it in the design, never rebuilds it.
+    if (!designView.data || (groupParam && group.loading) || (graphParam && graph.loading)) return;
+    // A graph analyzes exactly the measurements it draws (its saved list:
+    // parts, conditions and the group members pinned in it); a group or a
+    // condition choice without a graph analyzes those. Every other
+    // measurement of the design stays in the definition, excluded with that
+    // reason, so the analysis keeps the saved design (and its pairing) and
+    // its provenance shows what was left out.
+    const g = graph.data;
+    const drawn = g?.measurements?.length ? new Set(g.measurements) : null;
+    const members = group.data ? new Set(group.data.measurements) : null;
+    const name = g ? g.title || t("graph.kind." + g.kind) : group.data?.name || "";
+    const reason = g ? t("stat.graph_excluded", { name }) : group.data ? t("stat.group_excluded", { name }) : t("stat.condition_excluded");
+    const shown = (o: AnalysisDefinition["observations"][0]) =>
+      drawn ? drawn.has(o.measurementId) : (!conditionsParam.length || conditionsParam.includes(o.factorA)) && (!members || members.has(o.measurementId));
+    const next = definitionFromDesign(designView.data!, def);
+    const observations = next.observations.map((o) => (shown(o) ? o : { ...o, excludeReason: reason }));
+    const kept = observations.filter((o) => !o.excludeReason);
+    const conditions = [...new Set(kept.map((o) => o.factorA))];
+    const times = [...new Set(kept.map((o) => o.factorB))];
+    const units = new Set(kept.map((o) => o.unitId).filter(Boolean));
+    let scope: GraphScope = kept.length === observations.length ? null : { name, shown: kept.length, total: observations.length, one: "", nothing: false };
+    let layout: Partial<AnalysisDefinition> = {};
+    if (scope && (times.length < 2 || units.size < 2)) scope = { ...scope, nothing: true };
+    else if (scope && next.design === "within_within" && conditions.length === 1) {
+      // Condition × Time needs two conditions. One condition over time is
+      // the validated one-within-factor repeated layout (Time within units).
+      scope = { ...scope, one: conditions[0] };
+      layout = { design: "", structure: "repeated", method: "repeated", postHoc: "none", adjustment: "", sphericityCorrection: "GG" };
+    }
+    setScope(scope);
+    setDef((d) => ({ ...definitionFromDesign(designView.data!, { ...d, title: d.title || g?.title || group.data?.name || "" }), ...layout, observations }));
+  }, [designView.data, group.data, group.loading, graph.data, graph.loading]);
+  useEffect(() => {
+    // A group without a design: its measurements, as the picker would add them.
+    if (designParam || !group.data || !files.data) return;
+    const byId = allMeasurements(files.data);
+    setDef((d) => ({
+      ...d,
+      title: d.title || group.data!.name,
+      observations: group.data!.measurements
+        .filter((id) => byId.has(id))
+        .map((id) => {
+          const m = byId.get(id)!.m;
+          return { measurementId: id, factorA: m.group || m.condition || "", unitId: m.experimentalUnitId || "" };
+        }),
+    }));
+  }, [group.data, files.data]);
+  useEffect(() => {
     if (!previousId) return;
     let active = true;
     get<StatisticalAnalysis>("/api/statistics/" + previousId, {
@@ -256,7 +375,22 @@ function AnalysisEditor(p: { cycleId: string }) {
     setSnapshot(null);
     setResult(null);
     setError("");
+    setErrorCode("");
   };
+  const fromDesign = !!def.designId;
+  const attached = designView.data?.design.id === def.designId ? designView.data : null;
+  const paired = def.design === "within_within";
+  // A saved paired design that places the chosen measurements, offered for
+  // review when the person organized them by hand (addendum A §57).
+  const suggested = fromDesign
+    ? undefined
+    : (designs.data || []).find(
+        (v) =>
+          v.structure.detected === "paired_longitudinal" &&
+          def.observations.some((o) =>
+            v.design.assignments.some((a) => a.measurementId === o.measurementId),
+          ),
+      );
   const available = [
     ...allMeasurements(
       (files.data || []).filter((f) => f.module === "lightscattering"),
@@ -284,9 +418,9 @@ function AnalysisEditor(p: { cycleId: string }) {
       setSnapshot(s);
       setResult(null);
     } catch (e) {
-      setError(
-        errText((e as { code?: string }).code || "statistics.engine_failed"),
-      );
+      const code = (e as { code?: string }).code || "statistics.engine_failed";
+      setErrorCode(code);
+      setError(errText(code));
     } finally {
       setBusy(false);
     }
@@ -323,7 +457,7 @@ function AnalysisEditor(p: { cycleId: string }) {
         },
         { headers: statisticsHeaders() },
       );
-      navigate("/ls/statistics/" + a.id);
+      navigate("/ls/statistics/" + a.id + (graphParam ? "?graph=" + graphParam : ""));
     } catch (e) {
       setError(
         errText((e as { code?: string }).code || "statistics.engine_failed"),
@@ -360,6 +494,77 @@ function AnalysisEditor(p: { cycleId: string }) {
         class="card pad col gap3"
         style={{ border: "1px solid var(--border)" }}
       >
+        <div class="row gap3 wrap stat-design-pick">
+          <label class="col gap1 grow">
+            {t('stat.design_source')}
+            <select
+              class="input"
+              value={designParam}
+              onChange={(e) => {
+                const id = e.currentTarget.value;
+                navigate("/ls/statistics/new" + (id ? "?design=" + id : ""));
+              }}
+            >
+              <option value="">{t('stat.design_none')}</option>
+              {(designs.data || []).map((v) => (
+                <option value={v.design.id}>
+                  {t('stat.design_option', { name: v.design.name, n: v.design.revision })}
+                </option>
+              ))}
+            </select>
+          </label>
+          {attached && (
+            <Button icon="layers" onClick={() => navigate("/ls/designs/" + attached.design.id)}>
+              {t('stat.open_design')}
+            </Button>
+          )}
+        </div>
+        {attached && (
+          <Notice kind="info">
+            {t('stat.design_attached', {
+              name: attached.design.name,
+              n: attached.design.revision,
+              units: attached.structure.experimentalUnits,
+              m: attached.structure.measurements,
+            })}
+          </Notice>
+        )}
+        {designView.error && <Notice kind="danger">{errText(designView.error)}</Notice>}
+        {graph.data && (
+          <Notice kind="info">
+            <span class="stat-from-graph">{t("ga.from_graph", { name: graph.data.title || t("graph.kind." + graph.data.kind) })}</span>
+          </Notice>
+        )}
+        {group.data && !graph.data && <Notice kind="info">{t("ga.from_group", { name: group.data.name })}</Notice>}
+        {scope && !scope.nothing && graph.data && (
+          <Notice kind="info">
+            <span class="stat-graph-subset">{t("stat.graph_subset", { name: scope.name, shown: scope.shown, total: scope.total })}</span>
+          </Notice>
+        )}
+        {scope?.one && (
+          <Notice kind="warning">
+            <span class="stat-graph-one">{t("stat.graph_one_condition", { name: scope.one })}</span>
+          </Notice>
+        )}
+        {scope?.nothing && (
+          <Notice kind="danger">
+            <span class="stat-graph-nothing">{t("stat.graph_nothing")}</span>
+          </Notice>
+        )}
+        {suggested && (
+          <Notice kind="info">
+            <span class="col gap2">
+              <span>
+                <b>{t('stat.paired_detected')}</b> {t('stat.paired_detected_body', { name: suggested.design.name })}
+              </span>
+              <span class="row gap2">
+                <Button kind="primary" onClick={() => navigate("/ls/statistics/new?design=" + suggested.design.id)}>
+                  {t('stat.paired_use')}
+                </Button>
+              </span>
+            </span>
+          </Notice>
+        )}
         <div class="row gap3 wrap">
           {field("title", "stat.name")}
           <label class="col gap1">
@@ -395,7 +600,8 @@ function AnalysisEditor(p: { cycleId: string }) {
                       : def.observations.some((o) => o.factorB)
                         ? "two_way"
                         : "one_way",
-                  postHoc: "none",
+                  postHoc: structure === "repeated" && paired ? "simple_effects" : "none",
+                  adjustment: structure === "repeated" && paired ? "holm" : "",
                   control: "",
                   sphericityCorrection: "GG",
                   effectCI: false,
@@ -407,6 +613,28 @@ function AnalysisEditor(p: { cycleId: string }) {
               <option value="repeated">{t("stat.repeated")}</option>
             </select>
           </label>
+          {def.structure === "repeated" && (
+            <label class="col gap1">
+              {t('stat.layout')}
+              <select
+                class="input"
+                value={def.design || ""}
+                onChange={(e) => {
+                  const design = e.currentTarget.value as "" | "within_within";
+                  change({
+                    design,
+                    method: "repeated",
+                    sphericityCorrection: "GG",
+                    postHoc: design ? "simple_effects" : "none",
+                    adjustment: design ? "holm" : "",
+                  });
+                }}
+              >
+                <option value="">{t('stat.layout_between')}</option>
+                <option value="within_within">{t('stat.layout_within')}</option>
+              </select>
+            </label>
+          )}
         </div>
         <label class="row gap2">
           <input
@@ -425,7 +653,7 @@ function AnalysisEditor(p: { cycleId: string }) {
               class="input"
               value={def.method}
               onChange={(e) =>
-                change({ method: e.currentTarget.value, effectCI: false, postHoc: "none", control: "", sphericityCorrection: e.currentTarget.value === "mixed" ? "" : "GG" })
+                change({ method: e.currentTarget.value, effectCI: false, postHoc: paired ? def.postHoc : "none", control: "", sphericityCorrection: e.currentTarget.value === "mixed" ? "" : "GG" })
               }
             >
               {(def.structure === "repeated"
@@ -453,15 +681,31 @@ function AnalysisEditor(p: { cycleId: string }) {
             <select
               class="input"
               value={def.postHoc}
-              onChange={(e) => change({ postHoc: e.currentTarget.value, control: "" })}
+              onChange={(e) => change({ postHoc: e.currentTarget.value, control: "", adjustment: e.currentTarget.value === "simple_effects" ? def.adjustment || "holm" : "" })}
             >
               <option value="none">{t("stat.none")}</option>
-              {["one_way", "two_way"].includes(def.method) && (
+              {paired && def.structure === "repeated" && (
+                <option value="simple_effects">{t('stat.simple_effects')}</option>
+              )}
+              {!paired && ["one_way", "two_way"].includes(def.method) && (
                 <option value="tukey">Tukey HSD</option>
               )}
-              {def.method === "one_way" && <option value="dunnett">Dunnett</option>}
+              {!paired && def.method === "one_way" && <option value="dunnett">Dunnett</option>}
             </select>
           </label>
+          {def.postHoc === "simple_effects" && (
+            <label class="col gap1">
+              {t('stat.adjustment')}
+              <select
+                class="input"
+                value={def.adjustment || "holm"}
+                onChange={(e) => change({ adjustment: e.currentTarget.value })}
+              >
+                <option value="holm">Holm</option>
+                <option value="bonferroni">Bonferroni</option>
+              </select>
+            </label>
+          )}
           {def.postHoc === "dunnett" && (
             <label class="col gap1">
               {t("stat.control")}
@@ -492,7 +736,7 @@ function AnalysisEditor(p: { cycleId: string }) {
           <span class="row gap2"><input type="checkbox" aria-label={t("stat.effect_ci")} checked={!!def.effectCI} onChange={e=>change({effectCI:e.currentTarget.checked})}/>{t("stat.effect_ci")}</span>
           <small>{t("stat.effect_ci_scope")}</small>
         </label>}
-        {def.method === "mixed" && <Notice kind="info">{t("stat.mixed_scope")}</Notice>}
+        {def.method === "mixed" && <Notice kind="info">{t(paired ? 'stat.paired_mixed_scope' : 'stat.mixed_scope')}</Notice>}
         <details>
           <summary>{t("stat.units")}</summary>
           <p>{t("stat.units_help")}</p>
@@ -523,7 +767,7 @@ function AnalysisEditor(p: { cycleId: string }) {
           </div>
         </details>
         <div class="row gap2">
-          <Button icon="plus" onClick={() => setPicking(true)}>
+          <Button icon="plus" disabled={fromDesign} onClick={() => setPicking(true)}>
             {t("stat.choose_measurements")}
           </Button>
           <span>{t("files.selected", { n: def.observations.length })}</span>
@@ -585,6 +829,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                           t("stat.include") + " " + measurementName(m, f)
                         }
                         checked={!!o}
+                        disabled={fromDesign}
                         onChange={(e) =>
                           change({
                             observations: e.currentTarget.checked
@@ -615,7 +860,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                         aria-label={
                           t("stat.factor_a") + " " + measurementName(m, f)
                         }
-                        disabled={!o}
+                        disabled={!o || fromDesign}
                         value={o?.factorA || ""}
                         onInput={(e) =>
                           assignment(m.id, { factorA: e.currentTarget.value })
@@ -629,7 +874,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                         aria-label={
                           t("stat.factor_b") + " " + measurementName(m, f)
                         }
-                        disabled={!o}
+                        disabled={!o || fromDesign}
                         value={o?.factorB || ""}
                         onInput={(e) =>
                           assignment(m.id, { factorB: e.currentTarget.value })
@@ -643,7 +888,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                         aria-label={
                           t("stat.unit") + " " + measurementName(m, f)
                         }
-                        disabled={!o}
+                        disabled={!o || fromDesign}
                         value={o?.unitId || ""}
                         onChange={(e) =>
                           assignment(m.id, { unitId: e.currentTarget.value })
@@ -680,13 +925,35 @@ function AnalysisEditor(p: { cycleId: string }) {
         <Notice kind="warning">{t("stat.limits")}</Notice>
         <Button
           kind="primary"
+          class="stat-prepare"
           disabled={!def.structureReviewed || def.observations.length < 3}
           onClick={prepare}
         >
           {t("stat.prepare")}
         </Button>
       </fieldset>
-      {error && <Notice kind="danger">{error}</Notice>}
+      {error && (
+        <Notice kind="danger">
+          <span class="col gap2">
+            <span>{error}</span>
+            {errorCode === "statistics.paired_longitudinal_detected" && (
+              <span class="row gap2">
+                <Button
+                  kind="primary"
+                  onClick={() =>
+                    suggested
+                      ? navigate("/ls/statistics/new?design=" + suggested.design.id)
+                      : change({ design: "within_within", method: "repeated", sphericityCorrection: "GG", postHoc: "simple_effects", adjustment: "holm", structureReviewed: false })
+                  }
+                >
+                  {t('stat.paired_use')}
+                </Button>
+              </span>
+            )}
+          </span>
+        </Notice>
+      )}
+      {snapshot && <DesignReviewCard snapshot={snapshot} />}
       {snapshot && (
         <div class="card pad col gap2">
           <b>{t("stat.design")}</b>
@@ -700,7 +967,7 @@ function AnalysisEditor(p: { cycleId: string }) {
             <Notice kind="warning">{warnText(w)}</Notice>
           ))}
           <div class="row gap2">
-            <Button kind="primary" disabled={busy} onClick={calculate}>
+            <Button kind="primary" class="stat-run" disabled={busy} onClick={calculate}>
               {busy ? t("stat.running") : t("stat.run")}
             </Button>
             {busy && (
@@ -709,7 +976,7 @@ function AnalysisEditor(p: { cycleId: string }) {
               </Button>
             )}
             {result && (
-              <Button kind="primary" disabled={busy} onClick={save}>
+              <Button kind="primary" class="stat-save" disabled={busy} onClick={save}>
                 {t("stat.save")}
               </Button>
             )}
@@ -742,6 +1009,8 @@ function AnalysisResults(p: {
   const u = s.unit ? ` (${s.unit})` : "";
   const u2 = s.unit ? ` (${squared(s.unit)})` : "";
   const after = (text: string) => (s.unit ? `${text} ${s.unit}` : text);
+  const paired = r.design === "within_within";
+  const design = s.experimentalDesign;
   return (
     <div class="col gap3">
       <div class="card pad">
@@ -757,7 +1026,8 @@ function AnalysisResults(p: {
       {r.warnings.map((w) => (
         <Notice kind="warning">{warnText(w)}</Notice>
       ))}
-      <section class="card pad col gap2">
+      {paired && <PairedResults snapshot={s} result={r} />}
+      {!paired && <section class="card pad col gap2">
         <h3>{t(r.model ? "stat.mixed_tests" : "stat.anova_table")}</h3>
         <div style={{ overflowX: "auto" }}>
           <table class="table">
@@ -796,7 +1066,7 @@ function AnalysisResults(p: {
             </tbody>
           </table>
         </div>
-      </section>
+      </section>}
       {!!r.effectIntervals?.length && <section class="card pad col gap2">
         <h3>{t("stat.effect_ci")}</h3><p>{t("stat.effect_ci_scope")}</p>
         <table class="table"><thead><tr><th>{t("stat.source")}</th><th>{t("stat.confidence_level")}</th><th>CI</th><th>{t("stat.status")}</th></tr></thead><tbody>
@@ -804,7 +1074,7 @@ function AnalysisResults(p: {
         </tbody></table>
         <small>{r.effectIntervals[0].method}</small>
       </section>}
-      {r.model && <section class="card pad col gap2">
+      {r.model && !paired && <section class="card pad col gap2">
         <h3>{t("stat.mixed_model")}</h3>
         <p>{t("stat.mixed_scope")}</p>
         <p>{r.model.estimation} · y ~ {r.model.fixed} · {r.model.random} · {r.model.test}</p>
@@ -854,7 +1124,7 @@ function AnalysisResults(p: {
           ))}
         </details>
       </section>
-      {r.comparisons.length > 0 && (
+      {r.comparisons.length > 0 && !paired && (
         <section class="card pad">
           <h3>{t("stat.posthoc")}</h3>
           <table class="table">
@@ -910,6 +1180,13 @@ function AnalysisResults(p: {
       <details class="card pad">
         <summary>{t("stat.provenance")}</summary>
         <p>SHA-256: {s.sourceHash}</p>
+        {design && (
+          <p class="stat-design-source">
+            {t('stat.review_from_design', { name: design.name, n: design.revision })} · {design.id}
+            {" "}
+            <Button size="sm" onClick={() => navigate("/ls/designs/" + design.id)}>{t('stat.open_design')}</Button>
+          </p>
+        )}
         <p>{t("stat.units_help")}</p>
         {s.sources.map((src) => (
           <p>

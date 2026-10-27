@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -151,5 +152,99 @@ func TestNanoBrookUnitFromRunTable(t *testing.T) {
 	q = Parse([]byte(other)).Measurements[0].Params[model.EffectiveDiameter]
 	if q.Unit != "" || q.UnitOrigin != "" {
 		t.Fatalf("unit adopted from a different value: %+v", q)
+	}
+}
+
+func TestNanoBrookRunTableReadingsAreVerbatim(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "lightscattering", "synthetic-nanobrook-run-table.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := Parse(b)
+	if len(r.Readings) != 1 || r.Readings[0].Measurement != 0 {
+		t.Fatalf("readings: %+v", r.Readings)
+	}
+	tb := r.Readings[0]
+	if tb.HeaderLine != 17 || len(tb.Columns) != 4 || len(tb.Rows) != 2 {
+		t.Fatalf("table: %+v", tb)
+	}
+	want := []model.ReadingColumn{
+		{Header: "Eff. Diam. (nm)", Label: "Eff. Diam.", Unit: "nm", Key: model.EffectiveDiameter},
+		{Header: "Half Width (nm)", Label: "Half Width", Unit: "nm"},
+		{Header: "Polydispersity", Label: "Polydispersity", Key: model.Polydispersity},
+		{Header: "Baseline Index", Label: "Baseline Index", Key: model.BaselineIndex},
+	}
+	for i, c := range want {
+		if tb.Columns[i] != c {
+			t.Fatalf("column %d: %+v", i, tb.Columns[i])
+		}
+	}
+	first := tb.Rows[0]
+	if first.Index != 1 || first.Run != "1" || first.Line != 19 || first.Values[0].Raw != "86.0" || *first.Values[0].Value != 86 || first.Values[2].Raw != "0.120" {
+		t.Fatalf("first run: %+v", first)
+	}
+	if second := tb.Rows[1]; second.Run != "2" || second.Line != 20 || second.Values[3].Raw != "8.9" {
+		t.Fatalf("second run: %+v", second)
+	}
+	// The summary still comes from the results lines, not from the runs.
+	if q := r.Measurements[0].Params[model.EffectiveDiameter]; q.Raw != "87.1" || q.Line != 13 {
+		t.Fatalf("summary changed: %+v", q)
+	}
+	for _, f := range r.Measurements[0].Fields {
+		if f.Line >= 17 && f.Line <= 23 {
+			t.Fatalf("a runs-table row became a field: %+v", f)
+		}
+	}
+}
+
+func TestNanoBrookTwelveReadingsOneMeasurement(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "lightscattering", "synthetic-nanobrook-twelve-runs.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := Parse(b)
+	if len(r.Measurements) != 1 || len(r.Readings) != 1 || len(r.Readings[0].Rows) != 12 {
+		t.Fatalf("measurements %d, readings %+v", len(r.Measurements), r.Readings)
+	}
+	for i, row := range r.Readings[0].Rows {
+		if row.Index != i+1 || row.Run != strconv.Itoa(i+1) || len(row.Values) != 4 {
+			t.Fatalf("run %d: %+v", i+1, row)
+		}
+	}
+}
+
+func TestNanoBrookRunReadingsNeedAnExplicitTable(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "lightscattering", "synthetic-nanobrook-methods.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := Parse(b); len(r.Readings) != 0 {
+		t.Fatalf("readings without a runs table: %+v", r.Readings)
+	}
+	// Plain exports never get readings, even with several runs of values.
+	for _, name := range []string{"synthetic-two-runs.txt", "synthetic-tab.txt"} {
+		b, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "lightscattering", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := Parse(b); len(r.Readings) != 0 {
+			t.Fatalf("%s: readings %+v", name, r.Readings)
+		}
+	}
+	// A header alone, without run rows, is no table; a second table is reported.
+	run, _ := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "lightscattering", "synthetic-nanobrook-run-table.txt"))
+	text := string(run)
+	noRows := strings.NewReplacer("  1          86.0", "  x          86.0", "  2          88.2", "  y          88.2").Replace(text)
+	if r := Parse([]byte(noRows)); len(r.Readings) != 0 {
+		t.Fatalf("readings without run rows: %+v", r.Readings)
+	}
+	twice := strings.Replace(text, "    **** Lognormal", " Run   Eff. Diam. (nm)\n  1   90.0\n\n    **** Lognormal", 1)
+	r := Parse([]byte(twice))
+	found := false
+	for _, w := range r.Warnings {
+		found = found || strings.HasPrefix(w, "ls.run_table_ignored:")
+	}
+	if len(r.Readings) != 1 || len(r.Readings[0].Rows) != 2 || !found {
+		t.Fatalf("second table: %+v %v", r.Readings, r.Warnings)
 	}
 }

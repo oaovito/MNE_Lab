@@ -16,6 +16,15 @@ export type View = { XMin: number; XMax: number; YMin: number; YMax: number };
 export function seriesLabel(label: string): string {
   if(label.startsWith('statistics:')){const [,key,...rest]=label.split(':');return t('series.stat_'+key)+' · '+rest.join(':');}
   if (label.startsWith('series.')) return t(label);
+  if (label.startsWith('design:')) {
+    const [, key, ...rest] = label.split(':'); // design:<kind>:<condition>
+    const cond = rest.join(':');
+    return t('series.design_' + key) + (cond ? ' · ' + cond : '');
+  }
+  if (label.startsWith('reading:')) {
+    const i = label.indexOf(':', 8); // reading:<run>:<series label>
+    if (i > 0) return t('series.reading', { name: label.slice(i + 1), run: label.slice(8, i) });
+  }
   if (label.startsWith('point:')) {
     const p = label.split(':'); // point:<unit>:<offset>[:<replicate>]
     if (p.length === 3) return t('point.' + p[1], { n: p[2] });
@@ -30,7 +39,7 @@ export function seriesLabel(label: string): string {
  * SD, SEM or confidence interval (half-width).
  */
 export function errStat(label: string): 'sd' | 'sem' | 'ci' | '' {
-  const m = label.match(/^(?:series\.mean_|statistics:mean_)(sd|sem|ci)(?:$|:)/);
+  const m = label.match(/^(?:series\.mean_|statistics:mean_|design:mean_)(sd|sem|ci)(?:$|:)/);
   return m ? (m[1] as 'sd' | 'sem' | 'ci') : '';
 }
 
@@ -66,6 +75,22 @@ function draw(ops: Op[], hidden?: Set<string>): JSX.Element[] {
       case 'circle':
         push(<circle key={i} cx={o.x || 0} cy={o.y || 0} r={o.r || 0} {...paint} />);
         break;
+      case 'marker': {
+        // Marker shapes come with their outline points from the core, so the
+        // screen draws the same geometry as the SVG, PDF and raster exports.
+        const p = o.pts || [];
+        const xy = (j: number) => p[j].toFixed(2) + ' ' + p[j + 1].toFixed(2);
+        if (o.shape === 'cross' && p.length >= 8) {
+          push(<path key={i} d={`M${xy(0)} L${xy(2)} M${xy(4)} L${xy(6)}`} fill="none" stroke={o.stroke} stroke-width={o.sw} stroke-linecap="round" />);
+        } else if (p.length >= 6) {
+          let d = '';
+          for (let j = 0; j + 1 < p.length; j += 2) d += (j ? ' ' : '') + p[j].toFixed(2) + ',' + p[j + 1].toFixed(2);
+          push(<polygon key={i} points={d} stroke-linejoin="round" {...paint} />);
+        } else {
+          push(<circle key={i} cx={o.x || 0} cy={o.y || 0} r={o.r || 0} {...paint} />);
+        }
+        break;
+      }
       case 'text':
         push(
           <text
@@ -201,6 +226,10 @@ export function FigureView(p: Props) {
   if (hover && se) {
     const xv = se.x[hover.i],
       yv = se.y[hover.i];
+    // Design graphs name each point (time, unit · condition…): the X
+    // position there is only a drawing slot.
+    const pl = se.pointLabels || [];
+    const pointLabel = pl.length === se.x.length ? pl[hover.i] : pl.length === 1 ? pl[0] : '';
     const left = (hover.x / f.width) * 100;
     const top = (hover.y / f.height) * 100;
     tip = (
@@ -209,9 +238,15 @@ export function FigureView(p: Props) {
           <span class="dot" style={{ color: se.color || 'var(--accent)' }} />
           <strong class="ellipsis">{seriesLabel(se.label)}</strong>
         </div>
-        <div class="num">
-          {fmtNum(xv)} {p.xUnit || ''} · {fmtNum(yv)} {p.yUnit || ''}
-        </div>
+        {pointLabel ? (
+          <div class="num">
+            {pointLabel} · {fmtNum(yv)} {p.yUnit || ''}
+          </div>
+        ) : (
+          <div class="num">
+            {fmtNum(xv)} {p.xUnit || ''} · {fmtNum(yv)} {p.yUnit || ''}
+          </div>
+        )}
         {se.err?.[hover.i] !== undefined && (
           <div class="faint num">
             ± {fmtNum(se.err[hover.i])}

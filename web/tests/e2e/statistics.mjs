@@ -236,8 +236,9 @@ try {
     .getByRole("checkbox");
   await choice.check();
   await page
-    .getByRole("combobox", { name: "Mean error bars", exact: true })
-    .selectOption("sem");
+    .getByRole("radiogroup", { name: "Mean error bars", exact: true })
+    .getByRole("radio", { name: "SEM", exact: true })
+    .click();
   const [savedGraphResponse]=await Promise.all([page.waitForResponse(r=>new URL(r.url()).pathname==='/api/graphs'&&r.request().method()==='POST'&&r.status()===200),page.getByRole("button", { name: "Save", exact: true }).click()]);
   const graphID = (await savedGraphResponse.json()).id;
   const graph = await page.request

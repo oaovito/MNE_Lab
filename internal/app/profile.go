@@ -34,6 +34,13 @@ const (
 	CollImportProfiles = "import.profile"
 	CollAnalyses       = "science.analysis"
 	CollUnits          = "science.experimental_unit"
+	CollReadings       = "ls.reading"
+	CollDesigns        = "science.design"
+	// Groups and saved selections (references only).
+	CollGroups = "ls.group"
+	// Measurement units (units of measure), unrelated to experimental units.
+	CollUnitDefs         = "science.unit_definition"
+	CollUnitReplacements = "science.unit_replacement"
 )
 
 // ProfileSettings are the preferences of one profile (synchronized).
@@ -152,6 +159,9 @@ func (a *App) openProfile(acct *vault.Account, e vault.ProfileEntry, key secure.
 	if !deferred {
 		if err := p.adoptTableUnits(); err != nil {
 			a.Log.Warn("units from report tables not completed", "err", err)
+		}
+		if err := p.adoptRunReadings(); err != nil {
+			a.Log.Warn("readings from report tables not completed", "err", err)
 		}
 	}
 	p.loadSettings()

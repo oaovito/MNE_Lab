@@ -3,6 +3,7 @@ package lightscattering
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/oaovito/mne_lab/internal/science/model"
@@ -244,4 +245,66 @@ func nanoRunUnits(blk []line, params map[string]model.Quantity) {
 			break
 		}
 	}
+}
+
+// readingKeys are the summary parameters a runs-table column may name.
+var readingKeys = map[string]bool{model.EffectiveDiameter: true, model.Polydispersity: true, model.CountRate: true, model.AverageCountRate: true, model.BaselineIndex: true}
+
+// nanoRunReadings reads the run rows of an explicit runs table: a header
+// whose first column is "Run", followed by rows whose first cell is a run
+// number and that have exactly one cell per header column. Every cell is
+// kept as written, with the unit its header states; no value is computed,
+// converted or summarized. Mean and Combined rows are summaries, not
+// readings. Only the first table of a measurement is read; any further one
+// is reported with its header line.
+func nanoRunReadings(blk []line) (*model.ReadingTable, []string) {
+	var table *model.ReadingTable
+	var warnings []string
+	for i, l := range blk {
+		cols := runColumnGap.Split(strings.TrimSpace(l.text), -1)
+		if len(cols) < 2 || normalize(cols[0]) != "run" {
+			continue
+		}
+		t := model.ReadingTable{HeaderLine: l.n}
+		used := map[string]bool{}
+		for _, c := range cols[1:] {
+			label, unit := splitLabelUnit(c)
+			col := model.ReadingColumn{Header: c, Label: label, Unit: unit}
+			if key := lookup(summaryAliases, label); readingKeys[key] && !used[key] {
+				col.Key, used[key] = key, true
+			}
+			t.Columns = append(t.Columns, col)
+		}
+		for _, r := range blk[i+1:] {
+			text := strings.TrimSpace(r.text)
+			if strings.HasPrefix(text, "****") || (text == "" && len(t.Rows) > 0) {
+				break
+			}
+			cells := strings.Fields(r.text)
+			if len(cells) != len(cols) {
+				continue
+			}
+			if n, err := strconv.Atoi(cells[0]); err != nil || n <= 0 {
+				continue
+			}
+			reading := model.Reading{Index: len(t.Rows) + 1, Run: cells[0], Line: r.n}
+			for _, cell := range cells[1:] {
+				v := model.ReadingValue{Raw: cell}
+				if num, ok := parseNumber(cell, "."); ok {
+					v.Value = &num
+				}
+				reading.Values = append(reading.Values, v)
+			}
+			t.Rows = append(t.Rows, reading)
+		}
+		if len(t.Rows) == 0 {
+			continue
+		}
+		if table != nil {
+			warnings = append(warnings, fmt.Sprintf("ls.run_table_ignored:%d", l.n))
+			continue
+		}
+		table = &t
+	}
+	return table, warnings
 }

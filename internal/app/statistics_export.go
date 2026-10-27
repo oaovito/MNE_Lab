@@ -103,6 +103,18 @@ func (p *Profile) analysisOutputs(id string, req ExportRequest, spec plot.Spec, 
 					return nil, "", e
 				}
 			}
+			// The saved design revision the structure was taken from: units by
+			// name, condition and time levels, pairs and the change history.
+			if a.Snapshot.ExperimentalDesign != nil {
+				if e := addJSON("statistics/analysis-definitions/experimental-design.json", "statistics", map[string]any{"design": a.Snapshot.ExperimentalDesign, "currentRevisions": a.Snapshot.DesignHeads, "unitLabels": a.Snapshot.UnitLabels}); e != nil {
+					return nil, "", e
+				}
+			}
+			if len(a.Results.SimpleEffects) > 0 {
+				if e := addJSON("statistics/posthoc-tests/simple-effects.json", "statistics", map[string]any{"adjustment": a.Snapshot.Definition.Adjustment, "withinCondition": a.Results.SimpleEffects, "pairedComparisons": a.Results.Comparisons}); e != nil {
+					return nil, "", e
+				}
+			}
 			b, e := export.StatisticalReport(a)
 			if e != nil {
 				return nil, "", e

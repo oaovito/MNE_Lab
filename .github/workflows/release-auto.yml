@@ -1,0 +1,81 @@
+name: Release (automatic)
+
+# After CI passes on a push to main, the next development tag is created on
+# that commit, release.yml builds and audits every package into a draft, and
+# the draft is published. Publishing needs the AUDIT_TERMS secret: without
+# it the draft stays unpublished for a manual audit.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-auto
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - id: next
+        name: Tag the tested commit with the next development version
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git fetch --tags --force origin
+          if [ "$(git rev-parse origin/main)" != "$SHA" ]; then
+            echo "main moved past $SHA; its own CI run releases the newer commit"; exit 0
+          fi
+          if [ -n "$(git tag --points-at "$SHA" 'v*')" ]; then
+            echo "$SHA already has a version tag"; exit 0
+          fi
+          last=$(git tag -l 'v*-dev.*' | sort -V | tail -n 1)
+          [[ $last =~ ^(v[0-9]+\.[0-9]+\.[0-9]+-dev\.)([0-9]+)$ ]] || { echo "No development tag to continue from"; exit 1; }
+          tag="${BASH_REMATCH[1]}$((BASH_REMATCH[2] + 1))"
+          git tag "$tag" "$SHA"
+          git push origin "refs/tags/$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: tag
+    if: needs.tag.outputs.tag != ''
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit
+
+  publish:
+    needs: [tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.tag.outputs.tag }}
+      AUDIT_TERMS: ${{ secrets.AUDIT_TERMS }}
+    steps:
+      - name: Publish the audited draft
+        run: |
+          if [ -z "$AUDIT_TERMS" ]; then
+            echo "::warning title=Draft not published::The AUDIT_TERMS secret is empty, so $TAG stays a draft until it is audited by hand."
+            exit 0
+          fi
+          gh release edit "$TAG" --draft=false
+          gh release view "$TAG" --json isDraft,isPrerelease,url --jq '{isDraft, isPrerelease, url}'

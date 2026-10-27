@@ -206,18 +206,26 @@ export type ImportInspection = {
     warnings?: string[]; error?: string; parser: string; spec: string };
 };
 
-export type SeriesStyle = { label?: string; color?: string; hidden?: boolean };
-export type Visual = { legend: boolean; metadata: boolean; grid: boolean; points: boolean; lineWidth: number; fontScale: number; view?: { XMin: number; XMax: number; YMin: number; YMax: number } | null };
+/** Marker shapes and line styles drawn by the core (internal/plot/style.go). */
+export type MarkerShape = 'circle' | 'square' | 'triangle' | 'diamond' | 'triangle_down' | 'cross';
+export type LineStyle = 'solid' | 'dashed' | 'dotted' | 'dashdot' | 'longdash' | 'dashdotdot';
+export type SeriesStyle = { label?: string; color?: string; hidden?: boolean; marker?: MarkerShape | 'none'; lineStyle?: LineStyle };
+export type Visual = { legend: boolean; metadata: boolean; grid: boolean; points: boolean; lineWidth: number; fontScale: number; view?: { XMin: number; XMax: number; YMin: number; YMax: number } | null; legendMode?: 'all' | 'visible' | 'selected'; legendSeries?: string[]; margin?: number; preset?: string };
+
+/** A graph's origin, written only by the core (Duplicate; Combine later). */
+export type Lineage = { graphId: string; relation: 'duplicate' | 'combine' | string; title?: string; definitionHash: string; at: string };
+export type TextNote = { text: string; x: number; y: number };
+export type GraphKind = 'dls_distribution' | 'series_values' | 'parameter_time' | 'dls_by_time' | 'statistical_groups' | 'design_time' | 'paired_condition';
 
 export type GraphDef = {
   schema?: number;
   id?: string;
   title: string;
-  kind: 'dls_distribution' | 'parameter_time' | 'dls_by_time' | 'statistical_groups';
+  kind: GraphKind;
   analysisId?: string;
   errorBars?: 'sd'|'sem'|'ci';
   annotations?: string[];
-  annotationStyle?: 'exact'|'stars';
+  annotationStyle?: 'exact'|'stars'|'effect';
   measurements: string[];
   distributions?: Record<string, string>;
   weighting?: string;
@@ -231,10 +239,67 @@ export type GraphDef = {
   created?: string;
   updated?: string;
   trashed?: boolean;
+  // schema 2 (all optional; a schema 1 graph draws as before)
+  seriesIds?: string[];
+  focusSeries?: string[];
+  subtitle?: string;
+  xLabel?: string;
+  yLabel?: string;
+  yScale?: '' | 'log';
+  displayUnit?: string;
+  showIndividual?: boolean;
+  connectMeans?: boolean;
+  textNotes?: TextNote[];
+  derivedFrom?: Lineage[];
+  sourceFiles?: string[];
+  parserVersions?: string[];
+  calculationVersion?: string;
+  // design graphs (condition × time and paired view)
+  designId?: string;
+  conditions?: string[];
+  pairedAt?: string;
+  groups?: string[];
+  // The members each group had when the graph was saved (the graph draws
+  // these until the person takes the group's current members).
+  groupSnapshots?: GroupSnapshot[];
+  // A combined design graph: each part is what one original graph drew.
+  parts?: DesignPart[];
+  unitTrajectories?: boolean;
+};
+
+export type GroupSnapshot = { id: string; name?: string; measurements: string[]; hash?: string };
+export type DesignPart = { graphId: string; title?: string; conditions?: string[]; groups?: GroupSnapshot[] };
+
+/** A saved group or selection: references only (measurement and series IDs). */
+export type Group = {
+  schema?: number;
+  id?: string;
+  name: string;
+  kind?: 'group' | 'selection';
+  measurements: string[];
+  seriesIds?: string[];
+  notes?: string;
+  tags?: string[];
+  created?: string;
+  updated?: string;
+};
+
+/** The core's verdict on combining saved graphs. */
+export type CombineCheck = {
+  compatible: boolean;
+  kind?: string;
+  variable?: string;
+  units: string[];
+  xUnits?: string[];
+  problems: string[];
+  notes: string[];
+  conversions?: string[];
+  displayUnit?: string;
 };
 
 export type Op = {
   k: string;
+  shape?: string;
   x?: number;
   y?: number;
   w?: number;
@@ -279,6 +344,14 @@ export type Series = {
   meta?: Record<string, string>;
   hidden?: boolean;
   color?: string;
+  marker?: string;
+  lineStyle?: string;
+  seriesId?: string;
+  muted?: boolean;
+  noLine?: boolean;
+  yOriginal?: number[];
+  pointLabels?: string[];
+  gaps?: number[];
 };
 
 export type CycleConfig = {
@@ -300,6 +373,7 @@ export type CycleDoc = {
   config: CycleConfig;
   measurements: string[];
   overrides?: Record<string, { point: number; replicate?: number; at: string }>;
+  groupId?: string;
   tags?: string[];
   notes?: string;
   created?: string;
@@ -326,7 +400,87 @@ export type CycleView = CycleDoc & {
 };
 
 export type Relations = {
-  files: Record<string, { graphs: string[] | null; cycles: string[] | null; analyses?:string[] | null }>;
-  graphs: Record<string, { files: string[] | null; cycle?: string }>;
+  files: Record<string, { graphs: string[] | null; cycles: string[] | null; analyses?:string[] | null; groups?: string[] | null }>;
+  graphs: Record<string, { files: string[] | null; cycle?: string; derivedFrom?: string[]; derived?: string[]; changedParents?: string[]; changedGroups?: string[]; design?: string; groups?: string[] | null; analysis?: string }>;
   cycles: Record<string, { files: string[] | null; graphs: string[] | null; analyses?:string[] | null }>;
+  groups?: Record<string, { files: string[] | null; graphs: string[] | null; cycles: string[] | null }>;
 };
+
+// ---- experimental designs and the series catalog ----
+
+export type DesignUnit = { id: string; label: string; kind: 'independent_preparation' };
+export type DesignCondition = { label: string; derivedFrom?: string; process?: string };
+export type DesignTime = { label: string; offset?: number; unit?: string };
+export type DesignAssignment = { measurementId: string; unitId?: string; condition?: string; time?: string; replicateKind: 'experimental' | 'technical'; note?: string };
+export type DesignPair = { unitId: string; from: string; to: string };
+export type DesignChange = { field: string; measurementId?: string; subject?: string; from?: string; to?: string };
+export type Design = {
+  id: string;
+  root: string;
+  revision: number;
+  previousId?: string;
+  created: string;
+  version: string;
+  module: string;
+  name: string;
+  notes?: string;
+  cycleId?: string;
+  units: DesignUnit[];
+  conditions: DesignCondition[];
+  times: DesignTime[];
+  assignments: DesignAssignment[];
+  pairs: DesignPair[];
+  source: 'user' | 'suggestion';
+  reason?: string;
+  changes: DesignChange[];
+};
+export type DesignCell = { unitId: string; condition?: string; time?: string; experimental: number; technical: number; measurements?: string[] };
+export type DesignFinding = { code: string; units?: string[]; measurements?: string[]; subject?: string };
+export type DesignStructure = {
+  measurements: number;
+  assigned: number;
+  experimentalUnits: number;
+  observations: number;
+  technicalReadings: number;
+  units: string[];
+  conditions: string[];
+  times: string[];
+  conditionWithin: boolean;
+  timeWithin: boolean;
+  complete: boolean;
+  cells: DesignCell[];
+  missing: DesignCell[];
+  pairs: (DesignPair & { times: string[]; complete: boolean })[];
+  detected: string;
+  recommended?: string;
+  findings: DesignFinding[];
+};
+export type DesignView = { design: Design; structure: DesignStructure; unitLabels: Record<string, string>; head: boolean; heads: number; history?: Design[] };
+export type DesignSuggestion = { measurementId: string; source: string; evidence: string; condition?: string; unitId?: string; unitLabel?: string; newUnit?: boolean; time?: string; notes?: string[] };
+
+export type SeriesEntry = {
+  id: string;
+  kind: 'scalar' | 'curve' | 'reading';
+  fileId: string;
+  fileName: string;
+  measurementId: string;
+  measurementIndex: number;
+  sample?: string;
+  label?: string;
+  experimentalUnitId?: string;
+  experimentalUnit?: string;
+  condition?: string;
+  time?: DesignTime;
+  replicate?: number;
+  replicateKind?: string;
+  measuredAt?: Timestamp;
+  measurementType: string;
+  x?: { key: string; label?: string; unit?: string; points?: number };
+  y: { key: string; label?: string; unit?: string; points?: number };
+  value?: Quantity;
+  distribution?: { id: string; method?: string; format?: string; weighting: string; selected: boolean };
+  reading?: { index: number; run: string; line: number; header: string; value: { raw: string; value?: number }; parser: string };
+  parser: string;
+  spec: string;
+};
+export type SeriesCatalog = { version: string; series: SeriesEntry[]; design?: Design };

@@ -29,7 +29,7 @@ try {
   await page.locator('summary').filter({hasText:l.title}).click();await page.getByRole('button',{name:l.enable,exact:true}).click();
   // Accessible names include translated parameter names, then the common suffix.
   const columnInput=page.getByRole('spinbutton',{name:new RegExp(l.column+'$')});
-  const unitInput=page.getByRole('textbox',{name:new RegExp(l.unit+'$')});
+  const unitInput=page.getByRole('combobox',{name:new RegExp(l.unit+'$')});
   await columnInput.nth(0).fill('2');await unitInput.nth(0).fill('nm');
   const spin=page.getByRole('spinbutton');
   await spin.nth(0).fill('2');await spin.nth(1).fill('3');await spin.nth(2).fill(String(lastRow));

@@ -22,7 +22,7 @@ import (
 )
 
 // EngineVersion identifies the engine in provenance.
-const EngineVersion = "graph-engine/1.2.0"
+const EngineVersion = "graph-engine/1.3.0"
 
 // Graph kinds.
 const (
@@ -30,6 +30,16 @@ const (
 	KindParameterTime  = "parameter_time"
 	KindDistributionAt = "dls_by_time"
 	KindStatistical    = "statistical_groups"
+	// KindSeriesValues draws the values of chosen summary or instrument
+	// reading series side by side, one category per series.
+	KindSeriesValues = "series_values"
+	// KindDesignTime draws a parameter of an experimental design over its
+	// time points, one mean ± error bar per condition, with n counted in
+	// experimental units (condition × time graphs).
+	KindDesignTime = "design_time"
+	// KindPairedCondition joins each experimental unit's values under the
+	// conditions of the design at one time point (paired view).
+	KindPairedCondition = "paired_condition"
 )
 
 // Errors (stable identifiers).
@@ -39,6 +49,8 @@ var (
 	ErrNoWeighting    = errors.New("graph.weighting_not_in_file")
 	ErrNoDistribution = errors.New("graph.no_distribution")
 	ErrNoParameter    = errors.New("graph.parameter_not_in_files")
+	ErrMixedVariables = errors.New("graph.mixed_variables")
+	ErrSeriesKind     = errors.New("graph.series_kind_not_supported")
 )
 
 // SeriesStyle is per-series visual configuration (never scientific data).
@@ -46,6 +58,10 @@ type SeriesStyle struct {
 	Label  string `json:"label,omitempty"`
 	Color  string `json:"color,omitempty"`
 	Hidden bool   `json:"hidden,omitempty"`
+	// Marker and LineStyle override the default shape and pattern (empty
+	// means the default; see the plot package for the names).
+	Marker    string `json:"marker,omitempty"`
+	LineStyle string `json:"lineStyle,omitempty"`
 }
 
 // Visual is the visual configuration of a graph.
@@ -58,6 +74,14 @@ type Visual struct {
 	FontScale float64 `json:"fontScale"`
 	// View is a zoom window; it changes what is shown, never the data.
 	View *Range `json:"view,omitempty"`
+	// LegendMode lists all series, the visible ones (empty, the default) or
+	// only LegendSeries ("selected"); series left out are counted as "+N more".
+	LegendMode   string   `json:"legendMode,omitempty"`
+	LegendSeries []string `json:"legendSeries,omitempty"`
+	// Margin around the figure in mm (0 keeps the figure preset's margin)
+	// and the publication preset last applied to these settings.
+	Margin float64 `json:"margin,omitempty"`
+	Preset string  `json:"preset,omitempty"`
 }
 
 // Range is an axis window.
@@ -88,6 +112,76 @@ type Definition struct {
 	Created         time.Time              `json:"created"`
 	Updated         time.Time              `json:"updated"`
 	Trashed         bool                   `json:"trashed,omitempty"`
+
+	// Schema 2 fields. All are optional: a definition without them draws
+	// exactly as it did under schema 1.
+
+	// SeriesIDs selects series by their stable catalog identifier (never by
+	// label). When set, they decide what a selection-based graph draws;
+	// Measurements, Distributions, Weighting and Param are then derived
+	// from them on save so older readers still find the same data.
+	SeriesIDs []string `json:"seriesIds,omitempty"`
+	// FocusSeries draws only these series in full; the others are kept in
+	// the graph but muted and left out of the legend.
+	FocusSeries []string `json:"focusSeries,omitempty"`
+	Subtitle    string   `json:"subtitle,omitempty"`
+	XLabel      string   `json:"xLabel,omitempty"` // axis titles typed by the person; the unit is always added
+	YLabel      string   `json:"yLabel,omitempty"`
+	YScale      string   `json:"yScale,omitempty"` // linear (default) or log
+	// DisplayUnit shows the Y values in another unit of the same dimension
+	// with an exact factor; stored values and units never change.
+	DisplayUnit string `json:"displayUnit,omitempty"`
+	// ShowIndividual and ConnectMeans default to true when absent.
+	ShowIndividual *bool            `json:"showIndividual,omitempty"`
+	ConnectMeans   *bool            `json:"connectMeans,omitempty"`
+	TextNotes      []TextAnnotation `json:"textNotes,omitempty"`
+	// Lineage and the versions in force when the graph was saved.
+	DerivedFrom        []Lineage `json:"derivedFrom,omitempty"`
+	SourceFiles        []string  `json:"sourceFiles,omitempty"`
+	ParserVersions     []string  `json:"parserVersions,omitempty"`
+	CalculationVersion string    `json:"calculationVersion,omitempty"`
+
+	// Design graphs (design_time and paired_condition). DesignID names the
+	// saved design revision (pinned, so the graph stays reproducible);
+	// Conditions are the levels shown, in order (empty: every condition of
+	// the design); PairedAt is the time point of the paired view; Groups
+	// restrict the measurements to the members of saved groups (references
+	// only); UnitTrajectories draws each unit's thin secondary line.
+	DesignID         string   `json:"designId,omitempty"`
+	Conditions       []string `json:"conditions,omitempty"`
+	PairedAt         string   `json:"pairedAt,omitempty"`
+	Groups           []string `json:"groups,omitempty"`
+	UnitTrajectories bool     `json:"unitTrajectories,omitempty"`
+	// GroupSnapshots pin the members of each group in Groups as they were
+	// when the graph was saved, so the graph redraws the same measurements
+	// after a group is edited (the change is reported, never followed).
+	GroupSnapshots []GroupSnapshot `json:"groupSnapshots,omitempty"`
+	// Parts are the selections of the parents of a combined design graph:
+	// each part draws exactly the conditions and group members its parent
+	// drew. When present they replace Conditions and Groups (which then
+	// list their union for older readers). Written only by Combine.
+	Parts []DesignPart `json:"parts,omitempty"`
+}
+
+// GroupSnapshot is the member list of a saved group when a graph was saved.
+type GroupSnapshot struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name,omitempty"`
+	Measurements []string `json:"measurements"`
+	// Hash is the SHA-256 of the sorted member list (MembersHash).
+	Hash string `json:"hash"`
+}
+
+// DesignPart is what one parent of a combined design graph showed.
+type DesignPart struct {
+	GraphID string `json:"graphId,omitempty"`
+	Title   string `json:"title,omitempty"`
+	// Conditions are the conditions the parent drew (every condition of the
+	// design when it drew all of them).
+	Conditions []string `json:"conditions"`
+	// Groups restrict the part to the members of these groups, pinned as
+	// the parent had them.
+	Groups []GroupSnapshot `json:"groups,omitempty"`
 }
 
 // DefaultVisual is the visual configuration of a new graph.
@@ -103,6 +197,13 @@ type Axis struct {
 	Scale      string   `json:"scale"` // log or linear
 	Min        float64  `json:"min"`
 	Max        float64  `json:"max"`
+	// Title replaces the localized label with the person's own text.
+	Title string `json:"title,omitempty"`
+	// Conversion records a display-only unit change of this axis.
+	Conversion *AxisConversion `json:"conversion,omitempty"`
+	// Ticks places the labelled ticks at these values (the time points of
+	// a design) instead of evenly spaced ones.
+	Ticks []float64 `json:"ticks,omitempty"`
 }
 
 // Series is one plotted series.
@@ -118,6 +219,23 @@ type Series struct {
 	Meta          map[string]string `json:"meta,omitempty"`
 	Hidden        bool              `json:"hidden,omitempty"`
 	Color         string            `json:"color,omitempty"`
+	Marker        string            `json:"marker,omitempty"`
+	LineStyle     string            `json:"lineStyle,omitempty"`
+	// SeriesID is the catalog identifier the series was selected by.
+	SeriesID string `json:"seriesId,omitempty"`
+	// Muted series stay in the graph behind the focused ones.
+	Muted bool `json:"muted,omitempty"`
+	// NoLine draws a mean series without the line between its points.
+	NoLine bool `json:"noLine,omitempty"`
+	// YOriginal keeps the values in their stored unit when the axis shows
+	// them in a display unit.
+	YOriginal []float64 `json:"yOriginal,omitempty"`
+	// PointLabels names the experimental unit of each point of a series of
+	// unit values (design graphs).
+	PointLabels []string `json:"pointLabels,omitempty"`
+	// Gaps are X positions where this series has no value: its line is
+	// interrupted there, never drawn across.
+	Gaps []float64 `json:"gaps,omitempty"`
 }
 
 // Source is one input of a graph.
@@ -168,12 +286,21 @@ type Result struct {
 	Weightings      []string                `json:"weightings,omitempty"`
 	Annotations     []StatisticalAnnotation `json:"annotations,omitempty"`
 	AnnotationStyle string                  `json:"annotationStyle,omitempty"`
+	Subtitle        string                  `json:"subtitle,omitempty"`
+	// ErrorBars names what the error bars show (sd, sem or ci), so they are
+	// never drawn without a description.
+	ErrorBars string           `json:"errorBars,omitempty"`
+	TextNotes []TextAnnotation `json:"textNotes,omitempty"`
+	// Design identifies the experimental design revision of a design graph.
+	Design *DesignRef `json:"design,omitempty"`
 }
 
-// Input bundles what the engine needs.
+// Input bundles what the engine needs. Readings (by file ID) are needed
+// only for instrument reading series.
 type Input struct {
 	Measurements map[string]model.Measurement
 	Files        map[string]model.SourceFile
+	Readings     map[string]model.FileReadings
 }
 
 // Source snapshots provenance without guessing a zone or aliasing source time.
@@ -206,7 +333,13 @@ func (in Input) Source(m model.Measurement) Source {
 }
 
 func seriesLabel(def Definition, m model.Measurement, idx int) string {
-	if st, ok := def.Series[m.ID]; ok && st.Label != "" {
+	return keyedLabel(def, m.ID, m, idx)
+}
+
+// keyedLabel is the label of a series whose style is kept under key (the
+// measurement ID in schema 1, the SeriesID in schema 2).
+func keyedLabel(def Definition, key string, m model.Measurement, idx int) string {
+	if st, ok := styleOf(def, key, m.ID); ok && st.Label != "" {
 		return st.Label
 	}
 	if m.Label != "" {
@@ -228,7 +361,11 @@ func seriesLabel(def Definition, m model.Measurement, idx int) string {
 func distinctLabels(def Definition, series []Series, ms []model.Measurement) {
 	groups := map[string][]int{}
 	for i, s := range series {
-		if st, ok := def.Series[ms[i].ID]; ok && st.Label != "" {
+		key := ms[i].ID
+		if s.SeriesID != "" {
+			key = s.SeriesID
+		}
+		if st, ok := styleOf(def, key, ms[i].ID); ok && st.Label != "" {
 			continue
 		}
 		groups[s.Label] = append(groups[s.Label], i)
@@ -313,13 +450,13 @@ func Distribution(def Definition, in Input) (Result, error) {
 	var skipErr error
 	nativeUsed := false
 	var used []model.Measurement
-	for i, id := range def.Measurements {
-		m, ok := in.Measurements[id]
-		if !ok {
-			res.Warnings = append(res.Warnings, "graph.missing_measurement:"+id)
-			continue
-		}
-		m = selectedDistribution(def, m)
+	items, w, err := distributionItems(def, in, w, &res)
+	if err != nil {
+		return res, err
+	}
+	res.Y.Label = "axis." + w
+	for i, it := range items {
+		m := it.m
 		// A measurement without what this graph needs is left out with a
 		// note; the graph fails only when nothing can be drawn.
 		var dc, wc *model.Column
@@ -331,14 +468,14 @@ func Distribution(def Definition, in Input) (Result, error) {
 		}
 		if dc == nil {
 			skipErr = ErrNoDistribution
-			res.Warnings = append(res.Warnings, "graph.skipped_no_distribution:"+seriesLabel(def, m, i))
+			res.Warnings = append(res.Warnings, "graph.skipped_no_distribution:"+keyedLabel(def, it.key, m, i))
 			continue
 		}
 		if wc == nil {
 			if skipErr == nil {
 				skipErr = ErrNoWeighting
 			}
-			res.Warnings = append(res.Warnings, "graph.skipped_no_weighting:"+seriesLabel(def, m, i))
+			res.Warnings = append(res.Warnings, "graph.skipped_no_weighting:"+keyedLabel(def, it.key, m, i))
 			continue
 		}
 		if m.Dist.Method != "" && !nativeUsed {
@@ -350,10 +487,10 @@ func Distribution(def Definition, in Input) (Result, error) {
 		} else if dc.Unit != xu || wc.Unit != yu {
 			return res, ErrMixedUnits
 		}
-		s := Series{ID: m.ID, MeasurementID: m.ID, Label: seriesLabel(def, m, i), Kind: "line", Meta: meta(m),
-			X: append([]float64(nil), dc.Values...), Y: append([]float64(nil), wc.Values...)}
-		if st, ok := def.Series[m.ID]; ok {
-			s.Hidden, s.Color = st.Hidden, st.Color
+		s := Series{ID: it.key, MeasurementID: m.ID, Label: keyedLabel(def, it.key, m, i), Kind: "line", Meta: meta(m),
+			X: append([]float64(nil), dc.Values...), Y: append([]float64(nil), wc.Values...), SeriesID: it.seriesID}
+		if st, ok := styleOf(def, it.key, m.ID); ok {
+			s.Hidden, s.Color, s.Marker, s.LineStyle = st.Hidden, st.Color, st.Marker, st.LineStyle
 		}
 		for j := range s.X {
 			if s.X[j] <= 0 {
@@ -476,6 +613,22 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 	series := cycle.Series(cy.Points, cy.Assignments, values)
 	ind := Series{ID: "individual", Label: "series.individual", Kind: "individual"}
 	mean := Series{ID: "mean", Label: "series.mean_sd", Kind: "mean"}
+	// SD is the default. A confidence interval needs a saved statistical
+	// analysis (decision D8), so it is never computed here. SEM is not
+	// drawn either: n at a cycle point counts measurements, which may be
+	// technical repeats of one preparation, not experimental units, so
+	// SD/√n would understate the uncertainty. The design graph (n =
+	// experimental units) offers SEM.
+	switch def.ErrorBars {
+	case "sd":
+		res.ErrorBars = "sd"
+	case "sem":
+		res.ErrorBars = "sd"
+		res.Warnings = append(res.Warnings, "graph.sem_needs_experimental_units")
+	case "ci":
+		res.ErrorBars = "sd"
+		res.Warnings = append(res.Warnings, "graph.ci_needs_saved_analysis")
+	}
 	ymin, ymax := math.Inf(1), math.Inf(-1)
 	used := map[string]bool{}
 	for _, pr := range series {
@@ -494,15 +647,16 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 		if pr.Summary.Mean != nil {
 			mean.X = append(mean.X, x)
 			mean.Y = append(mean.Y, *pr.Summary.Mean)
-			mean.Err = append(mean.Err, *pr.Summary.SD)
+			bar := *pr.Summary.SD
+			mean.Err = append(mean.Err, bar)
 			mean.N = append(mean.N, pr.Summary.N)
-			ymin = math.Min(ymin, *pr.Summary.Mean-*pr.Summary.SD)
-			ymax = math.Max(ymax, *pr.Summary.Mean+*pr.Summary.SD)
+			ymin = math.Min(ymin, *pr.Summary.Mean-bar)
+			ymax = math.Max(ymax, *pr.Summary.Mean+bar)
 		}
 	}
 	for _, se := range []*Series{&ind, &mean} {
 		if st, ok := def.Series[se.ID]; ok {
-			se.Hidden, se.Color = st.Hidden, st.Color
+			se.Hidden, se.Color, se.Marker, se.LineStyle = st.Hidden, st.Color, st.Marker, st.LineStyle
 		}
 	}
 	res.Series = append(res.Series, ind)

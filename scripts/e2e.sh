@@ -51,6 +51,7 @@ for lang in en pt-BR es; do
 done
 run tests/e2e/mapping.mjs "$work/portable" "$out"
 run tests/e2e/workbook-mapping.mjs "$work/portable" "$out"
+run tests/e2e/units.mjs "$work/portable" "$out"
 run tests/e2e/profiles.mjs "$work/portable" "$out"
 run tests/e2e/selection.mjs "$work/portable" "$out"
 run tests/e2e/inspection.mjs "$work/portable" "$out"
@@ -65,6 +66,10 @@ run tests/e2e/statistics-mixed.mjs "$work/portable" "$out"
 run tests/e2e/dts.mjs "$work/portable" "$out"
 run tests/e2e/signature.mjs "$work/portable" "$out"
 run tests/e2e/producer-origin.mjs "$work/portable" "$out"
+run tests/e2e/design.mjs "$work/portable" "$out"
+run tests/e2e/statistics-design.mjs "$work/portable" "$out"
+run tests/e2e/builder.mjs "$work/portable" "$out"
+run tests/e2e/paired.mjs "$work/portable" "$out"
 
 start temporary temporary
 ready temporary

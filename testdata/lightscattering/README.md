@@ -21,3 +21,14 @@ as duas grandezas permanecem independentes.
 linha de resultados e a unidade só no cabeçalho da tabela de corridas, com
 valores inventados, para verificar que a unidade vem do próprio arquivo e
 somente quando a linha Combined repete o mesmo valor.
+
+`synthetic-nanobrook-twelve-runs.txt` traz uma única medição com uma tabela
+de doze corridas, com valores inventados, para verificar que as corridas são
+guardadas como leituras do equipamento, exatamente como escritas, e que
+continuam sendo uma medição de uma unidade experimental (nunca doze N).
+
+`synthetic-twenty-series.txt` traz vinte medições inventadas (amostras
+"Synthetic S01" a "Synthetic S20") num único arquivo, cada uma com uma
+distribuição de intensidade, para testar o Series Explorer com muitas
+séries: busca, filtros, seleção de três, gráfico, edição da seleção e que
+as outras dezessete continuam intactas.

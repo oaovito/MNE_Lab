@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"strings"
@@ -158,6 +159,11 @@ func (p *Profile) importSelected(name string, data []byte, force bool, selection
 		f.BlobID = id
 		for _, m := range ms {
 			if _, err := t.Put(CollMeasurements, m.ID, m); err != nil {
+				return err
+			}
+		}
+		if strings.HasPrefix(f.Parser, "lightscattering-parser/") && selection == nil {
+			if _, err := t.Put(CollReadings, f.ID, fileReadings(f, r.Readings, f.Measurements)); err != nil {
 				return err
 			}
 		}
@@ -405,6 +411,11 @@ func (p *Profile) DeleteFile(id string) error {
 				}
 			}
 		}
+		if _, err := t.Get(CollReadings, id, nil); err == nil {
+			if err := t.Delete(CollReadings, id); err != nil {
+				return err
+			}
+		}
 		if err := t.Delete(CollFiles, id); err != nil {
 			return err
 		}
@@ -428,9 +439,21 @@ func (p *Profile) DeleteFile(id string) error {
 
 // Input loads what the graph engine needs for a set of measurements.
 func (p *Profile) Input(ids []string) (graph.Input, error) {
+	return p.inputContext(context.Background(), ids, false)
+}
+
+// inputContext loads the measurements of a graph, with the instrument
+// readings of their files when asked, and stops when ctx is cancelled.
+func (p *Profile) inputContext(ctx context.Context, ids []string, readings bool) (graph.Input, error) {
 	in := graph.Input{Measurements: map[string]model.Measurement{}, Files: map[string]model.SourceFile{}}
+	if readings {
+		in.Readings = map[string]model.FileReadings{}
+	}
 	err := p.St.View(func(t *store.Tx) error {
 		for _, id := range ids {
+			if ctx.Err() != nil {
+				return ErrRenderCancelled
+			}
 			var m model.Measurement
 			if _, err := t.Get(CollMeasurements, id, &m); err != nil {
 				continue
@@ -440,6 +463,9 @@ func (p *Profile) Input(ids []string) (graph.Input, error) {
 				var f model.SourceFile
 				if _, err := t.Get(CollFiles, m.FileID, &f); err == nil {
 					in.Files[f.ID] = f
+				}
+				if fr, ok := readingsTx(t, m.FileID); ok && readings {
+					in.Readings[m.FileID] = fr
 				}
 			}
 		}

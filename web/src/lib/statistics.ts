@@ -2,6 +2,8 @@ import { WebR, ChannelType } from "webr";
 import code from "./statistics-engine.R";
 import mbessNCF from "./vendor/mbess/conf.limits.ncf.R";
 import mbessPVAF from "./vendor/mbess/ci.pvaf.R";
+import type { Design } from "./types";
+import { pairedLevels } from "./levels";
 
 export type AnalysisDefinition = {
   schema: number;
@@ -19,6 +21,12 @@ export type AnalysisDefinition = {
   effectCI?: boolean;
   control?: string;
   sphericityCorrection?: string;
+  // "within_within": condition (A) and time (B) both vary within each unit.
+  design?: "" | "within_within";
+  // Paired simple effects only: "holm" or "bonferroni".
+  adjustment?: string;
+  // The saved experimental design revision the structure was taken from.
+  designId?: string;
   observations: {
     measurementId: string;
     factorA: string;
@@ -34,6 +42,9 @@ export type AnalysisSnapshot = {
   receipt?: string;
   accountId: string;
   profileId: string;
+  experimentalDesign?: Design;
+  designHeads?: string[];
+  unitLabels?: Record<string, string>;
   sources: {
     measurement: {
       id: string;
@@ -62,6 +73,8 @@ export type AnalysisSnapshot = {
     completeRepeated: boolean;
     recommended: string;
     warnings: string[];
+    unitCells?: number;
+    technicalReadingCells?: number;
   };
 };
 export type StatisticalResults = {
@@ -80,6 +93,8 @@ export type StatisticalResults = {
     etaSquared?: number;
     partialEtaSquared?: number;
     omegaSquared?: number;
+    generalizedEtaSquared?: number;
+    epsilon?: number;
   }[];
   groups: {
     factorA: string;
@@ -91,6 +106,8 @@ export type StatisticalResults = {
     sem?: number;
     ciLower?: number;
     ciUpper?: number;
+    units?: string[];
+    readings?: number[];
   }[];
   comparisons: {
     id: string;
@@ -105,6 +122,11 @@ export type StatisticalResults = {
     upper?: number;
     adjustedP: number;
     correction: string;
+    family?: string;
+    statistic?: number;
+    df?: number;
+    p?: number;
+    n?: number;
   }[];
   diagnostics: {
     code: string;
@@ -117,11 +139,14 @@ export type StatisticalResults = {
   qqObserved: number[];
   warnings: string[];
   corrections?: Record<string, number>;
+  design?: string;
+  simpleEffects?: { context: string; factorA: string; terms: StatisticalResults["terms"]; corrections?: Record<string, number> }[];
   effectIntervals?: {source:string;effect:string;confidenceLevel:number;method:string;status:string;lower?:number;upper?:number;lowerAtBoundary?:boolean}[];
   model?: {
     family:string;fixed:string;estimation:string;random:string;residualCovariance:string;test:string;
     levelsA:string[];levelsB:string[];randomVariance:number;residualVariance:number;logLikelihood:number;boundaryTolerance:number;coefficientConfidenceLevel?:number;coefficientIntervalMethod?:string;
     fixedCoefficients:{name:string;estimate:number;se:number;df?:number;lower?:number;upper?:number}[];
+    randomComponents?:{level:string;variance:number}[];
   };
 };
 export type StatisticalAnalysis = {
@@ -205,6 +230,9 @@ export async function calculateStatistics(
         control: d.control || "",
         structure: d.structure,
         correction: d.method === "mixed" ? "" : d.sphericityCorrection || "GG",
+        design: d.design || "",
+        adjustment: d.adjustment || "",
+        ...(d.design === "within_within" ? pairedLevels(snapshot) : {}),
       });
       await r.objs.globalEnv.bind("mne_input", input);
       if(d.effectCI) await r.evalRVoid((mbessNCF+"\n"+mbessPVAF).replaceAll("\r\n","\n"));

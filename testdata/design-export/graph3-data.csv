@@ -1,0 +1,14 @@
+﻿col.experimental_unit,col.unit_id,col.condition,col.time_level,col.replicate_kind,col.sample_id,col.measured_at,param.effective_diameter (nm),col.unit,col.source_file,col.measurement
+A,unit-a,F-SR,Day 0,design.replicate.experimental,F-SR A,,120.1,nm,synthetic-paired.txt,m1
+A,unit-a,F-SR,Day 0,design.replicate.technical,F-SR A,,121.9,nm,synthetic-paired.txt,m13
+B,unit-b,F-SR,Day 0,design.replicate.experimental,F-SR B,,118.7,nm,synthetic-paired.txt,m5
+C,unit-c,F-SR,Day 0,design.replicate.experimental,F-SR C,,122.4,nm,synthetic-paired.txt,m9
+A,unit-a,F-SR,Day 7,design.replicate.experimental,F-SR A,,124.3,nm,synthetic-paired.txt,m2
+B,unit-b,F-SR,Day 7,design.replicate.experimental,F-SR B,,121.0,nm,synthetic-paired.txt,m6
+C,unit-c,F-SR,Day 7,design.replicate.experimental,F-SR C,,126.8,nm,synthetic-paired.txt,m10
+A,unit-a,C-SR,Day 0,design.replicate.experimental,C-SR A,,100.2,nm,synthetic-paired.txt,m3
+B,unit-b,C-SR,Day 0,design.replicate.experimental,C-SR B,,98.6,nm,synthetic-paired.txt,m7
+C,unit-c,C-SR,Day 0,design.replicate.experimental,C-SR C,,103.1,nm,synthetic-paired.txt,m11
+A,unit-a,C-SR,Day 7,design.replicate.experimental,C-SR A,,103.4,nm,synthetic-paired.txt,m4
+B,unit-b,C-SR,Day 7,design.replicate.experimental,C-SR B,,101.9,nm,synthetic-paired.txt,m8
+C,unit-c,C-SR,Day 7,design.replicate.experimental,C-SR C,,105.5,nm,synthetic-paired.txt,m12

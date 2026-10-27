@@ -158,6 +158,9 @@ func WithVisual(s plot.Spec, v graph.Visual) plot.Spec {
 	if v.FontScale > 0 {
 		s.FontSize *= v.FontScale
 	}
+	if v.Margin > 0 {
+		s.Margin = v.Margin
+	}
 	return s
 }
 
@@ -212,8 +215,8 @@ func (a *App) Export(req ExportRequest) (ExportResult, error) {
 		write, size = export.Bytes(o.data), int64(len(o.data))
 	} else {
 		ar := export.NewArchive(base, export.KindBatch, base, version.String(), version.Schema, time.Now())
-		if req.Items[0].Kind == export.KindCycle && contains(req.Formats, "package") {
-			ar.Kind = export.KindCycle
+		if (req.Items[0].Kind == export.KindCycle || req.Items[0].Kind == export.KindGraph) && contains(req.Formats, "package") && len(req.Items) == 1 {
+			ar.Kind = req.Items[0].Kind
 		}
 		for _, o := range outs {
 			dir, file := filepath.Split(o.name)
@@ -410,6 +413,8 @@ func (p *Profile) produceItem(it ExportItem, req ExportRequest, spec plot.Spec, 
 		return outs, base, nil
 	case export.KindCycle:
 		return p.cycleOutputs(it.ID, req, spec, multi)
+	case export.KindGroup:
+		return p.groupOutputs(it.ID, req, multi)
 	}
 	return nil, "", export.ErrFormat
 }
@@ -453,7 +458,7 @@ func singleDate(in graph.Input) time.Time {
 func (p *Profile) graphName(def graph.Definition, res graph.Result, in graph.Input) string {
 	n := export.NameInfo{Title: def.Title, Samples: samplesOf(in), Module: "DLS"}
 	switch def.Kind {
-	case graph.KindDistribution:
+	case graph.KindDistribution, graph.KindSeriesValues:
 		n.Date = singleDate(in)
 	case graph.KindParameterTime:
 		n.Subject = export.ParamToken(def.Param)
@@ -464,6 +469,11 @@ func (p *Profile) graphName(def graph.Definition, res graph.Result, in graph.Inp
 		if cy, err := p.Cycle(def.CycleID); err == nil {
 			_, n.Duration = export.CycleTokens(string(cy.Config.Unit), 0, cy.Config.Duration)
 			n.Subject = "DLS_Cycle"
+		}
+	case graph.KindDesignTime, graph.KindPairedCondition:
+		n.Subject = export.ParamToken(def.Param)
+		if res.Design != nil && def.Title == "" {
+			n.Title = res.Design.Name
 		}
 	}
 	return export.Suggest(n)
@@ -479,13 +489,28 @@ func (p *Profile) graphOutputs(def graph.Definition, formats []string, spec plot
 	ids := def.Measurements
 	var ci *graph.CycleInput
 	var in graph.Input
-	if def.Kind == graph.KindStatistical {
+	var din graph.DesignInput
+	design := def.Kind == graph.KindDesignTime || def.Kind == graph.KindPairedCondition
+	if contains(formats, "package") {
+		if len(formats) != 1 {
+			return nil, "", export.ErrFormat
+		}
+		return p.graphPackage(def, res, multi)
+	}
+	if design {
+		if din, ids, err = p.designInput(def); err != nil {
+			return nil, "", err
+		}
+		if in, err = p.Input(ids); err != nil {
+			return nil, "", err
+		}
+	} else if def.Kind == graph.KindStatistical {
 		saved, e := p.Analysis(def.AnalysisID)
 		if e != nil {
 			return nil, "", e
 		}
 		in = analysisInput(saved)
-	} else if def.Kind != graph.KindDistribution {
+	} else if def.Kind != graph.KindDistribution && def.Kind != graph.KindSeriesValues {
 		cy, err := p.Cycle(def.CycleID)
 		if err != nil {
 			return nil, "", err
@@ -519,6 +544,13 @@ func (p *Profile) graphOutputs(def graph.Definition, formats []string, spec plot
 		case export.GroupData:
 			var ds export.DataSet
 			switch {
+			case design:
+				tab, e := graph.DesignTables(def, in, din)
+				if e != nil {
+					return nil, "", e
+				}
+				ds = export.DesignData(fig.Title, tab, in, T, res.ErrorBars)
+				ds.Meta = append(ds.Meta, p.graphMeta(def, res)...)
 			case def.Kind == graph.KindStatistical:
 				saved, e := p.Analysis(def.AnalysisID)
 				if e != nil {
@@ -553,6 +585,189 @@ func (p *Profile) graphOutputs(def graph.Definition, formats []string, spec plot
 			return nil, "", err
 		}
 		outs = append(outs, output{name: sub + base + info.Ext, role: info.Group, data: b})
+	}
+	return outs, base, nil
+}
+
+// groupOutputs exports the members of a saved group or selection as
+// tables, with the group's own references in the metadata.
+func (p *Profile) groupOutputs(id string, req ExportRequest, multi bool) ([]output, string, error) {
+	T := p.app.T
+	g, err := p.Group(id)
+	if err != nil {
+		return nil, "", err
+	}
+	in, err := p.Input(g.Measurements)
+	if err != nil {
+		return nil, "", err
+	}
+	ds := export.MeasurementData(g.Name, g.Measurements, in, nil, T)
+	ds.AddCommonMeta(T, version.String(), version.Schema,
+		export.KV{Key: "group", Label: T("meta.group"), Value: g.Name + " (" + g.ID + ")"},
+		export.KV{Key: "group_kind", Label: T("meta.group_kind"), Value: T("meta.group_kind." + g.Kind)},
+		export.KV{Key: "members", Label: T("meta.measurements"), Value: fmt.Sprint(len(g.Measurements))})
+	if len(g.SeriesIDs) > 0 {
+		ds.Meta = append(ds.Meta, export.KV{Key: "series", Label: T("meta.series"), Value: strings.Join(g.SeriesIDs, " ")})
+	}
+	base := export.Sanitize(g.Name)
+	sub := ""
+	if multi {
+		sub = base + "/"
+	}
+	var outs []output
+	for _, f := range req.Formats {
+		if !export.Compatible(export.KindGroup, f) {
+			return nil, "", export.ErrFormat
+		}
+		b, err := export.WriteData(ds, f, req.Data)
+		if err != nil {
+			return nil, "", err
+		}
+		outs = append(outs, output{name: sub + base + export.Formats[f].Ext, role: "data", data: b})
+	}
+	return outs, base, nil
+}
+
+// graphMeta describes where a graph's data comes from: its design
+// revision, groups, linked analysis and lineage.
+func (p *Profile) graphMeta(def graph.Definition, res graph.Result) []export.KV {
+	T := p.app.T
+	var out []export.KV
+	if d := res.Design; d != nil {
+		out = append(out, export.KV{Key: "design", Label: T("meta.design"), Value: d.Name + " (" + d.ID + ")"},
+			export.KV{Key: "design_revision", Label: T("meta.design_revision"), Value: fmt.Sprint(d.Revision)})
+	}
+	if len(def.Conditions) > 0 {
+		out = append(out, export.KV{Key: "conditions", Label: T("col.condition"), Value: strings.Join(def.Conditions, ", ")})
+	}
+	if res.ErrorBars != "" {
+		out = append(out, export.KV{Key: "error_bars", Label: T("meta.error_bars"), Value: T("plot.error_bars." + res.ErrorBars)})
+	}
+	key := func(k string, i, n int) string {
+		if n > 1 {
+			return fmt.Sprintf("%s_%d", k, i+1)
+		}
+		return k
+	}
+	for i, id := range def.Groups {
+		name := id
+		if g, err := p.Group(id); err == nil {
+			name = g.Name + " (" + id + ")"
+		}
+		out = append(out, export.KV{Key: key("group", i, len(def.Groups)), Label: T("meta.group"), Value: name})
+	}
+	if def.AnalysisID != "" {
+		out = append(out, export.KV{Key: "analysis", Label: T("meta.analysis"), Value: def.AnalysisID})
+	}
+	for i, l := range def.DerivedFrom {
+		out = append(out, export.KV{Key: key("derived_from", i, len(def.DerivedFrom)), Label: T("meta.derived_from"), Value: l.Title + " (" + l.GraphID + ", " + l.Relation + ", sha256:" + l.DefinitionHash + ")"})
+	}
+	return out
+}
+
+// graphPackage assembles a research package for one graph: its original
+// files byte for byte, the data it draws, the figure in vector and lossless
+// raster form, its definition with its parents' (lineage), the design
+// revision and groups it reads, its linked saved analysis and provenance.
+func (p *Profile) graphPackage(def graph.Definition, res graph.Result, multi bool) ([]output, string, error) {
+	T := p.app.T
+	var outs []output
+	add := func(name, role string, b []byte) { outs = append(outs, output{name: name, role: role, data: b}) }
+	addJSON := func(name, role string, v any) error {
+		b, err := jsonIndent(v)
+		if err != nil {
+			return err
+		}
+		add(name, role, b)
+		return nil
+	}
+	pub := plot.Preset(plot.PresetPublication)
+	pub.Decimal = p.app.decimal()
+	pub = WithVisual(pub, def.Visual)
+	data, base, err := p.graphOutputs(def, []string{"svg", "pdf", "png", "csv", "xlsx", "json"}, pub, export.DataOptions{}, false)
+	if err != nil {
+		return nil, "", err
+	}
+	for _, o := range data {
+		dir := export.DirGraphs + "/"
+		if o.role == export.GroupData {
+			dir = export.DirNormalized + "/"
+		}
+		add(dir+o.name, o.role, o.data)
+	}
+	// Originals of every source, byte for byte.
+	files := map[string]bool{}
+	var fileIDs []string
+	for _, s := range res.Provenance.Sources {
+		if s.FileID != "" && !files[s.FileID] {
+			files[s.FileID] = true
+			fileIDs = append(fileIDs, s.FileID)
+		}
+	}
+	sort.Strings(fileIDs)
+	var meta []model.SourceFile
+	for _, fid := range fileIDs {
+		f, b, err := p.Original(fid)
+		if err != nil {
+			return nil, "", err
+		}
+		meta = append(meta, f)
+		add(export.DirOriginals+"/"+f.Name, "original", b)
+	}
+	if err := addJSON(export.DirMetadata+"/files.json", "metadata", meta); err != nil {
+		return nil, "", err
+	}
+	// The definition and those of its parents (lineage).
+	defs := []graph.Definition{def}
+	for _, l := range def.DerivedFrom {
+		if parent, err := p.Graph(l.GraphID); err == nil {
+			defs = append(defs, parent)
+		}
+	}
+	if err := addJSON(export.DirGraphs+"/definitions.json", "graph-definition", map[string]any{"graph": def, "parents": defs[1:], "lineage": def.DerivedFrom}); err != nil {
+		return nil, "", err
+	}
+	if def.DesignID != "" {
+		v, err := p.Design(def.DesignID)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := addJSON("design/design.json", "design", map[string]any{"design": v.Design, "structure": v.Structure, "unitLabels": v.UnitLabels,
+			"pairs": v.Design.Pairs, "history": v.History}); err != nil {
+			return nil, "", err
+		}
+	}
+	for _, id := range def.Groups {
+		g, err := p.Group(id)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := addJSON("groups/"+g.ID+".json", "group", g); err != nil {
+			return nil, "", err
+		}
+	}
+	if def.AnalysisID != "" {
+		analysisFiles, _, err := p.analysisOutputs(def.AnalysisID, ExportRequest{Formats: []string{"package"}}, plot.Preset(plot.PresetPrint), false)
+		if err != nil {
+			return nil, "", err
+		}
+		for _, f := range analysisFiles {
+			f.name = "statistics/analyses/" + def.AnalysisID + "/" + strings.TrimPrefix(f.name, "statistics/")
+			outs = append(outs, f)
+		}
+	}
+	if err := addJSON(export.DirProvenance+"/provenance.json", "provenance", map[string]any{
+		"software": version.String(), "schema": version.Schema, "graphEngine": graph.EngineVersion, "scientificSpec": reference.LightScatteringSpecID,
+		"statistics": res.Provenance.Statistics, "rules": res.Provenance.Rules, "transformations": res.Provenance.Transformations,
+		"warnings": res.Warnings, "design": res.Design, "annotations": res.Annotations, "sources": res.Provenance.Sources, "references": reference.Sources,
+		"errorBars": T("plot.error_bars." + firstNonEmpty(res.ErrorBars, "sd")),
+	}); err != nil {
+		return nil, "", err
+	}
+	if multi {
+		for i := range outs {
+			outs[i].name = base + "/" + outs[i].name
+		}
 	}
 	return outs, base, nil
 }
@@ -737,6 +952,30 @@ func (p *Profile) researchPackage(cy CycleDoc, in graph.Input, ci graph.CycleInp
 	if err := addJSON(export.DirMetadata+"/files.json", "metadata", files); err != nil {
 		return nil, "", err
 	}
+	// Experimental designs of this cycle (each revision with its history,
+	// pairs and unit names) and the group the cycle was built from.
+	if views, err := p.Designs(); err == nil {
+		for _, v := range views {
+			if v.Design.CycleID != cy.ID {
+				continue
+			}
+			full, err := p.Design(v.Design.ID)
+			if err != nil {
+				return nil, "", err
+			}
+			if err := addJSON("design/"+v.Design.Root+".json", "design", map[string]any{"design": full.Design, "structure": full.Structure,
+				"unitLabels": full.UnitLabels, "pairs": full.Design.Pairs, "history": full.History}); err != nil {
+				return nil, "", err
+			}
+		}
+	}
+	if cy.GroupID != "" {
+		if g, err := p.Group(cy.GroupID); err == nil {
+			if err := addJSON("groups/"+g.ID+".json", "group", g); err != nil {
+				return nil, "", err
+			}
+		}
+	}
 	// Normalized data.
 	ds := cycleDataSet(cy, in, ci, T)
 	for _, f := range []string{"csv", "xlsx", "json"} {
@@ -823,7 +1062,7 @@ func (p *Profile) readme(base string) string {
 	var b strings.Builder
 	b.WriteString(base + "\r\n\r\n")
 	b.WriteString(T("export.readme.intro", "software", version.String()) + "\r\n\r\n")
-	for _, k := range []string{"manifest", "metadata", "original-files", "normalized-data", "graphs", "statistics", "provenance"} {
+	for _, k := range []string{"manifest", "metadata", "original-files", "normalized-data", "graphs", "statistics", "design", "groups", "provenance"} {
 		b.WriteString(k + "/  " + T("export.readme."+k) + "\r\n")
 	}
 	b.WriteString("\r\n" + T("export.readme.verify") + "\r\n")

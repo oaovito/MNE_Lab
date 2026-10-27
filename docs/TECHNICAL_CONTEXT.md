@@ -45,6 +45,8 @@ interface translates.
 | `internal/science/graph` | Graph Engine. |
 | `internal/science/cycle` | Cycles (temporal studies). |
 | `internal/science/stats` | Descriptive statistics. |
+| `internal/science/design` | Experimental designs: units, conditions, time points, replicate kinds, pairing, immutable revisions, structure detection and name suggestions that need confirmation. |
+| `internal/science/series` | Series catalog: deterministic SeriesIDs for scalar, curve and instrument-reading series, resolved against a design. |
 | `internal/science/reference` | Scientific specifications used, for provenance. |
 | `internal/plot` | Layout of a graph as a renderer-neutral display list; the same list is drawn on screen and written to SVG, PDF and raster files. |
 | `internal/export` | Smart Export engine. |
@@ -118,8 +120,10 @@ interface translates.
   Help) and first-use explanations, "made by oaovito" footer.
 - Localization: English, Portuguese (Brazil) and Spanish.
 - LIGHTSCATTERING: import, parser, file library, measurement review, size
-  distribution graphs, comparisons, graphs over time, Cycles with statistics,
-  Presentation Mode, Smart Export, research package.
+  distribution graphs, comparisons, graphs over time, condition × time and
+  paired design graphs, groups and saved selections, Combine with lineage,
+  Graph → Analyze, statistical annotations from saved analyses, Cycles with
+  statistics, Presentation Mode, Smart Export, research package.
 
 ### Partially implemented
 
@@ -362,8 +366,25 @@ base background, accent for selection, focus, icons, toggles and bars, deep
 accent for text, tooltips and the start-screen panel. The dark theme is
 derived from #143A52. Small accent text (`--accent-text`) and filled controls
 with white labels (`--accent-fill`) use slightly deeper shades of the accent,
-because white on #2C7FB8 is 4.3:1, below WCAG AA for normal text. Scientific
-figures keep their own colorblind-safe series palette and white paper. The
+because white on #2C7FB8 is 4.3:1, below WCAG AA for normal text. Surfaces
+are flat in both themes: no decorative gradients, glows or neon; the dark
+theme uses muted status colours (decision D10 of 2026-10-21, owner addenda
+A §49-51 and B §54-57). Scientific figures keep white paper and their own
+series palette (`internal/plot/style.go`): #2C7FB8, restrained rust, muted
+teal, #143A52, ochre, graphite, plum, wine, pale steel and slate indigo, in
+an order where the first six differ by at least 7 L* in grayscale and all
+ten stay apart under simulated protanopia, deuteranopia and tritanopia;
+past ten series, restrained colours are generated in OKLCH (golden-angle
+hues, no green band). Series are never told apart by colour alone: curves
+get distinct line patterns (solid, dashed, dotted, dash-dot, long dash,
+dash-dot-dot) and, when two visible curves would share a pattern, a few
+identity markers on real data points; means and replicates of temporal
+graphs get distinct marker shapes (circle, square, triangle, diamond,
+inverted triangle, cross) and patterns. Saved per-series `marker` and
+`lineStyle` override these defaults. The legend lists the visible series
+(default), all series (hidden ones muted) or only `visual.legendSeries`
+(`visual.legendMode` `selected`); what does not fit, or is not listed, is
+counted as "+N more", so many series never take the plot area. The
 icon, set by the owner on 2026-10-15, is a hammerhead shark seen from above
 in #143A52 on a light #F4F8FA tile, inside a fine goniometer-style graticule
 (the angle scale of light-scattering instruments) with one #2C7FB8 accent;
@@ -374,8 +395,9 @@ from the SVG masters with `node ../scripts/brand_icons.mjs` from `web/`,
 after `npm ci` and `npx playwright-core install chromium` (or with
 `MNELAB_CHROMIUM` pointing to a Chromium build).
 Layouts are checked at 1366×768 and 1024×600 and on a 390×844 phone. Below
-1180 px the graph editor's inspector becomes a drawer opened by the Details
-button, so the graph keeps the full width. Turbo turns off cosmetic
+1180 px the Graph Builder's settings panel becomes a drawer opened by the
+Settings button in the page header, so the preview keeps the width; the
+Series Explorer and the action bar stay in place. Turbo turns off cosmetic
 animations and smooth scrolling for older computers.
 
 ## 16. Feature discovery and onboarding
@@ -466,6 +488,125 @@ normalized measurements into series, axes, statistics and provenance:
 A measurement without the needed distribution or weighting is left out with
 a note naming it; the graph fails only when nothing remains.
 
+- values per series (`series_values`): one summary quantity or instrument
+  reading per selected series on a categorical axis, refused when the
+  selection mixes parameters or units (several units only with an exact
+  `displayUnit`, which Combine offers).
+- condition × time (`design_time`): a saved design revision drawn by
+  experimental unit. Each condition is one mean series (mean ± SD by
+  default, SEM on request, CI only from a linked saved analysis) with its own
+  colour, marker and line pattern on a shared integer time axis (labels from
+  the design), each unit's value as an individual point (shown unless
+  `showIndividual: false`) and optional unit trajectories
+  (`unitTrajectories`, tinted thin lines out of the legend). Technical
+  readings of a unit in a cell are averaged first; n counts units.
+- paired view (`paired_condition`): at one time point (`pairedAt`, default
+  the first), each unit's values under the conditions joined by a line, the
+  mean of each condition beside it (display-only offset), and a note when a
+  unit has both conditions but no declared pair.
+
+Graph definitions are stored with `schema: 2` (engine `graph-engine/1.3.0`).
+Schema 2 only adds fields; a schema 1 definition renders exactly as before
+(`internal/plot/compat_test.go` compares against a golden file):
+
+- `seriesIds`: the selection by SeriesID. The core derives `measurements`,
+  `weighting`/`param` and the pinned distribution candidates from it on
+  save, so older readers still see a valid definition. A SeriesID that no
+  longer resolves (file trashed, candidate removed) is left out with the
+  warning `graph.missing_series`, never a failure.
+- display options: `focusSeries` (others drawn muted, out of the legend),
+  `subtitle`, `xLabel`/`yLabel`, `yScale` (log only with positive values),
+  `displayUnit` (shown unit with an exact factor only: nm/µm/m,
+  cps/kcps/Mcps, s/min/h/d; the stored values do not change and the axis
+  records `conversion {from, to, factor}`), `showIndividual`,
+  `connectMeans`, `textNotes`, `visual.margin` and `visual.preset`.
+- error bars are always named on the figure (legend, metadata or a note):
+  SD by default, SEM on request; a confidence interval only for a
+  statistical graph from a saved analysis.
+- `derivedFrom` (lineage, written only by the core), `sourceFiles`,
+  `parserVersions` and `calculationVersion` (snapshots taken on save).
+- design graphs: `designId` (a design revision, pinned; the editor offers a
+  newer head but never moves to it alone), `conditions` (subset, in design
+  order), `pairedAt`, `groups` (saved groups restricting the members) and
+  `unitTrajectories`. On save the core derives `measurements` from the
+  design's assignments. `analysisId` must name a saved analysis of the same
+  design root and variable (`graph.analysis_incompatible`); without one a
+  CI request falls back to SD and annotations are dropped.
+- annotations of design graphs: up to 12 comparison IDs of the linked
+  analysis, styles `exact` (adjusted p), `stars` (from the adjusted p) or
+  `effect` (stored difference, its interval and the adjusted p). Brackets,
+  labels and values are read from the saved comparisons and never
+  recalculated; a paired view draws only comparisons between conditions at
+  its time point; a graph whose conditions are stored in different units
+  draws none (`graph.annotations_mixed_units`). Bracket labels are kept
+  inside the plot area.
+
+`POST /api/graphs/{id}/duplicate` (optional `title`) stores a copy with a
+new ID and `derivedFrom: [{graphId, relation: "duplicate", title,
+definitionHash, at}]`, where the hash is the SHA-256 of the stored original;
+the original record is not touched and a graph in the trash is refused.
+Combine (`POST /api/graphs/combine/check` and `POST /api/graphs/combine`,
+`{ids, title, displayUnit}`, account and profile headers) reads 2–8 saved
+graphs of one combinable kind (`design_time`, `series_values`,
+`dls_distribution`) and the same variable, and refuses different variables,
+designs or revisions, X domains (variable or unit), units without an exact
+conversion, empty graphs and graphs in the trash, each with a stable code
+(`graph.combine_*`). When units differ it lists the units every parent
+converts to with an exact factor; only an accepted one is applied as
+`displayUnit`. The new definition is built from the parents' definitions
+(the union of their conditions or series, never images), with lineage
+`derivedFrom: [{graphId, relation: "combine", title, definitionHash, at}]`
+for every parent. The parents are re-read inside the write transaction and
+the combination is refused with `graph.combine_conflict` when one changed
+after the check; parents are never written. Linked analyses and annotations
+are not carried over. A parent's later edits never propagate: relations
+report `changedParents` when a parent's current hash differs from the one
+recorded.
+
+Relations list `derivedFrom`/`derived` for each graph, plus `design`,
+`groups`, `analysis` and `changedParents`, and the files, graphs and cycles
+of each group. The render handler
+passes the request context down to the series loading and stops with
+`graph.render_cancelled` when the request is cancelled; the interface aborts
+a preview as soon as a newer one supersedes it and shows a Stop control
+when one takes noticeable time.
+
+### Graph Builder
+
+The graph screen (`web/src/screens/ls/graph.tsx`) has the Series Explorer
+(`series-explorer.tsx`), Data and Groups on the left, the live preview in
+the centre, the settings (type and variables, design revision, conditions
+and paired time point, axes and units, error bars and points, statistical
+annotations, lines and markers, legend, labels and notes, publication
+preset), per-series style and details (provenance with lineage both ways:
+Derived From and Used By, changed-parent notes and version snapshots,
+comparison, notes) on the right, and Save, Duplicate, Combine
+(`combine.tsx`), Analyze, Present and Export below. The figure tooltip shows
+each point's own name (time, unit · condition) for design graphs. Analyze
+opens `/ls/statistics/new` prefilled from the graph (`design`, `variable`,
+`conditions`, `group`, `graph`, or `cycle`); the editor still shows the
+design review card and applies the pseudoreplication guard, and after
+saving it offers Annotate, which opens the graph with `?analysis=` linked
+for the person to choose comparisons and save. The Explorer reads `GET /api/series`, draws only the rows in
+view (fixed row height), searches and filters by file, condition, time,
+replicate kind (instrument readings included) and unit, selects one, a
+Shift range or everything listed, and offers per-series hide and focus.
+Selecting series stores only their IDs; series left out and every record
+stay unchanged.
+
+### Groups and saved selections
+
+`ls.group` (synced) holds groups (`kind: "group"`, measurement IDs) and saved
+selections (`kind: "selection"`, SeriesIDs; their measurements are derived on
+save). Both store references only, never values (`/api/groups`, account and
+profile headers; at most 2000 members). A group feeds a design graph
+(`groups`), a series graph (adds its series to the selection), a cycle
+(`groupId` kept on the cycle) and an analysis (`/ls/statistics/new?group=`).
+Deleting a group a saved graph draws is refused (`groups.in_use`); its
+measurements, cycles and analyses are never touched. The Groups tab lists
+them; the File Library saves a selection of measurements as a group and the
+Graph Builder saves its selection of series.
+
 ### Cycles
 
 A cycle is a plan (start, interval, duration, unit) and the measurements
@@ -487,6 +628,37 @@ semicolon as column separator, and cells that a spreadsheet would run as a
 formula are neutralized. The research package for a cycle is one ZIP with a
 README, a manifest with checksums, the original files, normalized data,
 statistics, graphs (SVG, PDF, PNG) and provenance.
+
+A design graph exports its data as three tables (readings with their
+replicate kind, unit values per condition × time, and the summary with n,
+mean, SD, SEM and, from a linked analysis, the CI) plus metadata naming the
+design revision, n, error bars, groups, analysis and every Derived From
+parent (`internal/export/design.go`; golden files in
+`testdata/design-export/`). A single graph can also be exported as a
+research package (`package` preset): figures, normalized data, original
+files, `graphs/definitions.json` with parents and lineage hashes,
+`design/design.json` with units, conditions, times, pairs and revision
+history, `groups/<id>.json`, the linked analyses under `statistics/analyses/`
+and provenance. A cycle package adds the design and group it was built from.
+A group exports its members as tables (kind `group`).
+
+### Experimental designs and series
+
+Designs live in the synced collection `science.design`; every save is a new
+immutable record (`root`, `revision`, `previousId`, `changes`), so two
+machines that edit the same revision keep both heads and show them as
+diverged instead of overwriting one. Instrument readings of a runs table live
+in `ls.reading`, one record per file, written at import and backfilled from
+the stored original for earlier imports. Neither collection changes a
+measurement. `GET /api/series` lists the series of the library (optionally
+`design=`, `file=`, `q=`); a SeriesID is `m:<measurement>/p:<parameter>` for a
+summary quantity, `m:<measurement>/d:<distribution>/w:<weighting>` for a
+distribution curve and `m:<measurement>/r:<run>/p:<parameter>` for an
+instrument reading, built only from stable identifiers, never from labels.
+Design endpoints (`/api/designs`, `/api/designs/review`,
+`/api/designs/suggest`, `PATCH /api/experimental-units/{id}`) require the
+account and profile headers, like statistical analyses. See
+[SCIENTIFIC_RULES.md](SCIENTIFIC_RULES.md) for the rules.
 
 ### Statistical analyses
 
@@ -557,8 +729,10 @@ uncertainty rather than inventing a field or an algorithm.
 | Identifier | Status |
 |---|---|
 | `ls-spec/0.3-provisional` | Product field list; owner references consulted, instrument layout and semantic validation ongoing. |
-| `lightscattering-parser/1.6.0` | Parser version recorded in provenance. |
-| `graph-engine/1.1.0` | Graph Engine version recorded in provenance. |
+| `lightscattering-parser/1.7.0` | Parser version recorded in provenance. |
+| `experimental-design/1` | Experimental design record version. |
+| `series-catalog/1` | Series catalog (SeriesID scheme) version. |
+| `graph-engine/1.3.0` | Graph Engine version recorded in provenance; graph definitions are stored as schema 2. |
 
 ## 19. Tests
 
@@ -580,7 +754,17 @@ uncertainty rather than inventing a field or an algorithm.
   used link refused). It fails on script errors, failed requests, raw
   translation keys, cut text, a page that scrolls, an empty graph or a
   command-palette search that misses a feature, and saves screenshots to
-  `out/e2e/` for visual review.
+  `out/e2e/` for visual review. `builder.mjs` runs the Graph Builder on twenty
+  synthetic series (`testdata/lightscattering/synthetic-twenty-series.txt`):
+  search, filter, select three, edit, save, reopen, duplicate with lineage
+  and stopped previews, checking that the other seventeen series and the
+  file's records do not change. `paired.mjs` imports 24 synthetic
+  measurements (units A, B, C; F-SR and C-SR; days 0, 7, 14, 21), saves the
+  design, draws Graph 1 (F-SR) and Graph 2 (C-SR), combines them into Graph 3
+  (refusing a graph of another variable; parents byte-identical; lineage
+  both ways), runs the classical paired analysis offline from Analyze,
+  annotates Graph 3 from it, exports the research package and reopens the
+  graph with its pairing intact, in every language and both themes.
 
 ## 20. Known issues
 

@@ -86,7 +86,262 @@ mne_mixed <- function(d,alpha) {
   list(terms=terms,model=model,residuals=as.numeric(residuals(fit,type="response")))
 
 }
+# Paired Condition x Time design: A (condition) and B (time) both vary within
+# each explicit experimental unit. Technical readings that share a unit x A x B
+# cell are averaged here and counted, never used as N. Every df comes from R.
+# Levels in the order the core states (conditions as the design declares
+# them, times by their offset); without one, byte order. The order only
+# arranges levels and contrast directions; it never changes a test.
+mne_paired_levels <- function(x, declared=NULL) {
+  present <- unique(x)
+  if (length(declared)) {
+    declared <- as.character(declared)
+    lv <- declared[declared %in% present]
+    if (anyDuplicated(declared) || !setequal(lv, present)) stop("statistics.invalid_definition")
+    return(factor(x, levels=lv))
+  }
+  factor(x, levels=sort(present, method="radix"))
+}
+mne_paired_sphericity <- function(mlm, idata, X, M, pp) {
+  out <- list()
+  ssd <- SSD(mlm)
+  sph <- tryCatch(stats:::sphericity(ssd, X=X, M=M, idata=idata), error=function(e) NULL)
+  if (!is.null(sph) && is.finite(sph$GG.eps) && sph$GG.eps > 0 && sph$GG.eps <= 1 + 1e-12) out$GG <- sph$GG.eps
+  if (!is.null(out$GG) && is.finite(sph$HF.eps) && sph$HF.eps > 0) out$HF <- sph$HF.eps
+  # Mauchly needs a non-singular contrast SSD: at least as many residual df
+  # (units - 1) as contrasts, and full numerical rank. Otherwise it is not
+  # computed; no statistic is reported from a singular matrix.
+  contrast <- stats:::Thin.row(stats:::Proj(model.matrix(M, idata)) - stats:::Proj(model.matrix(X, idata)))
+  if (ssd$df >= pp && qr(contrast %*% ssd$SSD %*% t(contrast))$rank == pp) {
+    test <- tryCatch(mauchly.test(mlm, X=X, M=M, idata=idata), error=function(e) NULL, warning=function(w) NULL)
+    if (!is.null(test) && is.finite(test$statistic) && test$statistic > 0 && is.finite(test$p.value)) {
+      out$W <- unname(test$statistic); out$p <- test$p.value
+    }
+  }
+  out
+}
+# Classical repeated-measures strata for complete data (aov with Error()).
+mne_paired_rm <- function(d, within, alpha, requested, context="") {
+  formula <- if (within == "B") y ~ B + Error(unit/B) else y ~ A*B + Error(unit/(A*B))
+  summaries <- summary(aov(formula, data=d))
+  names <- c("Error: unit"="residual_subject", "Error: unit:A"="residual_unit:A", "Error: unit:B"="residual_unit:B", "Error: unit:A:B"="residual_unit:A:B")
+  effects <- list(); residuals <- list()
+  for (stratum in names(summaries)) {
+    if (!stratum %in% names(names)) stop("statistics.incompatible_design")
+    tab <- summaries[[stratum]][[1]]; rows <- trimws(rownames(tab))
+    if (sum(rows == "Residuals") != 1L) stop("statistics.incompatible_design")
+    ess <- as.numeric(tab[rows == "Residuals", "Sum Sq"]); edf <- as.numeric(tab[rows == "Residuals", "Df"])
+    if (!is.finite(ess) || edf <= 0 || ess <= 0) stop("statistics.zero_residual_variance")
+    residuals[[names[[stratum]]]] <- list(source=names[[stratum]], ss=ess, df=edf, ms=ess/edf)
+    for (i in which(rows != "Residuals")) effects[[rows[i]]] <- list(source=rows[i], ss=as.numeric(tab[i, "Sum Sq"]), df=as.numeric(tab[i, "Df"]), f=as.numeric(tab[i, "F value"]), p=as.numeric(tab[i, "Pr(>F)"]), errorSS=ess, errorDF=edf, stratum=names[[stratum]])
+  }
+  expected <- if (within == "B") "B" else c("A", "B", "A:B")
+  if (!setequal(names(effects), expected) || length(effects) != length(expected)) stop("statistics.incompatible_design")
+  errorSS <- sum(vapply(residuals, function(r) r$ss, 0)); totalSS <- sum((d$y - mean(d$y))^2)
+  terms <- list(); corrected <- list(); corrections <- list(); diagnostics <- list(); warnings <- character()
+  wide <- matrix(NA_real_, nlevels(d$unit), nlevels(d$A) * nlevels(d$B))
+  wide[cbind(as.integer(d$unit), (as.integer(d$A) - 1L) * nlevels(d$B) + as.integer(d$B))] <- d$y
+  if (any(!is.finite(wide))) stop("statistics.incomplete_repeated")
+  idata <- expand.grid(B=levels(d$B), A=levels(d$A))[, c("A", "B")]
+  idata$A <- factor(idata$A, levels=levels(d$A)); idata$B <- factor(idata$B, levels=levels(d$B))
+  mlm <- lm(wide ~ 1)
+  spaces <- list(A=list(X=~1, M=~A), B=list(X=~A, M=~A + B), "A:B"=list(X=~A + B, M=~A * B))
+  if (within == "B") spaces <- list(B=list(X=~1, M=~B))
+  for (name in expected) {
+    e <- effects[[name]]
+    terms[[length(terms) + 1L]] <- list(source=name, ss=e$ss, df=e$df, denominatorDF=e$errorDF, ms=e$ss/e$df, f=e$f, p=e$p,
+      etaSquared=if (totalSS > 0) e$ss/totalSS else NULL, partialEtaSquared=e$ss/(e$ss + e$errorSS), generalizedEtaSquared=e$ss/(e$ss + errorSS))
+    if (e$df > 1) {
+      s <- mne_paired_sphericity(mlm, idata, spaces[[name]]$X, spaces[[name]]$M, e$df)
+      label <- if (nzchar(context)) paste0(name, "; ", context) else name
+      if (!is.null(s$W)) diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("mauchly", s$W, s$p, details=label)
+      else {
+        diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("mauchly_not_estimable", details=paste0(label, "; residual df=", e$errorDF/e$df, "; contrasts=", e$df))
+        warnings <- c(warnings, "statistics.sphericity_not_testable")
+      }
+      epsilons <- list(GG=s$GG, HF=if (!is.null(s$HF)) min(1, s$HF) else NULL, LB=1/e$df)
+      if (is.null(s$GG)) warnings <- c(warnings, "statistics.gg_not_estimable")
+      if (is.null(s$HF)) warnings <- c(warnings, "statistics.hf_not_estimable")
+      corrections[[paste0("GG:", name)]] <- s$GG; corrections[[paste0("HF:", name)]] <- s$HF; corrections[[paste0("LB:", name)]] <- 1/e$df
+      if (nzchar(requested) && !is.null(epsilons[[requested]])) corrections[[paste0("applied:", name)]] <- epsilons[[requested]]
+      for (kind in c("GG", "HF", "LB")) if (!is.null(epsilons[[kind]])) {
+        epsilon <- epsilons[[kind]]
+        corrected[[length(corrected) + 1L]] <- list(source=paste0(name, "_", kind), df=e$df * epsilon, denominatorDF=e$errorDF * epsilon,
+          f=e$f, p=pf(e$f, e$df * epsilon, e$errorDF * epsilon, lower.tail=FALSE), epsilon=epsilon)
+      }
+    }
+  }
+  # Strata order: subject, then each effect followed by its own error stratum.
+  ordered <- list(residuals[["residual_subject"]])
+  for (t in terms) ordered <- c(ordered, list(t), list(residuals[[effects[[t$source]]$stratum]]))
+  list(terms=c(ordered, corrected), corrections=corrections, diagnostics=diagnostics, warnings=unique(warnings))
+}
+mne_paired_mixed <- function(d, alpha) {
+  if (nlevels(d$unit) < 3L || nlevels(d$A) < 2L || nlevels(d$B) < 2L) stop("statistics.incompatible_design")
+  if (!requireNamespace("nlme", quietly=TRUE)) stop("statistics.method_unavailable")
+  contrasts <- list(A=contr.sum, B=contr.sum)
+  X <- model.matrix(y ~ A*B, data=d, contrasts.arg=contrasts)
+  if (qr(X)$rank != ncol(X)) stop("statistics.rank_deficient")
+  fitWarnings <- character()
+  # D2: unit and unit-by-condition random intercepts, REML; denominator df
+  # are nlme's own containment df, returned as computed.
+  fit <- withCallingHandlers(tryCatch(nlme::lme(y ~ A*B, random=~1|unit/A, data=d, method="REML", contrasts=contrasts, na.action=na.fail, control=nlme::lmeControl(returnObject=FALSE)), error=function(e) stop("statistics.mixed_not_estimable")), warning=function(w) {fitWarnings <<- c(fitWarnings, conditionMessage(w)); invokeRestart("muffleWarning")})
+  if (length(fitWarnings) || !is.matrix(fit$apVar) || any(!is.finite(fit$apVar))) stop("statistics.mixed_not_estimable")
+  tryCatch(nlme::intervals(fit, which="var-cov"), error=function(e) stop("statistics.mixed_not_estimable"))
+  residualVariance <- fit$sigma^2
+  components <- lapply(nlme::pdMatrix(fit$modelStruct$reStruct), function(m) as.numeric(m[1, 1]) * residualVariance)
+  if (!identical(names(components), c("unit", "A"))) stop("statistics.mixed_not_estimable")
+  variances <- unlist(components)
+  # D13: a boundary (singular) fit is refused, never simplified silently.
+  if (any(!is.finite(variances)) || !is.finite(residualVariance) || any(variances <= 0) || residualVariance <= 0 || any(sqrt(variances/residualVariance) < 1e-4)) stop("statistics.mixed_not_estimable")
+  tab <- nlme::anova.lme(fit, type="marginal")
+  tab <- tab[rownames(tab) != "(Intercept)", , drop=FALSE]
+  if (!identical(rownames(tab), c("A", "B", "A:B")) || any(tab$numDF <= 0) || any(tab$denDF <= 0) || any(!is.finite(as.matrix(tab)))) stop("statistics.mixed_not_estimable")
+  coefficientCI <- tryCatch(nlme::intervals(fit, which="fixed", level=1 - alpha)$fixed, error=function(e) stop("statistics.mixed_not_estimable"))
+  coefficients <- nlme::fixef(fit); se <- sqrt(diag(vcov(fit)))
+  if (any(!is.finite(coefficientCI)) || any(!is.finite(fit$fixDF$X)) || any(fit$fixDF$X <= 0) || any(!is.finite(coefficients)) || any(!is.finite(se)) || any(se <= 0)) stop("statistics.mixed_not_estimable")
+  coefficientResults <- mne_array(lapply(seq_along(coefficients), function(i) list(name=names(coefficients)[i], estimate=unname(coefficients[i]), se=unname(se[i]), df=unname(fit$fixDF$X[i]), lower=coefficientCI[i, "lower"], upper=coefficientCI[i, "upper"])))
+  model <- list(family="nested_random_intercepts", fixed="A*B", estimation="REML", random="1|unit/A",
+    residualCovariance="homoscedastic conditional errors", test="marginal Wald F; sum contrasts; nlme containment denominator df",
+    levelsA=mne_array(levels(d$A)), levelsB=mne_array(levels(d$B)), randomVariance=components$unit,
+    randomComponents=mne_array(list(list(level="unit", variance=components$unit), list(level="unit:A", variance=components$A))),
+    residualVariance=residualVariance, logLikelihood=as.numeric(logLik(fit)), boundaryTolerance=1e-4,
+    coefficientConfidenceLevel=1 - alpha, coefficientIntervalMethod="nlme::intervals.lme fixed; Student t; conditional GLS; approximate; individual",
+    fixedCoefficients=coefficientResults)
+  terms <- lapply(seq_len(nrow(tab)), function(i) list(source=rownames(tab)[i], df=tab[i, "numDF"], denominatorDF=tab[i, "denDF"], f=tab[i, "F-value"], p=tab[i, "p-value"]))
+  list(terms=terms, model=model, residuals=as.numeric(residuals(fit, type="response")))
+}
+# D3: paired t-tests (base R) with Holm or Bonferroni within each family, and
+# a one-way repeated-measures ANOVA of B within each level of A.
+mne_paired_simple <- function(d, alpha, adjustment) {
+  comparisons <- list(); simple <- list(); diagnostics <- list(); warnings <- character()
+  units <- levels(d$unit)
+  cellValues <- function(a, b) { s <- d[d$A == a & d$B == b, ]; s$y[match(units, as.character(s$unit))] }
+  family <- function(pairs, name, context) {
+    tests <- tryCatch(lapply(pairs, function(pair) {
+      left <- cellValues(pair$leftA, pair$leftB); right <- cellValues(pair$rightA, pair$rightB)
+      t.test(right, left, paired=TRUE, conf.level=1 - alpha)
+    }), error=function(e) NULL)
+    if (is.null(tests)) {
+      diagnostics[[length(diagnostics) + 1L]] <<- mne_diagnostic("posthoc_family_not_estimable", details=paste0(name, if (nzchar(context)) paste0("; ", context) else ""))
+      warnings <<- c(warnings, "statistics.posthoc_family_not_estimable")
+      return(list())
+    }
+    p <- vapply(tests, function(t) t$p.value, 0)
+    adjusted <- p.adjust(p, method=adjustment)
+    lapply(seq_along(pairs), function(i) {
+      pair <- pairs[[i]]; t <- tests[[i]]
+      list(leftA=pair$leftA, leftB=pair$leftB, rightA=pair$rightA, rightB=pair$rightB, contrast=pair$contrast, context=pair$context,
+        family=name, difference=unname(t$estimate), lower=t$conf.int[1], upper=t$conf.int[2], statistic=unname(t$statistic),
+        df=unname(t$parameter), p=t$p.value, n=length(units), adjustedP=adjusted[i],
+        correction=paste0(if (adjustment == "holm") "Holm" else "Bonferroni", "; paired t; individual CI"))
+    })
+  }
+  la <- levels(d$A); lb <- levels(d$B)
+  pairs <- list()
+  for (b in lb) for (j in seq_along(la)[-1L]) for (i in seq_len(j - 1L))
+    pairs[[length(pairs) + 1L]] <- list(leftA=la[i], leftB=b, rightA=la[j], rightB=b, contrast=paste0(la[j], "-", la[i]), context=paste0("B=", b))
+  comparisons <- c(comparisons, family(pairs, "A_within_B", ""))
+  for (a in la) {
+    sub <- d[d$A == a, ]; sub$A <- factor(sub$A, levels=a)
+    context <- paste0("A=", a)
+    rm <- tryCatch(mne_paired_rm(sub, "B", alpha, "", context), error=function(e) NULL)
+    if (is.null(rm)) {
+      diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("simple_effect_not_estimable", details=context)
+      warnings <- c(warnings, "statistics.posthoc_family_not_estimable")
+    } else {
+      simple[[length(simple) + 1L]] <- list(context=context, factorA=a, terms=mne_array(rm$terms), corrections=if (length(rm$corrections)) rm$corrections else NULL)
+      diagnostics <- c(diagnostics, rm$diagnostics); warnings <- c(warnings, rm$warnings)
+    }
+    pairs <- list()
+    for (j in seq_along(lb)[-1L]) for (i in seq_len(j - 1L))
+      pairs[[length(pairs) + 1L]] <- list(leftA=a, leftB=lb[i], rightA=a, rightB=lb[j], contrast=paste0(lb[j], "-", lb[i]), context=context)
+    comparisons <- c(comparisons, family(pairs, "B_within_A", context))
+  }
+  list(comparisons=comparisons, simple=simple, diagnostics=diagnostics, warnings=warnings)
+}
+mne_paired <- function(input) {
+  alpha <- as.numeric(input$alpha); method <- as.character(input$method); postHoc <- as.character(input$postHoc)
+  adjustment <- if (is.null(input$adjustment)) "" else as.character(input$adjustment)
+  raw <- data.frame(y=as.numeric(input$values), A=as.character(input$factorA), B=as.character(input$factorB), unit=as.character(input$unitId), stringsAsFactors=FALSE)
+  if (nrow(raw) < 3L || any(!is.finite(raw$y))) stop("statistics.invalid_numeric")
+  if (any(raw$unit == "") || input$structure != "repeated") stop("statistics.review_structure")
+  if (!method %in% c("repeated", "mixed") || isTRUE(input$effectCI) || (!is.null(input$control) && nzchar(as.character(input$control)))) stop("statistics.incompatible_design")
+  if (method == "mixed" && input$correction != "") stop("statistics.incompatible_design")
+  if (method == "repeated" && !input$correction %in% c("GG", "HF")) stop("statistics.invalid_definition")
+  if (postHoc == "simple_effects") { if (!adjustment %in% c("holm", "bonferroni")) stop("statistics.invalid_definition") }
+  else if (postHoc != "none" || adjustment != "") stop("statistics.incompatible_posthoc")
+  if (any(raw$A == "") || any(raw$B == "")) stop("statistics.incompatible_design")
+  # D4: readings in one unit x A x B cell are averaged. Numeric identities
+  # keep labels such as ("a.b","c") and ("a","b.c") apart.
+  key <- paste(match(raw$unit, unique(raw$unit)), match(raw$A, unique(raw$A)), match(raw$B, unique(raw$B)))
+  rows <- split(seq_len(nrow(raw)), factor(key, levels=unique(key)))
+  first <- vapply(rows, function(i) i[1L], 0L)
+  d <- data.frame(y=vapply(rows, function(i) mean(raw$y[i]), 0), readings=lengths(rows), A=raw$A[first], B=raw$B[first], unit=raw$unit[first], stringsAsFactors=FALSE)
+  d$A <- mne_paired_levels(d$A, input$levelsA); d$B <- mne_paired_levels(d$B, input$levelsB); d$unit <- factor(d$unit, levels=unique(d$unit))
+  rownames(d) <- NULL
+  if (nlevels(d$A) < 2L || nlevels(d$B) < 2L || nlevels(d$unit) < 2L) stop("statistics.incompatible_design")
+  complete <- all(table(d$unit, d$A, d$B) == 1L)
+  if ((method == "repeated" || postHoc == "simple_effects") && !complete) stop("statistics.incomplete_repeated")
+  diagnostics <- list(); warnings <- character(); corrections <- list(); comparisons <- list(); simple <- list(); mixedModel <- NULL
+  groups <- list()
+  for (a in levels(d$A)) for (b in levels(d$B)) {
+    g <- d[d$A == a & d$B == b, ]
+    if (!nrow(g)) next
+    n <- nrow(g); s <- if (n > 1L) sd(g$y) else NA_real_; sem <- s/sqrt(n)
+    critical <- if (n > 1L) qt(1 - alpha/2, n - 1L) else NA_real_
+    groups[[length(groups) + 1L]] <- list(factorA=a, factorB=b, n=n, values=mne_array(g$y), units=mne_array(as.character(g$unit)), readings=mne_array(g$readings),
+      mean=mean(g$y), sd=s, sem=sem, ciLower=mean(g$y) - critical * sem, ciUpper=mean(g$y) + critical * sem)
+  }
+  if (any(d$readings > 1L)) {
+    diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("technical_readings_averaged", statistic=sum(d$readings > 1L),
+      details=paste0("Cells with several readings: ", sum(d$readings > 1L), " of ", nrow(d), "; readings: ", sum(d$readings), "; largest cell: ", max(d$readings), "; each cell mean is one observation of its experimental unit"))
+    warnings <- c(warnings, "statistics.technical_readings_averaged")
+  }
+  if (method == "repeated") {
+    rm <- mne_paired_rm(d, "AB", alpha, input$correction)
+    terms <- rm$terms; corrections <- rm$corrections; diagnostics <- c(diagnostics, rm$diagnostics); warnings <- c(warnings, rm$warnings)
+    # Residuals of the unit x A x B stratum (all other strata removed).
+    residual <- residuals(lm(y ~ unit*A + unit*B + A:B, data=d))
+    ssType <- "repeated_within_within_strata"
+    warnings <- c(warnings, "statistics.repeated_variance_uses_sphericity")
+  } else {
+    mixed <- mne_paired_mixed(d, alpha)
+    terms <- mixed$terms; residual <- mixed$residuals; mixedModel <- mixed$model
+    ssType <- "not_applicable_marginal_Wald_F"
+    diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("mixed_model", details="REML; random intercepts for unit and for condition within unit (1|unit/A); A and B within unit; compound symmetry within each unit and within each unit x condition: A is tested against unit-by-condition variation, B and A:B against one pooled within-unit residual (unit x B and unit x A x B variation together), a stronger assumption than sphericity; sum contrasts; marginal Wald F with nlme containment denominator df as returned; conditional GLS SE; response residuals; relative SD boundary tolerance=1e-4 for each random component")
+    warnings <- c(warnings, "statistics.mixed_covariance_assumption", "statistics.paired_mixed_pooled_error")
+  }
+  if (length(residual) != nrow(d) || any(!is.finite(residual))) stop("statistics.invalid_numeric")
+  if (postHoc == "simple_effects") {
+    se <- mne_paired_simple(d, alpha, adjustment)
+    comparisons <- se$comparisons; simple <- se$simple; diagnostics <- c(diagnostics, se$diagnostics); warnings <- c(warnings, se$warnings)
+  }
+  for (i in seq_along(comparisons)) comparisons[[i]]$id <- paste0("comparison-", i)
+  diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("independence_user_review", details=paste0(input$structure, "; within_within; experimental units=", nlevels(d$unit)))
+  if (length(residual) >= 3L && length(residual) <= 5000L && sd(residual) > 0) {
+    shapiro <- shapiro.test(residual)
+    diagnostics[[length(diagnostics) + 1L]] <- mne_diagnostic("shapiro_wilk", unname(shapiro$statistic), shapiro$p.value)
+  } else warnings <- c(warnings, "statistics.shapiro_not_applicable")
+  # The interaction is read with the sphericity correction the person chose
+  # (applied:A:B) when one applies, otherwise as tested.
+  interactionSource <- if (method == "repeated" && !is.null(corrections[["applied:A:B"]])) paste0("A:B_", input$correction) else "A:B"
+  interaction <- Filter(function(t) identical(t$source, interactionSource), terms)
+  if (postHoc != "simple_effects" && length(interaction) && !is.null(interaction[[1]]$p) && interaction[[1]]$p < alpha) warnings <- c(warnings, "statistics.interaction_requires_simple_effects")
+  qq <- qqnorm(residual, plot.it=FALSE)
+  engine <- "webR/0.6.0; R/4.6.0"
+  engine <- paste0(engine, if (method == "mixed") "; nlme/3.1-169; mixed-within2/1" else "; paired-rm/1")
+  if (postHoc == "simple_effects") engine <- paste0(engine, "; paired-simple-effects/1")
+  list(engine=engine, calculation="mnelab-statistics/1", method=method, design="within_within", ssType=ssType, terms=mne_array(terms), groups=mne_array(groups),
+    comparisons=mne_array(comparisons), simpleEffects=mne_array(simple), diagnostics=mne_array(diagnostics), residuals=mne_array(as.numeric(residual)),
+    qqTheoretical=mne_array(as.numeric(qq$x)), qqObserved=mne_array(as.numeric(qq$y)), warnings=mne_array(unique(warnings)),
+    corrections=if (length(corrections)) corrections else NULL, model=mixedModel, effectIntervals=NULL)
+}
 mne_engine <- function(input) {
+  design <- if (is.null(input$design)) "" else as.character(input$design)
+  if (identical(design, "within_within")) return(mne_paired(input))
+  if (nzchar(design)) stop("statistics.invalid_definition")
+  if (!input$postHoc %in% c("none", "tukey", "dunnett") || (!is.null(input$adjustment) && nzchar(as.character(input$adjustment)))) stop("statistics.incompatible_posthoc")
   d <- data.frame(y=as.numeric(input$values), A=factor(input$factorA), B=factor(input$factorB), unit=factor(input$unitId))
   alpha <- as.numeric(input$alpha)
   if (nrow(d)<3L || any(!is.finite(d$y))) stop("statistics.invalid_numeric")

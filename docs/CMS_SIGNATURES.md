@@ -145,5 +145,6 @@ requires Go 1.27. Limits/preflight precede its BER transcoder and trailing-input
 normalization. Selection does not claim a blanket security certification.
 
 Development pre-releases are built by `.github/workflows/release.yml` and are
-not Stable. Distribution licensing and actual clean Windows/USB testing remain
+not Stable; `.github/workflows/release-auto.yml` tags and publishes the next
+one after CI passes on main. Distribution licensing and actual clean Windows/USB testing remain
 release gates in READINESS.md.

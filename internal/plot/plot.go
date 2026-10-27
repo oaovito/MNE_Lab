@@ -160,7 +160,8 @@ func (s Spec) normalized() Spec {
 
 // Op is one drawing operation. Coordinates are points from the top-left.
 type Op struct {
-	K       string    `json:"k"` // rect, line, poly, circle, text, clip, unclip
+	K       string    `json:"k"`               // rect, line, poly, circle, marker, text, clip, unclip
+	Shape   string    `json:"shape,omitempty"` // marker: circle, square, triangle, diamond, triangle_down, cross
 	X       float64   `json:"x,omitempty"`
 	Y       float64   `json:"y,omitempty"`
 	W       float64   `json:"w,omitempty"`
@@ -222,9 +223,6 @@ type Figure struct {
 // Translator returns localized text for a key. Pairs in kv replace {name}.
 type Translator func(key string, kv ...string) string
 
-// Colors of figures (high-contrast, color-blind friendly order).
-var Palette = []string{"#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#7F3C8D", "#3B3B3B", "#B8860B", "#11A579"}
-
 const (
 	inkText  = "#1D232B"
 	inkMuted = "#59606B"
@@ -262,48 +260,63 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		ts := fs * 1.25
 		fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: top + ts, Text: fit(fig.Title, FontSansBold, ts, right-left), Size: ts, Font: FontSansBold, Fill: inkText, Anchor: "start", Role: "title"})
 		top += ts * 1.7
+		subtitle := res.Subtitle
+		if subtitle == "" && res.Kind == graph.KindPairedCondition && len(res.Series) > 0 && res.Series[0].Meta["time"] != "" {
+			subtitle = T("plot.paired_at", "time", res.Series[0].Meta["time"])
+		}
+		if subtitle != "" {
+			ss := fs * 0.95
+			top -= ts * 0.35
+			fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: top + ss, Text: fit(subtitle, FontSans, ss, right-left), Size: ss, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "subtitle"})
+			top += ss * 1.7
+		}
 	}
 
-	// Series (visible only) and their colors.
+	// Series colours, line patterns and markers, then the legend entries.
+	looks := assignStyles(res, lw, s.Points || res.Visual.Points)
 	type entry struct {
-		idx   int
-		label string
-		color string
-		kind  string
-		dash  []float64
+		idx    int
+		label  string
+		hidden bool
 	}
 	var entries []entry
-	// Replicates of the same cycle point share a color and differ by line
-	// pattern, so many curves stay readable.
-	dashes := make([][]float64, len(res.Series))
-	groupColor := map[string]string{}
-	groupSeen := map[string]int{}
-	ci := 0
+	unlisted := 0 // drawn series the legend leaves out ("+N more")
+	selected := map[string]bool{}
+	for _, id := range res.Visual.LegendSeries {
+		selected[id] = true
+	}
 	for i, se := range res.Series {
-		c := se.Color
-		group := replicateGroup(se)
-		if group != "" {
-			if n := groupSeen[group]; n > 0 {
-				dashes[i] = replicateDash(n, lw)
+		res.Series[i].Color = looks[i].color
+		res.Series[i].LineStyle = ""
+		if se.Kind != "individual" {
+			res.Series[i].LineStyle = looks[i].line
+		}
+		res.Series[i].Marker = ""
+		if looks[i].shown() {
+			res.Series[i].Marker = looks[i].marker
+		}
+		if se.Muted || se.Kind == "trajectory" {
+			// Focus mode: series outside the focus stay as muted context
+			// and are not listed. Unit trajectories are secondary marks,
+			// named by the metadata and their end labels.
+			continue
+		}
+		switch res.Visual.LegendMode {
+		case LegendAll:
+			entries = append(entries, entry{i, SeriesLabel(se.Label, T), se.Hidden})
+		case LegendSelected:
+			if se.Hidden {
+				continue
 			}
-			groupSeen[group]++
-		}
-		switch {
-		case c != "":
-		case se.Kind == "individual":
-			c = inkIndiv
-		case group != "" && groupColor[group] != "":
-			c = groupColor[group]
+			if !selected[se.ID] {
+				unlisted++
+				continue
+			}
+			entries = append(entries, entry{i, SeriesLabel(se.Label, T), false})
 		default:
-			c = Palette[ci%len(Palette)]
-			ci++
-		}
-		if group != "" && groupColor[group] == "" {
-			groupColor[group] = c
-		}
-		res.Series[i].Color = c
-		if !se.Hidden {
-			entries = append(entries, entry{i, SeriesLabel(se.Label, T), c, se.Kind, dashes[i]})
+			if !se.Hidden {
+				entries = append(entries, entry{i, SeriesLabel(se.Label, T), false})
+			}
 		}
 	}
 
@@ -345,6 +358,15 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		}
 		bottom -= nfs * .5
 	}
+	// Error bars are never drawn without saying what they show: when
+	// neither the legend nor the metadata does, a short note does.
+	if !s.Legend && !s.Metadata {
+		if bars := errorBarsShown(res); bars != "" {
+			nfs := fs * .72
+			fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: bottom, Text: fit(T("plot.error_bars."+bars), FontSans, nfs, right-left), Size: nfs, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "error-note"})
+			bottom -= nfs * 1.9
+		}
+	}
 	// Metadata block at the bottom.
 	if s.Metadata {
 		ms := fs * 0.82
@@ -363,12 +385,33 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		}
 	}
 
-	// Legend: a right column when there is room, otherwise rows below.
-	sw := fs * 1.8
-	if s.Legend && len(entries) > 0 {
+	// Legend: a right column when there is room, otherwise at most three
+	// rows below. Whatever does not fit is counted as "+N more", so many
+	// series never take the plot area.
+	sw := fs * 2.4
+	total := len(entries) + unlisted
+	moreText := func(n int) string { return T("plot.more", "n", strconv.Itoa(n)) }
+	swatch := func(x, y float64, e entry) []Op {
+		kind := res.Series[e.idx].Kind
+		if res.Kind == graph.KindSeriesValues && kind == "individual" {
+			kind = "value"
+		}
+		return legendSwatch(x, y-fs*0.32, sw, looks[e.idx], kind, e.hidden, lw, fs)
+	}
+	labelOp := func(x, y float64, text string, e entry) Op {
+		ink := inkText
+		if e.hidden {
+			ink = inkMuted
+		}
+		return Op{K: "text", X: x + sw + fs*0.5, Y: y, Text: text, Size: fs, Font: FontSans, Fill: ink, Anchor: "start", Role: "legend"}
+	}
+	if s.Legend && total > 0 {
 		maxw := 0.0
 		for _, e := range entries {
 			maxw = math.Max(maxw, TextWidth(FontSans, e.label, fs))
+		}
+		if unlisted > 0 {
+			maxw = math.Max(maxw, TextWidth(FontSans, moreText(total), fs)-sw-fs*0.5)
 		}
 		colW := sw + fs*0.5 + maxw
 		if colW < (right-left)*0.28 && W > 300 {
@@ -376,23 +419,45 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 			y := top + fs
 			rowH := fs * 1.5
 			maxRows := int((bottom - top - fs*3) / rowH)
-			for i, e := range entries {
-				if i >= maxRows-1 && len(entries) > maxRows {
-					fig.Ops = append(fig.Ops, Op{K: "text", X: x, Y: y, Text: T("plot.more", "n", strconv.Itoa(len(entries)-i)), Size: fs, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "legend"})
-					break
-				}
-				fig.Ops = append(fig.Ops, legendSwatch(x, y-fs*0.32, sw, e.color, e.kind, e.dash, lw, fs)...)
-				fig.Ops = append(fig.Ops, Op{K: "text", X: x + sw + fs*0.5, Y: y, Text: e.label, Size: fs, Font: FontSans, Fill: inkText, Anchor: "start", Role: "legend"})
+			if maxRows < 1 {
+				maxRows = 1
+			}
+			shown := len(entries)
+			if unlisted > 0 {
+				shown = min(shown, maxRows-1)
+			} else if shown > maxRows {
+				shown = maxRows - 1
+			}
+			for _, e := range entries[:shown] {
+				fig.Ops = append(fig.Ops, swatch(x, y, e)...)
+				fig.Ops = append(fig.Ops, labelOp(x, y, e.label, e))
 				y += rowH
+			}
+			if shown < total {
+				fig.Ops = append(fig.Ops, Op{K: "text", X: x, Y: y, Text: moreText(total - shown), Size: fs, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "legend"})
 			}
 			right = x - fs*1.2
 		} else {
-			// Rows, laid out bottom-up after computing line breaks.
+			// Rows, laid out bottom-up after computing line breaks. Item -1
+			// is the "+N more" note.
+			items := make([]int, 0, len(entries)+1)
+			for i := range entries {
+				items = append(items, i)
+			}
+			if unlisted > 0 {
+				items = append(items, -1)
+			}
+			width := func(i int) float64 {
+				if i < 0 {
+					return TextWidth(FontSans, moreText(total), fs) + fs*1.4
+				}
+				return sw + fs*0.5 + math.Min(TextWidth(FontSans, entries[i].label, fs), (right-left)*0.6) + fs*1.4
+			}
 			var rows [][]int
 			var row []int
 			used := 0.0
-			for i, e := range entries {
-				w := sw + fs*0.5 + math.Min(TextWidth(FontSans, e.label, fs), (right-left)*0.6) + fs*1.4
+			for _, i := range items {
+				w := width(i)
 				if used+w > right-left && len(row) > 0 {
 					rows, row, used = append(rows, row), nil, 0
 				}
@@ -400,25 +465,32 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 				used += w
 			}
 			rows = append(rows, row)
-			more := -1 // entry replaced by "+N more" when rows are cut
 			if len(rows) > 3 {
 				rows = rows[:3]
 				last := rows[2]
-				more = last[len(last)-1]
+				last[len(last)-1] = -1 // replaced by "+N more"
+			}
+			shown := 0
+			for _, r := range rows {
+				for _, i := range r {
+					if i >= 0 {
+						shown++
+					}
+				}
 			}
 			rowH := fs * 1.5
 			y := bottom - rowH*float64(len(rows)-1)
 			for _, r := range rows {
 				x := left
 				for _, i := range r {
-					if i == more {
-						fig.Ops = append(fig.Ops, Op{K: "text", X: x, Y: y, Text: T("plot.more", "n", strconv.Itoa(len(entries)-i)), Size: fs, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "legend"})
+					if i < 0 {
+						fig.Ops = append(fig.Ops, Op{K: "text", X: x, Y: y, Text: moreText(total - shown), Size: fs, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "legend"})
 						break
 					}
 					e := entries[i]
 					label := fit(e.label, FontSans, fs, (right-left)*0.6)
-					fig.Ops = append(fig.Ops, legendSwatch(x, y-fs*0.32, sw, e.color, e.kind, e.dash, lw, fs)...)
-					fig.Ops = append(fig.Ops, Op{K: "text", X: x + sw + fs*0.5, Y: y, Text: label, Size: fs, Font: FontSans, Fill: inkText, Anchor: "start", Role: "legend"})
+					fig.Ops = append(fig.Ops, swatch(x, y, e)...)
+					fig.Ops = append(fig.Ops, labelOp(x, y, label, e))
 					x += sw + fs*0.5 + TextWidth(FontSans, label, fs) + fs*1.4
 				}
 				y += rowH
@@ -429,7 +501,7 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 
 	// Axes.
 	view := res.Visual.View
-	xa := buildAxis(res.X, view, true, res.Kind == graph.KindParameterTime, s.Decimal)
+	xa := buildAxis(res.X, view, true, res.Kind == graph.KindParameterTime || res.Kind == graph.KindDesignTime, s.Decimal)
 	ya := buildAxis(res.Y, view, false, false, s.Decimal)
 	tick := fs * 0.45
 	yLabelW := 0.0
@@ -469,37 +541,69 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 
 	// Data, clipped to the plot area (matters only when zoomed).
 	fig.Ops = append(fig.Ops, Op{K: "clip", X: pl, Y: pt, W: pr - pl, H: pb - pt})
-	gapBetween := func(a, b float64) bool {
-		for _, g := range res.Gaps {
+	gapBetween := func(a, b float64, own []float64) bool {
+		for _, g := range append(own, res.Gaps...) {
 			if g > a && g < b {
 				return true
 			}
 		}
 		return false
 	}
+	// A unit's name at the last point of its line (design graphs).
+	endLabel := func(se graph.Series, c string) {
+		n := len(se.X)
+		if n == 0 || len(se.PointLabels) == 0 {
+			return
+		}
+		// The unit's name, without the condition or time of that point.
+		label := strings.SplitN(se.PointLabels[len(se.PointLabels)-1], " · ", 2)[0]
+		fig.Ops = append(fig.Ops, Op{K: "text", X: mx(se.X[n-1]) + fs*.45, Y: my(se.Y[n-1]) + fs*.25, Text: fit(label, FontSans, fs*.72, fs*8), Size: fs * .72, Font: FontSans, Fill: c, Anchor: "start", Role: "point-label"})
+	}
+	curve := 0 // visible curves so far, to stagger their markers
+	order := make([]int, 0, len(res.Series))
 	for si, se := range res.Series {
+		if se.Muted {
+			order = append(order, si)
+		}
+	}
+	for si, se := range res.Series {
+		if !se.Muted {
+			order = append(order, si)
+		}
+	}
+	for _, si := range order {
+		se := res.Series[si]
 		if se.Hidden {
 			continue
 		}
-		c := se.Color
+		lk := looks[si]
+		c := lk.color
+		if se.Muted {
+			lk.color, lk.every, lk.sparse = inkGap, false, false
+			c = inkGap
+		}
 		switch se.Kind {
 		case "individual":
-			r := fs * 0.26 * 1.0
+			r, fill := fs*0.26, 0.35
+			if res.Kind == graph.KindSeriesValues {
+				// One value per series: the point is the series itself.
+				r, fill = fs*0.4, 0.85
+			}
 			for i := range se.X {
 				x, y := mx(se.X[i]), my(se.Y[i])
-				fig.Ops = append(fig.Ops, Op{K: "circle", X: x, Y: y, R: r, Fill: c, Opacity: 0.35, Stroke: c, SW: 0.7 * s.Scale, Role: "point"})
+				fig.Ops = append(fig.Ops, markerOp(lk.marker, x, y, r, c, fill, c, 0.7*s.Scale, "point"))
 				fig.Hits = append(fig.Hits, Hit{si, i, x, y})
 			}
 		case "mean":
 			var pts []float64
 			flush := func() {
-				if len(pts) >= 4 {
-					fig.Ops = append(fig.Ops, Op{K: "poly", Pts: pts, Stroke: c, SW: lw, Role: "series"})
+				if len(pts) >= 4 && !se.NoLine {
+					fig.Ops = append(fig.Ops, Op{K: "poly", Pts: pts, Stroke: c, SW: lw, Dash: lk.dash, Role: "series"})
 				}
 				pts = nil
 			}
 			for i := range se.X {
-				if i > 0 && gapBetween(se.X[i-1], se.X[i]) {
+				if i > 0 && gapBetween(se.X[i-1], se.X[i], se.Gaps) {
 					flush()
 				}
 				pts = append(pts, mx(se.X[i]), my(se.Y[i]))
@@ -516,9 +620,38 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 						Op{K: "line", X: x - cap, Y: y2, X2: x + cap, Y2: y2, Stroke: c, SW: lw * 0.8, Role: "error"})
 				}
 				y := my(se.Y[i])
-				fig.Ops = append(fig.Ops, Op{K: "circle", X: x, Y: y, R: fs * 0.3, Fill: c, Role: "point"})
+				fig.Ops = append(fig.Ops, markerOp(lk.marker, x, y, fs*0.3, c, 0, "", lw*0.8, "point"))
 				fig.Hits = append(fig.Hits, Hit{si, i, x, y})
 			}
+		case "trajectory", "paired":
+			// One experimental unit: a line through its own values, broken
+			// where it has none (never drawn across a missing point).
+			w := lw
+			if se.Kind == "trajectory" {
+				w = lw * .55
+			}
+			var pts []float64
+			flush := func() {
+				if len(pts) >= 4 {
+					fig.Ops = append(fig.Ops, Op{K: "poly", Pts: pts, Stroke: c, SW: w, Dash: lk.dash, Role: "series"})
+				}
+				pts = nil
+			}
+			for i := range se.X {
+				if i > 0 && gapBetween(se.X[i-1], se.X[i], se.Gaps) {
+					flush()
+				}
+				pts = append(pts, mx(se.X[i]), my(se.Y[i]))
+			}
+			flush()
+			if se.Kind == "paired" {
+				for i := range se.X {
+					x, y := mx(se.X[i]), my(se.Y[i])
+					fig.Ops = append(fig.Ops, markerOp(lk.marker, x, y, fs*.3, c, .85, c, .7*s.Scale, "point"))
+					fig.Hits = append(fig.Hits, Hit{si, i, x, y})
+				}
+			}
+			endLabel(se, c)
 		default:
 			pts := make([]float64, 0, len(se.X)*2)
 			for i := range se.X {
@@ -528,13 +661,21 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 				pts = append(pts, mx(se.X[i]), my(se.Y[i]))
 			}
 			if len(pts) >= 4 {
-				fig.Ops = append(fig.Ops, Op{K: "poly", Pts: pts, Stroke: c, SW: lw, Dash: dashes[si], Role: "series"})
+				fig.Ops = append(fig.Ops, Op{K: "poly", Pts: pts, Stroke: c, SW: lw, Dash: lk.dash, Role: "series"})
 			}
-			for i := 0; i+1 < len(pts); i += 2 {
-				if s.Points || res.Visual.Points {
-					fig.Ops = append(fig.Ops, Op{K: "circle", X: pts[i], Y: pts[i+1], R: lw * 1.3, Fill: c, Role: "point"})
+			switch {
+			case lk.every:
+				r := math.Max(lw*1.3, fs*0.2)
+				for i := 0; i+1 < len(pts); i += 2 {
+					fig.Ops = append(fig.Ops, markerOp(lk.marker, pts[i], pts[i+1], r, c, 0, "", lw*0.8, "point"))
+				}
+			case lk.sparse:
+				phase := 0.15 + math.Mod(float64(curve)*0.618034, 1)*0.7
+				for _, i := range sparseMarkers(pts, fig.Map.Plot, 7, phase) {
+					fig.Ops = append(fig.Ops, markerOp(lk.marker, pts[2*i], pts[2*i+1], curveMarker(lw, fs), c, 0, "", lw*0.8, "marker"))
 				}
 			}
+			curve++
 			j := 0
 			for i := range se.X {
 				if xa.log && se.X[i] <= 0 {
@@ -544,6 +685,9 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 				j += 2
 			}
 		}
+	}
+	for _, n := range res.TextNotes {
+		fig.Ops = append(fig.Ops, Op{K: "text", X: mx(n.X), Y: my(n.Y), Text: fit(n.Text, FontSans, fs*.85, (pr-pl)*.6), Size: fs * .85, Font: FontSans, Fill: inkText, Anchor: "middle", Role: "note"})
 	}
 	for _, annotation := range res.Annotations {
 		x1, x2, y := mx(annotation.X1), mx(annotation.X2), my(annotation.Y)
@@ -555,7 +699,7 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 			Op{K: "line", X: x1, Y: y + fs*.35, X2: x1, Y2: y, Stroke: inkAxis, SW: .8 * s.Scale, Role: "statistical-annotation"},
 			Op{K: "line", X: x1, Y: y, X2: x2, Y2: y, Stroke: inkAxis, SW: .8 * s.Scale, Role: "statistical-annotation"},
 			Op{K: "line", X: x2, Y: y, X2: x2, Y2: y + fs*.35, Stroke: inkAxis, SW: .8 * s.Scale, Role: "statistical-annotation"},
-			Op{K: "text", X: (x1 + x2) / 2, Y: y - fs*.35, Text: label, Size: fs * .85, Font: FontSans, Fill: inkAxis, Anchor: "middle", Role: "statistical-annotation"})
+			Op{K: "text", X: labelX((x1+x2)/2, TextWidth(FontSans, label, fs*.85), pl, pr), Y: y - fs*.35, Text: label, Size: fs * .85, Font: FontSans, Fill: inkAxis, Anchor: "middle", Role: "statistical-annotation"})
 	}
 	fig.Ops = append(fig.Ops, Op{K: "unclip"})
 
@@ -567,8 +711,13 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 	tfs := fs * 0.92
 	for i, v := range xa.ticks {
 		x := mx(v)
+		label := xa.labels[i]
+		if len(res.X.Categories) > 0 {
+			// Category names share the axis: each gets its own slot.
+			label = fit(SeriesLabel(label, T), FontSans, tfs, (pr-pl)/float64(len(xa.ticks))-tfs*0.4)
+		}
 		fig.Ops = append(fig.Ops, Op{K: "line", X: x, Y: pb, X2: x, Y2: pb + tick, Stroke: inkAxis, SW: aw, Role: "axis"},
-			Op{K: "text", X: x, Y: pb + tick + tfs*1.05, Text: xa.labels[i], Size: tfs, Font: FontSans, Fill: inkMuted, Anchor: "middle", Role: "tick"})
+			Op{K: "text", X: x, Y: pb + tick + tfs*1.05, Text: label, Size: tfs, Font: FontSans, Fill: inkMuted, Anchor: "middle", Role: "tick"})
 	}
 	for _, v := range xa.minor {
 		x := mx(v)
@@ -615,28 +764,43 @@ func replicateGroup(se graph.Series) string {
 	return strings.Join(parts[:3], ":")
 }
 
-// replicateDash is the line pattern of the n-th replicate after the first.
-// Lengths follow the line width; round caps add one width to each dash.
-func replicateDash(n int, lw float64) []float64 {
-	patterns := [][]float64{{3, 2.5}, {0.6, 2}, {3, 2.2, 0.6, 2.2}}
-	p := patterns[(n-1)%len(patterns)]
-	out := make([]float64, len(p))
-	for i, v := range p {
-		out[i] = v * lw
-	}
-	return out
+// curveMarker is the radius of the identity markers on a curve.
+func curveMarker(lw, fs float64) float64 {
+	return math.Max(lw*1.6, fs*0.26)
 }
 
-func legendSwatch(x, y, w float64, color, kind string, dash []float64, lw, fs float64) []Op {
+func legendSwatch(x, y, w float64, lk look, kind string, hidden bool, lw, fs float64) []Op {
+	color := lk.color
+	if hidden {
+		color = inkGap
+	}
 	switch kind {
 	case "individual":
-		return []Op{{K: "circle", X: x + w/2, Y: y, R: fs * 0.26, Fill: color, Opacity: 0.35, Stroke: color, SW: 0.7, Role: "legend"}}
+		return []Op{markerOp(lk.marker, x+w/2, y, fs*0.26, color, 0.35, color, 0.7, "legend")}
+	case "value":
+		return []Op{markerOp(lk.marker, x+w/2, y, fs*0.34, color, 0.85, color, 0.7, "legend")}
+	case "paired":
+		return []Op{{K: "line", X: x, Y: y, X2: x + w, Y2: y, Stroke: color, SW: lw, Dash: lk.dash, Role: "legend"},
+			markerOp(lk.marker, x+w/2, y, fs*0.3, color, .85, color, 0.7, "legend")}
 	case "mean":
-		return []Op{{K: "line", X: x, Y: y, X2: x + w, Y2: y, Stroke: color, SW: lw, Role: "legend"},
+		return []Op{{K: "line", X: x, Y: y, X2: x + w, Y2: y, Stroke: color, SW: lw, Dash: lk.dash, Role: "legend"},
 			{K: "line", X: x + w/2, Y: y - fs*0.35, X2: x + w/2, Y2: y + fs*0.35, Stroke: color, SW: lw * 0.8, Role: "legend"},
-			{K: "circle", X: x + w/2, Y: y, R: fs * 0.3, Fill: color, Role: "legend"}}
+			markerOp(lk.marker, x+w/2, y, fs*0.3, color, 0, "", lw*0.8, "legend")}
 	}
-	return []Op{{K: "line", X: x, Y: y, X2: x + w, Y2: y, Stroke: color, SW: math.Max(lw, 1.5), Dash: dash, Role: "legend"}}
+	ops := []Op{{K: "line", X: x, Y: y, X2: x + w, Y2: y, Stroke: color, SW: math.Max(lw, 1.5), Dash: lk.dash, Role: "legend"}}
+	if lk.every || lk.sparse {
+		ops = append(ops, markerOp(lk.marker, x+w/2, y, curveMarker(lw, fs), color, 0, "", lw*0.8, "legend"))
+	}
+	return ops
+}
+
+// labelX keeps a centred label of width w inside the plot area [pl, pr]:
+// a bracket near an edge keeps its whole label (values are never cut).
+func labelX(cx, w, pl, pr float64) float64 {
+	if w >= pr-pl {
+		return (pl + pr) / 2
+	}
+	return math.Min(math.Max(cx, pl+w/2), pr-w/2)
 }
 
 // fit shortens text with an ellipsis so it fits a width.
@@ -728,6 +892,21 @@ func buildAxis(ax graph.Axis, view *graph.Range, isX, integer bool, dec string) 
 	if hi <= lo {
 		pad := math.Max(math.Abs(lo)*0.1, 1)
 		lo, hi = lo-pad, hi+pad
+	}
+	if isX && len(ax.Ticks) > 0 {
+		// The time points of a design label the axis where they are.
+		a.min, a.max = lo, hi
+		d := 0
+		for _, v := range ax.Ticks {
+			d = max(d, min(stepDecimals(v), 3))
+		}
+		for _, v := range ax.Ticks {
+			if v >= lo && v <= hi {
+				a.ticks = append(a.ticks, v)
+				a.labels = append(a.labels, formatTick(v, d, dec))
+			}
+		}
+		return a
 	}
 	if !fixed && !isX && ax.Label != "" && !strings.HasPrefix(ax.Label, "axis.intensity") && !strings.HasPrefix(ax.Label, "axis.volume") && !strings.HasPrefix(ax.Label, "axis.number") {
 		pad := (hi - lo) * 0.08
@@ -827,6 +1006,9 @@ func FormatNumber(v float64, decimals int, dec string) string {
 // AxisLabel returns the localized label of an axis with its unit.
 func AxisLabel(a graph.Axis, T Translator) string {
 	l := T(a.Label)
+	if a.Title != "" {
+		l = a.Title
+	}
 	if a.Unit == "" && graph.NeedsUnit(a.Label) {
 		return fmt.Sprintf("%s (%s)", l, T("plot.unit_not_stated"))
 	}
@@ -845,8 +1027,23 @@ func SeriesLabel(label string, T Translator) string {
 		if len(parts) == 3 && keys[parts[1]] != "" {
 			return T(keys[parts[1]]) + " · " + parts[2]
 		}
+	case strings.HasPrefix(label, "design:"):
+		parts := strings.SplitN(label, ":", 3) // design:<kind>:<condition>
+		keys := map[string]string{"mean_sd": "series.design_mean_sd", "mean_sem": "series.design_mean_sem", "mean_ci": "series.design_mean_ci", "units": "series.design_units", "trajectory": "series.design_trajectory"}
+		if len(parts) == 3 && keys[parts[1]] != "" {
+			text := T(keys[parts[1]])
+			if parts[2] != "" {
+				text += " · " + parts[2]
+			}
+			return text
+		}
 	case strings.HasPrefix(label, "series."):
 		return T(label)
+	case strings.HasPrefix(label, "reading:"):
+		parts := strings.SplitN(label, ":", 3) // reading:<run>:<series label>
+		if len(parts) == 3 {
+			return T("series.reading", "name", parts[2], "run", parts[1])
+		}
 	case strings.HasPrefix(label, "point:"):
 		parts := strings.Split(label, ":") // point:<unit>:<offset>[:<replicate>]
 		if len(parts) == 3 {
@@ -864,7 +1061,7 @@ func graphTitle(res graph.Result, T Translator) string {
 		return res.Title
 	}
 	switch res.Kind {
-	case graph.KindParameterTime:
+	case graph.KindParameterTime, graph.KindDesignTime:
 		return T(res.Y.Label)
 	default:
 		return T("graph.kind." + res.Kind)
@@ -877,7 +1074,11 @@ func metadataLines(res graph.Result, T Translator, dec string) []string {
 	var out []string
 	switch res.Kind {
 	case graph.KindParameterTime:
-		out = append(out, T("plot.meta.stats"))
+		if res.ErrorBars == "sem" {
+			out = append(out, T("plot.meta.stats_sem"))
+		} else {
+			out = append(out, T("plot.meta.stats"))
+		}
 		if len(res.Gaps) > 0 {
 			var g []string
 			for _, x := range res.Gaps {
@@ -886,6 +1087,8 @@ func metadataLines(res graph.Result, T Translator, dec string) []string {
 			out = append(out, T("plot.meta.gaps", "points", strings.Join(g, ", ")))
 		}
 		out = append(out, T("plot.meta.sources", "n", strconv.Itoa(len(res.Provenance.Sources))))
+	case graph.KindDesignTime, graph.KindPairedCondition:
+		out = append(out, designMetadata(res, T)...)
 	default:
 		for _, se := range res.Series {
 			if se.Hidden {
@@ -915,6 +1118,55 @@ func metadataLines(res graph.Result, T Translator, dec string) []string {
 	return out
 }
 
+// designMetadata describes a design graph: what the mean and the error
+// bars are, how many experimental units each point counts, and the design
+// revision it was drawn from.
+func designMetadata(res graph.Result, T Translator) []string {
+	var out []string
+	bars := res.ErrorBars
+	if bars == "" {
+		bars = "sd"
+	}
+	stats := map[string]string{"sd": "plot.meta.design_stats_sd", "sem": "plot.meta.design_stats_sem", "ci": "plot.meta.design_stats_ci"}
+	if stats[bars] == "" {
+		bars = "sd"
+	}
+	out = append(out, T(stats[bars]))
+	nmin, nmax := 0, 0
+	for _, se := range res.Series {
+		if se.Kind != "mean" {
+			continue
+		}
+		for _, n := range se.N {
+			if nmin == 0 || n < nmin {
+				nmin = n
+			}
+			nmax = max(nmax, n)
+		}
+	}
+	if nmax > 0 {
+		n := strconv.Itoa(nmin)
+		if nmax != nmin {
+			n += "–" + strconv.Itoa(nmax)
+		}
+		out = append(out, T("plot.meta.design_n", "n", n))
+	}
+	if res.Kind == graph.KindPairedCondition {
+		out = append(out, T("plot.meta.design_pairs"))
+	}
+	for _, se := range res.Series {
+		if se.Kind == "trajectory" && !se.Hidden {
+			out = append(out, T("plot.meta.design_trajectories"))
+			break
+		}
+	}
+	if res.Design != nil {
+		out = append(out, T("plot.meta.design", "name", res.Design.Name, "revision", strconv.Itoa(res.Design.Revision)))
+	}
+	out = append(out, T("plot.meta.sources", "n", strconv.Itoa(len(res.Provenance.Sources))))
+	return out
+}
+
 func description(res graph.Result) string {
 	var b strings.Builder
 	b.WriteString(res.Provenance.Engine + "; " + res.Provenance.Spec)
@@ -925,4 +1177,22 @@ func description(res graph.Result) string {
 		b.WriteString("; " + t)
 	}
 	return b.String()
+}
+
+// errorBarsShown names the error bars drawn in a graph ("" when none are).
+func errorBarsShown(res graph.Result) string {
+	for _, se := range res.Series {
+		if se.Hidden || se.Kind != "mean" {
+			continue
+		}
+		for _, e := range se.Err {
+			if e > 0 {
+				if res.ErrorBars != "" {
+					return res.ErrorBars
+				}
+				return "sd"
+			}
+		}
+	}
+	return ""
 }

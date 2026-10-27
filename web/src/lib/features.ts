@@ -28,7 +28,7 @@ const portableOnly = (s: StateView) => (s.mode === 'portable' ? null : 'avail.po
 const needsProfile = (s: StateView) => (s.profile ? null : 'avail.needs_profile');
 
 export const FEATURES: Feature[] = [
-  { id: 'statistics', group: 'cycles', icon: 'sigma', open: () => navigate('/ls/statistics'), avail: needsProfile, words: 'anova welch tukey repeated diagnostics estatistica' },
+  { id: 'statistics', group: 'cycles', icon: 'sigma', open: () => navigate('/ls/statistics'), avail: needsProfile, words: 'anova welch tukey repeated diagnostics estatistica paired pareado condition time pseudoreplication design' },
   { id: 'account', group: 'account', icon: 'key', open: settings('account'), words: 'passphrase sign in login' },
   { id: 'profiles', group: 'account', icon: 'users', open: () => navigate('/'), words: 'profile switch five' },
   { id: 'avatar', group: 'account', icon: 'camera', open: settings('profile'), avail: needsProfile, words: 'photo gif picture' },
@@ -73,10 +73,19 @@ export const FEATURES: Feature[] = [
   { id: 'import', group: 'ls', icon: 'fileUp', open: () => navigate('/ls/files'), avail: needsProfile, words: 'import file upload drag' },
   { id: 'file_library', group: 'ls', icon: 'files', open: () => navigate('/ls/files'), avail: needsProfile, words: 'files library search filter' },
   { id: 'original', group: 'ls', icon: 'file', open: () => navigate('/ls/files'), avail: needsProfile, words: 'original raw source checksum' },
+  { id: 'experimental_design', group: 'ls', icon: 'layers', open: () => navigate('/ls/designs'), avail: needsProfile, words: 'experimental design unit preparation condition time paired pairing replicate technical reading pseudoreplication desenho experimental unidade pareado diseno unidad emparejado', isNew: true },
   { id: 'provenance', group: 'ls', icon: 'workflow', avail: needsProfile, words: 'provenance traceability hash' },
 
   { id: 'dls_graph', group: 'graphs', icon: 'chart', open: () => navigate('/ls/files'), avail: needsProfile, words: 'graph distribution intensity diameter' },
   { id: 'compare', group: 'graphs', icon: 'layers', open: () => navigate('/ls/files'), avail: needsProfile, words: 'compare overlay multiple' },
+  { id: 'graph_builder', group: 'graphs', icon: 'sliders', open: () => navigate('/ls/graphs/new'), avail: needsProfile, words: 'graph builder live preview axes units error bars sd sem marker line legend publication construtor grafico eixo unidade barras de erro marcador legenda constructor', isNew: true },
+  { id: 'series_explorer', group: 'graphs', icon: 'listChecks', open: () => navigate('/ls/graphs/new'), avail: needsProfile, words: 'series explorer select series search filter many readings focus selecionar series buscar filtrar leituras seleccionar lecturas', isNew: true },
+  { id: 'duplicate_graph', group: 'graphs', icon: 'copy', open: () => navigate('/ls/graphs'), avail: needsProfile, words: 'duplicate copy graph lineage derived duplicar copia linhagem linaje', isNew: true },
+  { id: 'design_graphs', group: 'graphs', icon: 'chart', open: () => navigate('/ls/designs'), avail: needsProfile, words: 'condition time design graph experimental unit paired trajectory mean sd n units technical readings grafico condicao tempo desenho unidade pareado trajetoria grafico condicion tiempo diseno unidad emparejado trayectoria', isNew: true },
+  { id: 'groups', group: 'graphs', icon: 'listChecks', open: () => navigate('/ls/groups'), avail: needsProfile, words: 'group groups saved selection references grupo grupos selecao salva seleccion guardada', isNew: true },
+  { id: 'combine_graphs', group: 'graphs', icon: 'layers', open: () => navigate('/ls/graphs'), avail: needsProfile, words: 'combine merge graphs compare derived from lineage unit conversion combinar mesclar graficos linhagem conversao combinar linaje conversion', isNew: true },
+  { id: 'graph_analyze', group: 'graphs', icon: 'sigma', open: () => navigate('/ls/graphs'), avail: needsProfile, words: 'analyze graph statistics prefill design analisar grafico estatistica analizar grafico estadistica', isNew: true },
+  { id: 'stat_annotations', group: 'graphs', icon: 'sigma', open: () => navigate('/ls/graphs'), avail: needsProfile, words: 'annotation bracket p value stars effect confidence interval saved analysis anotacao colchete valor p estrelas efeito anotacion corchete estrellas efecto', isNew: true },
   { id: 'graph_library', group: 'graphs', icon: 'grid', open: () => navigate('/ls/graphs'), avail: needsProfile, words: 'saved graphs dls lightscattering' },
   { id: 'present', group: 'graphs', icon: 'present', open: () => navigate('/ls/graphs'), avail: needsProfile, words: 'presentation slides fullscreen' },
 

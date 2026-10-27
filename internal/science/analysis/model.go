@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/oaovito/mne_lab/internal/science/design"
 	"github.com/oaovito/mne_lab/internal/science/model"
 )
 
@@ -18,8 +19,24 @@ const Schema = 1
 const CalculationVersion = "mnelab-statistics/1"
 const EngineVersion = "webR/0.6.0; R/4.6.0"
 
+// DesignWithinWithin marks the paired Condition x Time design: factor A
+// (condition) and factor B (time) both vary within each experimental unit.
+// The empty design keeps the original between-A, within-B behaviour.
+const DesignWithinWithin = "within_within"
+
 func ExpectedEngine(d Definition) string {
 	engine := EngineVersion
+	if d.Design == DesignWithinWithin {
+		if d.Method == "mixed" {
+			engine += "; nlme/3.1-169; mixed-within2/1"
+		} else {
+			engine += "; paired-rm/1"
+		}
+		if d.PostHoc == "simple_effects" {
+			engine += "; paired-simple-effects/1"
+		}
+		return engine
+	}
 	if d.Method == "mixed" {
 		engine += "; nlme/3.1-169; mixed-random-intercept/2"
 	}
@@ -42,7 +59,27 @@ var (
 	ErrDesign     = errors.New("statistics.incompatible_design")
 	ErrControl    = errors.New("statistics.control_required")
 	ErrFamily     = errors.New("statistics.dunnett_family_limit")
+	// ErrDesignMismatch refuses observations that do not follow the saved
+	// experimental design revision the definition names.
+	ErrDesignMismatch = errors.New("statistics.design_mismatch")
+	// ErrPseudoreplication refuses treating repeated observations of the
+	// same experimental unit as independent subjects (addendum B §37). It is
+	// a structure refusal: errors.Is(err, ErrStructure) holds.
+	ErrPseudoreplication error = &codedError{"statistics.pseudoreplication", ErrStructure}
+	// ErrPairedDetected refuses the original layout (condition between
+	// units) when every unit is observed under several conditions and times,
+	// and points to the paired Condition x Time design (addendum A §57).
+	ErrPairedDetected error = &codedError{"statistics.paired_longitudinal_detected", ErrDesign}
 )
+
+// codedError is a stable identifier that is also a more general refusal.
+type codedError struct {
+	code   string
+	parent error
+}
+
+func (e *codedError) Error() string { return e.code }
+func (e *codedError) Unwrap() error { return e.parent }
 
 // ExperimentalUnit has an identity independent of the visible sample name.
 // IDs are created and resolved in the current Profile, never inferred from
@@ -62,22 +99,31 @@ type ObservationDefinition struct {
 }
 
 type Definition struct {
-	Schema               int                     `json:"schema"`
-	Module               string                  `json:"module"`
-	Title                string                  `json:"title"`
-	CycleID              string                  `json:"cycleId,omitempty"`
-	Variable             string                  `json:"variable"`
-	FactorAName          string                  `json:"factorAName"`
-	FactorBName          string                  `json:"factorBName,omitempty"`
-	Structure            string                  `json:"structure"` // independent or repeated; explicit user decision
-	StructureReviewed    bool                    `json:"structureReviewed"`
-	Method               string                  `json:"method"`
-	Alpha                float64                 `json:"alpha"`
-	PostHoc              string                  `json:"postHoc"`
-	EffectCI             bool                    `json:"effectCI,omitempty"`
-	Control              string                  `json:"control,omitempty"`
-	SphericityCorrection string                  `json:"sphericityCorrection,omitempty"`
-	Observations         []ObservationDefinition `json:"observations"`
+	Schema               int     `json:"schema"`
+	Module               string  `json:"module"`
+	Title                string  `json:"title"`
+	CycleID              string  `json:"cycleId,omitempty"`
+	Variable             string  `json:"variable"`
+	FactorAName          string  `json:"factorAName"`
+	FactorBName          string  `json:"factorBName,omitempty"`
+	Structure            string  `json:"structure"` // independent or repeated; explicit user decision
+	StructureReviewed    bool    `json:"structureReviewed"`
+	Method               string  `json:"method"`
+	Alpha                float64 `json:"alpha"`
+	PostHoc              string  `json:"postHoc"`
+	EffectCI             bool    `json:"effectCI,omitempty"`
+	Control              string  `json:"control,omitempty"`
+	SphericityCorrection string  `json:"sphericityCorrection,omitempty"`
+	// Design is empty for the original layout or DesignWithinWithin.
+	Design string `json:"design,omitempty"`
+	// Adjustment is the multiplicity correction of paired simple effects
+	// (holm or bonferroni); empty for every other post-hoc choice.
+	Adjustment string `json:"adjustment,omitempty"`
+	// DesignID names the saved experimental design revision the unit,
+	// condition and time of every observation were taken from; empty when
+	// the person organized the observations in the editor.
+	DesignID     string                  `json:"designId,omitempty"`
+	Observations []ObservationDefinition `json:"observations"`
 }
 
 type Observation struct {
@@ -107,6 +153,14 @@ type Snapshot struct {
 	Receipt      string          `json:"receipt,omitempty"`
 	AccountID    string          `json:"accountId"`
 	ProfileID    string          `json:"profileId"`
+	// ExperimentalDesign is the immutable design revision named by
+	// Definition.DesignID; DesignHeads are the current revisions of that
+	// design, so a later revision marks the analysis Source Changed.
+	ExperimentalDesign *design.Design `json:"experimentalDesign,omitempty"`
+	DesignHeads        []string       `json:"designHeads,omitempty"`
+	// UnitLabels are the names of the experimental units when the snapshot
+	// was taken. Names are presentation: they never enter the source hash.
+	UnitLabels map[string]string `json:"unitLabels,omitempty"`
 }
 
 type Design struct {
@@ -120,6 +174,10 @@ type Design struct {
 	CompleteRepeated  bool     `json:"completeRepeated"`
 	Recommended       string   `json:"recommended"`
 	Warnings          []string `json:"warnings"`
+	// Paired design only: distinct unit x A x B cells (one observation each
+	// after technical readings are averaged) and cells holding several readings.
+	UnitCells             int `json:"unitCells,omitempty"`
+	TechnicalReadingCells int `json:"technicalReadingCells,omitempty"`
 }
 
 type Term struct {
@@ -133,6 +191,10 @@ type Term struct {
 	EtaSquared        *float64 `json:"etaSquared,omitempty"`
 	PartialEtaSquared *float64 `json:"partialEtaSquared,omitempty"`
 	OmegaSquared      *float64 `json:"omegaSquared,omitempty"`
+	// Paired design: generalized eta squared and, on corrected terms, the
+	// sphericity epsilon applied to both df.
+	GeneralizedEtaSquared *float64 `json:"generalizedEtaSquared,omitempty"`
+	Epsilon               *float64 `json:"epsilon,omitempty"`
 }
 
 type Group struct {
@@ -145,6 +207,10 @@ type Group struct {
 	SEM     *float64  `json:"sem,omitempty"`
 	CILower *float64  `json:"ciLower,omitempty"`
 	CIUpper *float64  `json:"ciUpper,omitempty"`
+	// Paired design: values are one per experimental unit (the mean of its
+	// technical readings), with the unit ID and reading count in the same order.
+	Units    []string `json:"units,omitempty"`
+	Readings []int    `json:"readings,omitempty"`
 }
 
 type Comparison struct {
@@ -160,6 +226,26 @@ type Comparison struct {
 	Upper      *float64 `json:"upper,omitempty"`
 	AdjustedP  float64  `json:"adjustedP"`
 	Correction string   `json:"correction"`
+	// Paired simple effects: family, paired t statistic, its df, unadjusted
+	// p and number of pairs. Lower/Upper are then individual paired-t limits.
+	Family    string   `json:"family,omitempty"`
+	Statistic *float64 `json:"statistic,omitempty"`
+	DF        *float64 `json:"df,omitempty"`
+	P         *float64 `json:"p,omitempty"`
+	N         int      `json:"n,omitempty"`
+}
+
+// SimpleEffect is the repeated-measures ANOVA of B inside one level of A.
+type SimpleEffect struct {
+	Context     string             `json:"context"`
+	FactorA     string             `json:"factorA"`
+	Terms       []Term             `json:"terms"`
+	Corrections map[string]float64 `json:"corrections,omitempty"`
+}
+
+type RandomComponent struct {
+	Level    string  `json:"level"`
+	Variance float64 `json:"variance"`
 }
 
 type Diagnostic struct {
@@ -193,6 +279,7 @@ type MixedModel struct {
 	CoefficientConfidenceLevel float64            `json:"coefficientConfidenceLevel,omitempty"`
 	CoefficientIntervalMethod  string             `json:"coefficientIntervalMethod,omitempty"`
 	FixedCoefficients          []FixedCoefficient `json:"fixedCoefficients"`
+	RandomComponents           []RandomComponent  `json:"randomComponents,omitempty"`
 }
 
 type Results struct {
@@ -211,6 +298,8 @@ type Results struct {
 	Corrections     map[string]float64 `json:"corrections,omitempty"`
 	Model           *MixedModel        `json:"model,omitempty"`
 	EffectIntervals []EffectInterval   `json:"effectIntervals,omitempty"`
+	Design          string             `json:"design,omitempty"`
+	SimpleEffects   []SimpleEffect     `json:"simpleEffects,omitempty"`
 }
 
 type EffectInterval struct {
@@ -245,6 +334,15 @@ func (d Definition) Validate() error {
 	}
 	if !d.StructureReviewed || (d.Structure != "independent" && d.Structure != "repeated") {
 		return ErrStructure
+	}
+	if !ValidText(d.DesignID, 96) {
+		return ErrDefinition
+	}
+	if d.Design != "" {
+		return d.validateWithinWithin()
+	}
+	if d.Adjustment != "" {
+		return ErrMethod
 	}
 	switch d.Variable {
 	case model.EffectiveDiameter, model.Polydispersity, model.CountRate, model.AverageCountRate, model.BaselineIndex:
@@ -307,7 +405,76 @@ func (d Definition) Validate() error {
 	return nil
 }
 
+// validateWithinWithin checks the paired Condition x Time definition: both
+// factors are within-unit, so only repeated structures and methods apply.
+func (d Definition) validateWithinWithin() error {
+	if d.Design != DesignWithinWithin {
+		return ErrDefinition
+	}
+	switch d.Variable {
+	case model.EffectiveDiameter, model.Polydispersity, model.CountRate, model.AverageCountRate, model.BaselineIndex:
+	default:
+		return ErrDefinition
+	}
+	if d.Structure != "repeated" {
+		// Both factors vary within each unit: independence is pseudoreplication.
+		return ErrPseudoreplication
+	}
+	switch d.Method {
+	case "repeated":
+		if d.SphericityCorrection != "GG" && d.SphericityCorrection != "HF" {
+			return ErrDefinition
+		}
+	case "mixed":
+		if d.SphericityCorrection != "" {
+			return ErrDesign
+		}
+	default:
+		return ErrDesign
+	}
+	if d.EffectCI || d.Control != "" {
+		return ErrDesign
+	}
+	switch d.PostHoc {
+	case "none":
+		if d.Adjustment != "" {
+			return ErrMethod
+		}
+	case "simple_effects":
+		if d.Adjustment != "holm" && d.Adjustment != "bonferroni" {
+			return ErrDefinition
+		}
+	default:
+		return ErrDesign
+	}
+	seen := map[string]bool{}
+	for _, o := range d.Observations {
+		if o.MeasurementID == "" || seen[o.MeasurementID] || !ValidText(o.FactorA, 120) || !ValidText(o.FactorB, 120) || !ValidText(o.ExcludeReason, 1000) {
+			return ErrDefinition
+		}
+		seen[o.MeasurementID] = true
+		if o.ExcludeReason == "" && (strings.TrimSpace(o.FactorA) == "" || strings.TrimSpace(o.FactorB) == "") {
+			return ErrDesign
+		}
+	}
+	return nil
+}
+
 // Plain labels remain valid JSON through both the Go and R serializers.
 func ValidText(s string, limit int) bool {
 	return len(s) <= limit && strings.IndexFunc(s, unicode.IsControl) < 0
+}
+
+// OrderedLevels returns the factor levels of the analysed observations in
+// their scientific order: conditions as the design declares them and time
+// points by their offset (0, 7, 14, 21, never the byte order 0, 14, 21, 7),
+// with byte order only between labels that carry no number. Design.LevelsA
+// and LevelsB stay sorted as stored (they enter the source hash).
+func (s Snapshot) OrderedLevels() (a, b []string) {
+	var conds []design.Condition
+	var times []design.TimeLevel
+	if d := s.ExperimentalDesign; d != nil {
+		conds, times = d.Conditions, d.Times
+	}
+	return design.OrderConditionLabels(s.Design.LevelsA, conds), design.OrderTimeLabels(s.Design.LevelsB, times)
 }

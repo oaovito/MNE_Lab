@@ -207,4 +207,26 @@ func seed(t *testing.T, c *client) {
 	c.json("POST", "/api/cycles", map[string]any{"config": map[string]any{"name": "F-A1 stability", "sampleId": "F-A1", "start": start.UTC().Format(time.RFC3339), "startTzKnown": false, "interval": 7, "unit": "days", "duration": 28, "replicates": 3, "params": []string{"effective_diameter", "polydispersity", "count_rate", "baseline_index"}}, "measurements": cyc}, &cy)
 	c.json("POST", "/api/graphs", map[string]any{"kind": "parameter_time", "title": "Effective diameter over 28 days", "cycleId": cy.ID, "param": "effective_diameter", "measurements": cyc, "visual": map[string]any{"legend": true, "grid": true, "lineWidth": 1.75, "fontScale": 1}}, nil)
 	c.json("POST", "/api/graphs", map[string]any{"kind": "dls_by_time", "title": "Distribution over the cycle", "cycleId": cy.ID, "measurements": cyc, "visual": map[string]any{"legend": true, "grid": true, "lineWidth": 1.75, "fontScale": 1}}, nil)
+	// Twenty invented series for the Series Explorer and Graph Builder test
+	// (web/tests/e2e/builder.mjs): S01-S10 under F-SR, S11-S20 under C-SR.
+	twenty, err := os.ReadFile(filepath.Join("..", "..", "testdata", "lightscattering", "synthetic-twenty-series.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, out := c.do("POST", "/api/files", twenty, map[string]string{"X-File-Name": "synthetic-twenty-series.txt"}); code != 200 {
+		t.Fatalf("import twenty series %d %s", code, out)
+	}
+	c.json("GET", "/api/files", nil, &files)
+	for _, f := range files {
+		if f.Name != "synthetic-twenty-series.txt" {
+			continue
+		}
+		for i, it := range f.Items {
+			cond := "F-SR"
+			if i >= 10 {
+				cond = "C-SR"
+			}
+			c.json("PATCH", "/api/measurements/"+it.ID, map[string]any{"condition": cond}, nil)
+		}
+	}
 }
