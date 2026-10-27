@@ -25,6 +25,14 @@ export const groups: Record<string, readonly [string, string, string]> = {
     'Cada condição é desenhada com cor, marcador e estilo de linha próprios no eixo de tempo comum.',
     'Cada condición se dibuja con su propio color, marcador y estilo de línea en el eje de tiempo común.',
   ],
+  'dg.parts': [
+    'Combined graph: each part draws exactly what its original graph drew.',
+    'Gráfico combinado: cada parte desenha exatamente o que seu gráfico original desenhava.',
+    'Gráfico combinado: cada parte dibuja exactamente lo que dibujaba su gráfico original.',
+  ],
+  'dg.part': ['{name}: {conditions} · {groups}', '{name}: {conditions} · {groups}', '{name}: {conditions} · {groups}'],
+  'dg.part.all': ['all conditions', 'todas as condições', 'todas las condiciones'],
+  'dg.part.no_groups': ['all assigned measurements', 'todas as medições atribuídas', 'todas las mediciones asignadas'],
   'dg.paired_at': ['Time point', 'Tempo', 'Punto temporal'],
   'dg.trajectories': ['Show each unit’s trajectory', 'Mostrar a trajetória de cada unidade', 'Mostrar la trayectoria de cada unidad'],
   'dg.n_rule': [
@@ -107,6 +115,18 @@ export const groups: Record<string, readonly [string, string, string]> = {
     'Restringe o gráfico do desenho às medições dos grupos escolhidos. Sem escolha, todas as medições atribuídas são desenhadas.',
     'Restringe el gráfico del diseño a las mediciones de los grupos elegidos. Sin elección, se dibujan todas las mediciones asignadas.',
   ],
+  'grp.filter.parts': [
+    'A combined graph draws each part with the groups its original graph had; change the original graphs and combine again to draw others.',
+    'Um gráfico combinado desenha cada parte com os grupos que seu gráfico original tinha; altere os gráficos originais e combine de novo para desenhar outros.',
+    'Un gráfico combinado dibuja cada parte con los grupos que tenía su gráfico original; cambie los gráficos originales y combine de nuevo para dibujar otros.',
+  ],
+  'grp.pinned': ['{n} pinned in this graph', '{n} fixadas neste gráfico', '{n} fijadas en este gráfico'],
+  'grp.changed': [
+    'The group “{name}” changed since this graph was saved ({then} then, {now} now). The graph still draws the {then} it had.',
+    'O grupo “{name}” mudou desde que este gráfico foi salvo ({then} então, {now} agora). O gráfico continua desenhando as {then} que tinha.',
+    'El grupo “{name}” cambió desde que se guardó este gráfico ({then} entonces, {now} ahora). El gráfico sigue dibujando las {then} que tenía.',
+  ],
+  'grp.follow': ['Use the current members', 'Usar os membros atuais', 'Usar los miembros actuales'],
   'grp.graph': ['Graph', 'Gráfico', 'Gráfico'],
   'grp.cycle': ['Cycle', 'Ciclo', 'Ciclo'],
   'grp.analyze': ['Analyze', 'Analisar', 'Analizar'],
@@ -221,6 +241,36 @@ export const groups: Record<string, readonly [string, string, string]> = {
   'warn.graph.annotations_need_analysis': ['Statistical annotations need a linked saved analysis; none are drawn.', 'Anotações estatísticas precisam de uma análise salva vinculada; nenhuma é desenhada.', 'Las anotaciones estadísticas necesitan un análisis guardado vinculado; no se dibuja ninguna.'],
   'warn.graph.annotations_mixed_units': ['The conditions are stored in different units; no comparison bracket is drawn.', 'As condições estão armazenadas em unidades diferentes; nenhum colchete de comparação é desenhado.', 'Las condiciones están guardadas en unidades distintas; no se dibuja ningún corchete de comparación.'],
   'warn.graph.annotation_not_drawn': ['The comparison {n} is not on this graph and is not drawn.', 'A comparação {n} não está neste gráfico e não é desenhada.', 'La comparación {n} no está en este gráfico y no se dibuja.'],
+  'warn.graph.analysis_data_mismatch': [
+    'The linked analysis was computed on other experimental-unit values (units, readings, exclusions or design revision), so no interval or comparison from it is drawn. Open Analyze from this graph to analyse what it shows.',
+    'A análise vinculada foi calculada sobre outros valores das unidades experimentais (unidades, leituras, exclusões ou revisão do desenho), então nenhum intervalo ou comparação dela é desenhado. Abra Analisar a partir deste gráfico para analisar o que ele mostra.',
+    'El análisis vinculado se calculó sobre otros valores de las unidades experimentales (unidades, lecturas, exclusiones o revisión del diseño), así que no se dibuja ningún intervalo ni comparación de él. Abra Analizar desde este gráfico para analizar lo que muestra.',
+  ],
+  'warn.graph.group_changed': [
+    'The group {n} changed after this graph was saved; the graph still draws the members it had then.',
+    'O grupo {n} mudou depois que este gráfico foi salvo; o gráfico continua desenhando os membros que tinha então.',
+    'El grupo {n} cambió después de que se guardó este gráfico; el gráfico sigue dibujando los miembros que tenía entonces.',
+  ],
+  'warn.graph.sem_needs_experimental_units': [
+    'SEM needs independent experimental units; the points here are measurements, so SD is shown.',
+    'O EPM precisa de unidades experimentais independentes; os pontos aqui são medições, então é mostrado o DP.',
+    'El EEM necesita unidades experimentales independientes; los puntos aquí son mediciones, así que se muestra la DE.',
+  ],
+  'err.graph.analysis_data_mismatch': [
+    'The linked analysis was computed on other experimental-unit values than this graph draws (units, readings, exclusions or design revision). Unlink it, or analyse this graph again.',
+    'A análise vinculada foi calculada sobre valores das unidades experimentais diferentes dos que este gráfico desenha (unidades, leituras, exclusões ou revisão do desenho). Desvincule-a ou analise este gráfico de novo.',
+    'El análisis vinculado se calculó sobre valores de las unidades experimentales distintos de los que dibuja este gráfico (unidades, lecturas, exclusiones o revisión del diseño). Desvincúlelo o analice este gráfico de nuevo.',
+  ],
+  'err.graph.combine_parts_overlap': [
+    'Two graphs draw the same condition with different units or groups, so one series cannot show both.',
+    'Dois gráficos desenham a mesma condição com unidades ou grupos diferentes, então uma série não pode mostrar os dois.',
+    'Dos gráficos dibujan la misma condición con unidades o grupos distintos, así que una serie no puede mostrar ambos.',
+  ],
+  'gc.parts_overlap': [
+    'Two graphs draw the same condition with different units or groups, so one series cannot show both.',
+    'Dois gráficos desenham a mesma condição com unidades ou grupos diferentes, então uma série não pode mostrar os dois.',
+    'Dos gráficos dibujan la misma condición con unidades o grupos distintos, así que una serie no puede mostrar ambos.',
+  ],
 
   // Help
   'feat.design_graphs': ['Condition × time graphs', 'Gráficos condição × tempo', 'Gráficos condición × tiempo'],

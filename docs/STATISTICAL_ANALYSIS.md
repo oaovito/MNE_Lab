@@ -116,19 +116,51 @@ uncorrected one, with their epsilon; the requested GG or HF correction is
 also recorded as `applied:<term>`. Mauchly's test is computed only when the
 contrast SSD is non-singular (units − 1 ≥ contrasts and full numerical rank);
 otherwise `mauchly_not_estimable` is reported with the reason and the
-analysis still runs, with the warnings `sphericity_not_testable` and
-`mixed_model_recommended`. This differs from the original layout, which stops
+analysis still runs, with the warning `sphericity_not_testable`: the
+Greenhouse–Geisser, Huynh–Feldt and lower-bound results are then the
+conservative reading (the lower bound assumes the largest possible departure
+from sphericity). No other method is recommended automatically; in
+particular the mixed model below is not a remedy for untestable sphericity,
+because it assumes compound symmetry, which is stronger. (Results saved
+before this rule may carry `mixed_model_recommended`; it is displayed with the
+same conservative text.) This differs from the original layout, which stops
 when sphericity is not estimable, because with 3 units and 4 times Mauchly
 can never be computed (addendum A §9 allows RM ANOVA when methodologically
 adequate; the corrected and conservative results show the cost of the small N).
-Residual diagnostics use the residuals of the unit × A × B stratum.
+Residual diagnostics use the residuals of the unit × A × B stratum. When the
+Condition × Time interaction is significant and simple effects were not
+requested, the warning `interaction_requires_simple_effects` reads the
+interaction p with the correction that was applied (`A:B_GG` or `A:B_HF`
+when `applied:A:B` exists, the uncorrected `A:B` otherwise), never the
+uncorrected p when a correction applies.
+
+**Level order.** Conditions follow the design's order; times follow their
+numeric offset when every time states one in a common unit, otherwise the
+leading number of the label, then the remaining labels; byte order only
+breaks ties (Day 2 before Day 10). The interface passes this order to R
+(`levelsA`, `levelsB`, which must name exactly the observed levels, or the
+input is refused as `statistics.invalid_definition`), so model terms,
+groups, simple-effect families, the review card, exports and figures share
+it. The snapshot's `design.levelsA/levelsB` stay sorted as before because
+they enter the source hash; the order is computed where it is used
+(`Snapshot.OrderedLevels`, `design.OrderTimeLabels`). Ordering never changes
+a sum of squares, F, df or p.
 
 **Mixed model (D2, D13).** `nlme::lme(y ~ A*B, random = ~1|unit/A,
 method = "REML")` with sum contrasts: a random intercept per unit and per
-condition within unit, so Condition is tested against unit-by-condition
-variation instead of the pooled within-unit error. Marginal Wald F tests
+condition within unit. **Assumption:** compound symmetry within each unit and
+within each unit × condition. Condition is tested against unit-by-condition
+variation; Time and Condition × Time are tested against one pooled
+within-unit residual (the unit × B and unit × A × B variation together),
+which is a stronger assumption than sphericity and can give smaller p-values
+than the classical strata. The result says so (diagnostic `mixed_model`,
+warnings `mixed_covariance_assumption` and `paired_mixed_pooled_error`), as
+do the method description in the interface and this document. The mixed
+model is never selected or recommended automatically; it is the person's
+choice, mainly for incomplete tables. Marginal Wald F tests
 (`anova.lme(type = "marginal")`) report nlme's own containment denominator
-df as returned (for 3 complete units: A 1/2, B and A:B 3/12). Incomplete
+df exactly as returned; nothing derives or fixes them (in the spike below,
+3 complete units gave A 1/2 and B, A:B 3/12 — an nlme output, not a rule). Incomplete
 tables are allowed; missing values are omitted, never imputed; every
 condition × time cell must be observed. The model records both variance
 components, the residual variance, the REML log likelihood, fixed
@@ -199,6 +231,23 @@ excluded with a reason. The snapshot records the revision itself
 unit names when the snapshot was taken (`unitLabels`; names are presentation
 and never enter the source hash).
 
+**Graph → Analyze.** A design graph analyses exactly the measurements it
+draws: its saved measurement list (the parts of a combined graph, its
+conditions and the group members pinned in it). Every other measurement of
+the design revision stays in the definition, excluded with the reason "Not
+shown in the graph “…”" (Groups → Analyze: "Not in the group “…”"), so the
+definition still binds to the saved design and the exclusions are part of
+the snapshot and its provenance; dropping the rows instead would be refused
+as `statistics.design_mismatch`. The editor states how many rows the graph
+keeps. When the graph keeps one condition, the paired Condition × Time
+layout cannot apply (it needs two conditions), so the editor proposes the
+original one-within-factor repeated layout (Time within units, factor A the
+single condition), which the original oracle validates, and says why; with
+fewer units than time points it stops because sphericity cannot be
+estimated, as that layout always has. When too little remains (fewer than
+two times or two units) the editor says so. The pseudoreplication guard and
+the structure review apply unchanged.
+
 **Pseudoreplication guard (B §37, A §14).** A saved design is the person's
 own statement of which measurements come from the same experimental unit:
 the named revision, or else the current revision of every design that places
@@ -230,10 +279,11 @@ units, with a link to correct the design.
 **Presentation (A §11, §58-59).** Paired results show Condition, Time and
 Condition × Time in separate sections, each with its uncorrected test and the
 GG, HF and lower-bound corrections, ε, the error stratum, partial, generalized
-and classical η², and the sphericity note (Mauchly result, or not testable
-with the recommendation of the mixed model). Mixed results show the marginal
-Wald F tests with the denominator df as nlme returned them, both random
-components and the coefficients. Simple effects name their correction; the
+and classical η², and the sphericity note (Mauchly result, or not testable,
+pointing to the GG, HF and lower-bound results as the conservative reading).
+Mixed results state the compound-symmetry assumption and the pooled
+within-unit error, and show the marginal Wald F tests with the denominator df
+as nlme returned them, both random components and the coefficients. Simple effects name their correction; the
 estimated differences (right − left) carry individual paired-t intervals
 labelled as unadjusted. A notice states N and asks that small p-values be read
 together with effect sizes, intervals and the units' own values. Every unit's

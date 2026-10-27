@@ -48,6 +48,18 @@ export const series: Record<string, readonly [string, string, string]> = {
   'gb.data.none': ['No series selected yet.', 'Nenhuma série selecionada ainda.', 'Aún no hay series seleccionadas.'],
   'gb.data.selected': ['Selected series ({n})', 'Séries selecionadas ({n})', 'Series seleccionadas ({n})'],
   'gb.data.missing': ['Series no longer available', 'Série não está mais disponível', 'Serie ya no disponible'],
+  'gb.unnamed.notice': [
+    '{n} {n:measurement of this graph is/measurements of this graph are} not in the library now. The graph keeps {n:it/them} and shows {n:it/them} as missing.',
+    '{n} {n:medição deste gráfico não está/medições deste gráfico não estão} na biblioteca agora. O gráfico {n:a/as} mantém e {n:a/as} mostra como {n:ausente/ausentes}.',
+    '{n} {n:medición de este gráfico no está/mediciones de este gráfico no están} en la biblioteca ahora. El gráfico {n:la/las} conserva y {n:la/las} muestra como {n:ausente/ausentes}.',
+  ],
+  'gb.unnamed.q': ['Leave out the missing measurements?', 'Deixar de fora as medições ausentes?', '¿Dejar fuera las mediciones ausentes?'],
+  'gb.unnamed.d': [
+    'This graph was saved before series selection and refers to {n} {n:measurement/measurements} that {n:is/are} not in the library now, with no recorded candidate. A new selection cannot name {n:it/them}, so {n:it/they} would be left out of the graph. The files and measurements do not change.',
+    'Este gráfico foi salvo antes da seleção por séries e se refere a {n} {n:medição/medições} que não {n:está/estão} na biblioteca agora, sem candidato registrado. Uma nova seleção não {n:a/as} pode nomear, então {n:ficaria/ficariam} fora do gráfico. Os arquivos e medições não mudam.',
+    'Este gráfico se guardó antes de la selección por series y se refiere a {n} {n:medición/mediciones} que no {n:está/están} en la biblioteca ahora, sin candidato registrado. Una nueva selección no {n:la/las} puede nombrar, así que {n:quedaría/quedarían} fuera del gráfico. Los archivos y mediciones no cambian.',
+  ],
+  'gb.unnamed.go': ['Change the selection', 'Alterar a seleção', 'Cambiar la selección'],
   'gb.nothing': ['Choose series to draw', 'Escolha séries para desenhar', 'Elija series para dibujar'],
   'gb.nothing.d': [
     'Select one or more series in the Series Explorer on the left; the preview follows every change.',
@@ -136,12 +148,18 @@ export const series: Record<string, readonly [string, string, string]> = {
   'gb.margin': ['Margin', 'Margem', 'Margen'],
   'gb.margin.auto': ['Automatic', 'Automática', 'Automático'],
   'gb.duplicate': ['Duplicate', 'Duplicar', 'Duplicar'],
-  'gb.duplicate.d': [
-    'Make an independent copy to change; this graph stays as it is.',
-    'Criar uma cópia independente para alterar; este gráfico fica como está.',
-    'Crear una copia independiente para cambiar; este gráfico queda como está.',
+  'gb.bars.sd_only': [
+    'The points of a cycle are measurements, not independent experimental units, so only SD is offered.',
+    'Os pontos de um ciclo são medições, não unidades experimentais independentes, então só o DP é oferecido.',
+    'Los puntos de un ciclo son mediciones, no unidades experimentales independientes, así que solo se ofrece la DE.',
   ],
-  'gb.duplicated': ['Copy created. The original graph is unchanged.', 'Cópia criada. O gráfico original não mudou.', 'Copia creada. El gráfico original no cambió.'],
+  'gb.duplicate.d': [
+    'Make an independent copy of what you see, unsaved changes included; the saved graph stays as it is.',
+    'Criar uma cópia independente do que você vê, com as alterações não salvas; o gráfico salvo fica como está.',
+    'Crear una copia independiente de lo que ve, con los cambios sin guardar; el gráfico guardado queda como está.',
+  ],
+  'gb.duplicate.new': ['Save this graph once before duplicating it.', 'Salve este gráfico uma vez antes de duplicá-lo.', 'Guarde este gráfico una vez antes de duplicarlo.'],
+  'gb.duplicated': ['Copy created from what the editor showed. The saved original is unchanged.', 'Cópia criada a partir do que o editor mostrava. O original salvo não mudou.', 'Copia creada a partir de lo que mostraba el editor. El original guardado no cambió.'],
   'gb.combine': ['Combine', 'Combinar', 'Combinar'],
   'gb.combine.d': [
     'Build a new graph from the data of this and other saved graphs; this graph stays unchanged.',

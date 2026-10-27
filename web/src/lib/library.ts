@@ -48,7 +48,7 @@ export function warnText(w: string): string {
     args.n = rest[1];
   } else if (code === 'ls.spreadsheet_sheet_unrecognized') {
     args.name = rest.join(':');
-  } else if (code.startsWith('graph.skipped_')) args.n = rest.join(':'); // a measurement's name
+  } else if (code.startsWith('graph.skipped_') || code === 'graph.group_changed') args.n = rest.join(':'); // a measurement's or group's name
   else if (rest.length) args.n = rest[rest.length - 1];
   const key = 'warn.' + code;
   const s = t(key, args);

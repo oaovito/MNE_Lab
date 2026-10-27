@@ -167,9 +167,20 @@ averaged first and never counted, so twelve readings of one unit are n = 1.
 The mean and error bar of a cell are computed over the units' values, and n
 is the number of units with a value. Error bars are always named on the
 figure: sample SD (n − 1) by default, SEM on request, and a confidence
-interval only when the graph links a saved analysis of the same design and
-variable, whose stored interval is drawn as saved. A cell with one unit has
-no SD and is drawn without a bar. Each unit's value is visible as a point;
+interval only when the graph links a saved analysis of the same design
+revision and variable whose experimental-unit values are exactly the values
+the graph draws: the same units, the same included readings with the same
+values and units in every unit × condition × time cell shown, and the same
+exclusions. Its stored interval and comparisons are then drawn as saved,
+never recomputed. Otherwise (for example a graph of a group of two units
+linked to an analysis of three) the graph cannot be saved with that link
+(`graph.analysis_data_mismatch`, localized), and a preview draws SD and no
+bracket and says why. A cell with one unit has no SD and is drawn without a
+bar. Display units use the exact conversion rule of the units registry
+(`units.Display`), the same rule as every other graph. Times follow their
+numeric offset (then the label's leading number; byte order only breaks
+ties), so day 2 comes before day 10 on the axis, in the legend and in the
+exports, whose metadata name the error bars actually drawn (SD, SEM or CI). Each unit's value is visible as a point;
 its trajectory over time is optional. A paired view joins the values of the
 same unit under the conditions at one time point; the line means the same
 experimental unit, never two units, and when the design declares no pair for
@@ -182,7 +193,13 @@ domains or values stored in different units. When the units differ but
 every one converts to a common unit with an exact factor (nm, µm, m; cps,
 kcps, Mcps; s, min, h, d), that conversion is offered and applied to the
 display only; there is no conversion otherwise. Two conditions stored in
-different units are never compared by a bracket.
+different units are never compared by a bracket. A combined design graph
+stores, for each parent, the conditions and the group members that parent
+drew (`parts`), so each series shows exactly what its parent showed: Graph 1
+of F-SR for units A–C combined with Graph 2 of C-SR for units B–C draws F-SR
+over A–C and C-SR over B–C, not both over everything. Two parents that draw
+the same condition over different units or groups cannot be combined
+(`graph.combine_parts_overlap`). The parents are not written.
 
 Statistical annotations (brackets with the adjusted p-value, stars from the
 adjusted p-value, or the estimated difference with its interval and adjusted
@@ -194,7 +211,24 @@ time point) is not drawn and is reported.
 
 Groups and saved selections are lists of measurement or series identifiers.
 They never copy values, and a group that holds several readings of one unit
-does not make them independent: N still comes from the design.
+does not make them independent: N still comes from the design. A saved
+design graph pins the members of each group it uses (identifiers, the
+group's name and a SHA-256 of the sorted member list) in its definition and
+keeps drawing those members after the group is edited; the figure and the
+Builder say "group changed since saved", the provenance records the pinned
+membership and its hash, and the person can take the group's current
+members explicitly. A member list that is neither the pinned nor the
+current one is refused.
+
+Cycle (parameter × time) graphs offer SD only: their points are measurements,
+not independent experimental units, so SEM is not offered, and a stored
+request for SEM or CI is drawn and saved as SD with a stated warning.
+
+Duplicate copies what the editor shows, unsaved changes included, into a new
+graph with its lineage; the saved original is not written. A graph saved
+before selection by series identifier keeps every measurement it refers to
+when edited: a reference the library cannot resolve now is kept and shown as
+missing, never dropped silently.
 
 ## Time and replication
 

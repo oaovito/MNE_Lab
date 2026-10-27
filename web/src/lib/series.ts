@@ -5,7 +5,7 @@ import { get } from './api';
 import { statisticsHeaders } from './analyses';
 import { t } from './i18n';
 import { useRev } from './library';
-import type { GraphDef, GraphKind, SeriesCatalog, SeriesEntry } from './types';
+import type { GraphKind, SeriesCatalog, SeriesEntry } from './types';
 import { useAsync } from '../ui/kit';
 
 export function useSeriesCatalog() {
@@ -63,23 +63,7 @@ export function applyFilter(list: SeriesEntry[], f: SeriesFilter): SeriesEntry[]
   });
 }
 
-/**
- * selectionOf returns the SeriesIDs a graph draws: its own selection, or for
- * a graph saved before selection by SeriesID, the curves of its
- * measurements (pinned candidate and weighting).
- */
-export function selectionOf(def: GraphDef, catalog: SeriesEntry[]): string[] {
-  if (def.seriesIds?.length) return def.seriesIds;
-  if (def.kind !== 'dls_distribution') return [];
-  const w = def.weighting || 'intensity';
-  const out: string[] = [];
-  for (const m of def.measurements) {
-    const pin = def.distributions?.[m];
-    const hit = catalog.find((s) => s.kind === 'curve' && s.measurementId === m && s.y.key === w && (pin ? s.distribution?.id === pin : s.distribution?.selected || s.distribution?.id === 'table'));
-    if (hit) out.push(hit.id);
-  }
-  return out;
-}
+export { selectionOf, unnamedReferences } from './selection';
 
 /** withVariable maps a selection to another weighting or parameter of the same data. */
 export function withVariable(ids: string[], key: string, catalog: SeriesEntry[]): string[] {

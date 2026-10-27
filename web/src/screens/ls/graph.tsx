@@ -11,7 +11,7 @@ import { fmtDate, fmtNum, fmtQ, fmtTS, unitText } from '../../lib/format';
 import { errText, has, t } from '../../lib/i18n';
 import { PARAMS, useCycles, useGraphs, useRelations, warnText, WEIGHTINGS } from '../../lib/library';
 import { navigate } from '../../lib/route';
-import { accepts, bySelection, selectionOf, seriesDetail, seriesName, useSeriesCatalog, variableLabel, variablesFor, withVariable } from '../../lib/series';
+import { accepts, bySelection, selectionOf, seriesDetail, unnamedReferences, seriesName, useSeriesCatalog, variableLabel, variablesFor, withVariable } from '../../lib/series';
 import { openPanel, run, toast } from '../../lib/state';
 import type { DesignView, GraphDef, GraphKind, Group, LineStyle, MarkerShape, Series, SeriesEntry, SeriesStyle, Visual } from '../../lib/types';
 import type { StatisticalAnalysis } from '../../lib/statistics';
@@ -164,18 +164,31 @@ function Builder(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphD
   const variable = def.kind === 'dls_distribution' ? def.weighting || 'intensity' : def.param || 'effective_diameter';
   const selected = useMemo(() => (selectable ? selectionOf(def, all) : []), [def.seriesIds, def.measurements, def.distributions, def.weighting, def.kind, all]);
   const entries = useMemo(() => all.filter((s) => accepts(def.kind, s) && s.y.key === variable), [all, def.kind, variable]);
+  // Measurements of a schema 1 graph that the library cannot name as series
+  // now: they stay in the graph (shown as missing) unless the person agrees.
+  const unnamed = useMemo(() => (selectable && catalog.data ? unnamedReferences(def, all) : []), [selectable, catalog.data, def.seriesIds, def.measurements, def.distributions, def.kind, all]);
   const styleKey = (id: string) => def.series?.[id] || def.series?.[all.find((s) => s.id === id)?.measurementId || ''] || {};
-  const select = (ids: string[]) => set({ seriesIds: ids, measurements: [...new Set(ids.map((id) => all.find((s) => s.id === id)?.measurementId).filter(Boolean) as string[])], focusSeries: (def.focusSeries || []).filter((x) => ids.includes(x)) });
+  const select = async (ids: string[]) => {
+    if (unnamed.length && !(await confirmDialog({ title: t('gb.unnamed.q'), body: t('gb.unnamed.d', { n: unnamed.length }), confirm: t('gb.unnamed.go'), danger: true }))) return;
+    set({ seriesIds: ids, measurements: [...new Set(ids.map((id) => all.find((s) => s.id === id)?.measurementId).filter(Boolean) as string[])], focusSeries: (def.focusSeries || []).filter((x) => ids.includes(x)) });
+  };
   const setStyle = (id: string, st: Partial<SeriesStyle>) => {
     const next: SeriesStyle = { ...(def.series?.[id] || (selectable ? styleKey(id) : {})), ...st };
     for (const k of Object.keys(next) as (keyof SeriesStyle)[]) if (!next[k]) delete next[k];
-    // Editing a series of a graph saved before SeriesIDs keeps its selection explicit.
+    // Editing a series of a graph saved before SeriesIDs keeps its selection
+    // explicit, unless that would lose references the library cannot name:
+    // then the style is kept by measurement, as such a graph stores it.
+    if (unnamed.length) {
+      const m = all.find((s) => s.id === id)?.measurementId || id;
+      return set({ series: { ...(def.series || {}), [m]: next } });
+    }
     const extra = selectable && !def.seriesIds?.length ? { seriesIds: selected } : {};
     set({ ...extra, series: { ...(def.series || {}), [id]: next } });
   };
   const setVariable = (key: string) => {
     const ids = withVariable(selected, key, all);
-    if (def.kind === 'dls_distribution') set({ weighting: key, seriesIds: ids.length || selected.length ? ids : undefined });
+    if (def.kind === 'dls_distribution' && unnamed.length) set({ weighting: key });
+    else if (def.kind === 'dls_distribution') set({ weighting: key, seriesIds: ids.length || selected.length ? ids : undefined });
     else set({ param: key, seriesIds: ids });
   };
   const setKind = (kind: GraphKind) => {
@@ -229,10 +242,12 @@ function Builder(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphD
     if (p.isNew) navigate('/ls/graphs/' + g.id, true);
     return g.id!;
   };
+  // Duplicate copies what the editor shows, unsaved changes included,
+  // into a new graph; the saved original is not written.
   const duplicate = async () => {
-    const id = await needSave();
-    if (!id) return;
-    const g = await run(() => post<GraphDef>(`/api/graphs/${id}/duplicate`, { title: t('graph.copy_of', { name: def.title || t('graph.kind.' + def.kind) }) }));
+    if (!def.id || p.isNew) return;
+    const title = t('graph.copy_of', { name: def.title || t('graph.kind.' + def.kind) });
+    const g = await run(() => post<GraphDef>(`/api/graphs/${def.id}/duplicate`, dirty ? { title, definition: def } : { title }));
     if (!g) return;
     toast('success', t('gb.duplicated'));
     navigate('/ls/graphs/' + g.id);
@@ -307,7 +322,7 @@ function Builder(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphD
             )
           ) : left === 'data' ? (
             <div class="panel-body pad">
-              <DataPanel def={def} cycleName={cycle?.config.name} cycleN={cycle?.measurements.length} selected={selected} all={all} onRemove={(id) => select(selected.filter((x) => x !== id))} design={designView} />
+              <DataPanel def={def} cycleName={cycle?.config.name} cycleN={cycle?.measurements.length} selected={selected} unnamed={unnamed} all={all} onRemove={(id) => select(selected.filter((x) => x !== id))} design={designView} />
             </div>
           ) : (
             <div class="panel-body pad">
@@ -413,7 +428,7 @@ function Builder(p: { def: GraphDef; setDef: (d: GraphDef) => void; base: GraphD
           <Button size="sm" kind="primary" icon="save" class="gb-save" busy={busy} disabled={!dirty || !!r.error} onClick={save}>
             {p.isNew ? t('graph.save_library') : t('ui.save')}
           </Button>
-          <Button size="sm" icon="copy" class="gb-duplicate" disabled={busy || (p.isNew && !r.data)} tip={t('gb.duplicate.d')} onClick={duplicate}>
+          <Button size="sm" icon="copy" class="gb-duplicate" disabled={busy || p.isNew || !def.id} tip={p.isNew ? t('gb.duplicate.new') : t('gb.duplicate.d')} onClick={duplicate}>
             {t('gb.duplicate')}
           </Button>
           <Button size="sm" icon="layers" class="gb-combine" disabled={busy || !COMBINABLE.includes(def.kind) || !r.data} tip={t('gb.combine.d')} onClick={async () => { const id = await needSave(); if (id) setCombine([id]); }}>
@@ -469,7 +484,7 @@ function Settings(p: {
   const designKind = isDesignKind(def.kind);
   const analyses = useAnalyses();
   // Only saved analyses of this design (any revision of it) and variable.
-  const compatible = designKind && p.design ? (analyses.data || []).filter((a) => a.snapshot.experimentalDesign?.root === p.design!.design.root && a.snapshot.definition.variable === (def.param || 'effective_diameter')) : [];
+  const compatible = designKind && p.design ? (analyses.data || []).filter((a) => a.snapshot.experimentalDesign?.id === p.design!.design.id && a.snapshot.definition.variable === (def.param || 'effective_diameter')) : [];
   const maxAnn = designKind ? 12 : 8;
   const cycleKind = def.kind === 'parameter_time' || def.kind === 'dls_by_time';
   const stored = r?.y.conversion?.from || r?.y.unit || '';
@@ -590,15 +605,16 @@ function Settings(p: {
 
       {(def.kind === 'parameter_time' || def.kind === 'statistical_groups' || designKind) && (
         <Section title={t('gb.s.bars')} class="gb-sec-bars">
-          <Field label={t('stat.error_bars')} hint={designKind && !def.analysisId ? t('dg.bars.ci_needs') : t('gb.bars.d')}>
+          <Field label={t('stat.error_bars')} hint={def.kind === 'parameter_time' ? t('gb.bars.sd_only') : designKind && !def.analysisId ? t('dg.bars.ci_needs') : t('gb.bars.d')}>
             <Seg
               size="sm"
               label={t('stat.error_bars')}
-              value={def.errorBars || 'sd'}
+              value={def.kind === 'parameter_time' ? 'sd' : def.errorBars || 'sd'}
               onValue={(errorBars) => set({ errorBars: errorBars as 'sd' | 'sem' | 'ci' })}
               options={[
                 { value: 'sd', label: t('gb.bars.sd') },
-                { value: 'sem', label: t('fig.err.sem') },
+                // A cycle graph's points are measurements, not independent units: no SEM.
+                ...(def.kind === 'parameter_time' ? [] : [{ value: 'sem', label: t('fig.err.sem') }]),
                 ...(def.kind === 'statistical_groups' || (designKind && def.analysisId) ? [{ value: 'ci', label: t('fig.err.ci') }] : []),
               ]}
             />
@@ -752,8 +768,21 @@ function DesignSettings(p: { def: GraphDef; set: (patch: Partial<GraphDef>) => v
     set({ conditions: next.length === conds.length ? undefined : next });
   };
   const st = p.design?.structure;
+  const parts = def.parts || [];
   return (
     <div class="col gap2 dg-settings">
+      {parts.length > 0 && (
+        <Notice kind="info">
+          <span class="col gap1 dg-parts">
+            <span>{t('dg.parts')}</span>
+            {parts.map((x) => (
+              <span class="xs" key={x.graphId + (x.conditions || []).join()}>
+                {t('dg.part', { name: x.title || '—', conditions: (x.conditions || []).join(', ') || t('dg.part.all'), groups: (x.groups || []).map((g) => g.name || g.id).join(', ') || t('dg.part.no_groups') })}
+              </span>
+            ))}
+          </span>
+        </Notice>
+      )}
       <Field label={t('dg.design')}>
         <Select label={t('dg.design')} value={def.designId || ''} onValue={(designId) => set({ designId, conditions: undefined, pairedAt: undefined })} options={options} />
       </Field>
@@ -771,7 +800,7 @@ function DesignSettings(p: { def: GraphDef; set: (patch: Partial<GraphDef>) => v
         <Field label={t('dg.conditions')} hint={def.kind === 'design_time' ? t('dg.conditions.d') : undefined}>
           <div class="col gap1 dg-conditions">
             {conds.map((c) => (
-              <Check key={c} checked={chosen.includes(c)} onChange={() => toggle(c)} label={c} />
+              <Check key={c} checked={chosen.includes(c)} disabled={parts.length > 0} onChange={() => toggle(c)} label={c} />
             ))}
           </div>
         </Field>
@@ -802,6 +831,17 @@ function GroupsPanel(p: { def: GraphDef; set: (patch: Partial<GraphDef>) => void
   const list = groups.data || [];
   const designKind = isDesignKind(p.def.kind);
   const chosen = p.def.groups || [];
+  const parts = p.def.parts || [];
+  const pins = p.def.groupSnapshots || [];
+  const pinOf = (id: string) => pins.find((s) => s.id === id);
+  const sameSet = (a: string[], b: string[]) => {
+    const x = new Set(a);
+    const y = new Set(b);
+    return x.size === y.size && [...x].every((m) => y.has(m));
+  };
+  // A group changed when its current members differ from those pinned in the graph.
+  const changed = designKind ? list.filter((g) => chosen.includes(g.id!) && pinOf(g.id!) && !sameSet(pinOf(g.id!)!.measurements, g.measurements)) : [];
+  const follow = (g: Group) => p.set({ groupSnapshots: pins.map((s) => (s.id === g.id ? { id: g.id!, name: g.name, measurements: [...g.measurements] } : s)) });
   const add = (g: Group) => {
     const ids = p.entries.filter((e) => (g.seriesIds?.length ? g.seriesIds.includes(e.id) : g.measurements.includes(e.measurementId))).map((e) => e.id);
     const next = [...new Set([...p.selected, ...ids])];
@@ -827,10 +867,15 @@ function GroupsPanel(p: { def: GraphDef; set: (patch: Partial<GraphDef>) => void
       ) : (
         <div class="col gap1">
           {designKind && <span class="section-title">{t('grp.filter')}</span>}
+          {changed.map((g) => (
+            <Notice kind="warning" key={'chg' + g.id} action={<Button size="sm" class="grp-follow" onClick={() => follow(g)}>{t('grp.follow')}</Button>}>
+              {t('grp.changed', { name: g.name, then: pinOf(g.id!)!.measurements.length, now: g.measurements.length })}
+            </Notice>
+          ))}
           {list.map((g) => (
             <div class="series-row grp-row" key={g.id}>
               {designKind ? (
-                <Check checked={chosen.includes(g.id!)} onChange={(v) => { const next = v ? [...chosen, g.id!] : chosen.filter((x) => x !== g.id); p.set({ groups: next.length ? next : undefined }); }} aria={g.name} />
+                <Check checked={chosen.includes(g.id!)} disabled={parts.length > 0} onChange={(v) => { const next = v ? [...chosen, g.id!] : chosen.filter((x) => x !== g.id); p.set({ groups: next.length ? next : undefined }); }} aria={g.name} />
               ) : (
                 <Icon name="layers" size="sm" />
               )}
@@ -838,6 +883,7 @@ function GroupsPanel(p: { def: GraphDef; set: (patch: Partial<GraphDef>) => void
                 <span class="ellipsis small">{g.name}</span>
                 <span class="xs faint">
                   {t('grp.kind.' + (g.kind || 'group'))} · {g.seriesIds?.length ? t('grp.series', { n: g.seriesIds.length }) : t('grp.members', { n: g.measurements.length })}
+                  {designKind && chosen.includes(g.id!) && pinOf(g.id!) ? ' · ' + t('grp.pinned', { n: pinOf(g.id!)!.measurements.length }) : ''}
                 </span>
               </span>
               {p.selectable && (
@@ -845,7 +891,7 @@ function GroupsPanel(p: { def: GraphDef; set: (patch: Partial<GraphDef>) => void
               )}
             </div>
           ))}
-          {designKind && <span class="xs faint">{t('grp.filter.d')}</span>}
+          {designKind && <span class="xs faint">{parts.length ? t('grp.filter.parts') : t('grp.filter.d')}</span>}
         </div>
       )}
       {p.selectable && p.selected.length > 0 && (
@@ -877,7 +923,7 @@ function Range(p: { label: string; value: number; min: number; max: number; step
 }
 
 /** DataPanel lists what the graph draws: its series, cycle or analysis. */
-function DataPanel(p: { def: GraphDef; cycleName?: string; cycleN?: number; selected: string[]; all: SeriesEntry[]; onRemove: (id: string) => void; design?: DesignView | null }) {
+function DataPanel(p: { def: GraphDef; cycleName?: string; cycleN?: number; selected: string[]; unnamed?: string[]; all: SeriesEntry[]; onRemove: (id: string) => void; design?: DesignView | null }) {
   const def = p.def;
   const byId = useMemo(() => new Map(p.all.map((s) => [s.id, s])), [p.all]);
   if (isDesignKind(def.kind)) {
@@ -912,10 +958,21 @@ function DataPanel(p: { def: GraphDef; cycleName?: string; cycleN?: number; sele
         {t('stat.title')}
       </Button>
     );
-  if (!p.selected.length) return <span class="small faint">{t('gb.data.none')}</span>;
+  const unnamed = p.unnamed || [];
+  if (!p.selected.length && !unnamed.length) return <span class="small faint">{t('gb.data.none')}</span>;
   return (
     <div class="col gap1">
-      <span class="section-title">{t('gb.data.selected', { n: p.selected.length })}</span>
+      <span class="section-title">{t('gb.data.selected', { n: p.selected.length + unnamed.length })}</span>
+      {unnamed.length > 0 && <Notice kind="warning">{t('gb.unnamed.notice', { n: unnamed.length })}</Notice>}
+      {unnamed.map((m) => (
+        <div class="series-row gb-unnamed" key={'u' + m}>
+          <Icon name="file" size="sm" />
+          <span class="grow col" style={{ gap: 0, minWidth: 0 }}>
+            <span class="ellipsis small">{t('gb.data.missing')}</span>
+            <span class="xs faint ellipsis">{m}</span>
+          </span>
+        </div>
+      ))}
       {p.selected.map((id) => {
         const s = byId.get(id);
         return (

@@ -164,6 +164,25 @@ for (const [language, theme, size] of [
     const other = await request('POST', '/api/graphs', { title: `PDI ${tag}`, kind: 'design_time', designId, conditions: ['F-SR'], param: 'polydispersity', visual: { legend: true, metadata: true, grid: true, points: false, lineWidth: 1.75, fontScale: 1 } });
     const before = { [g1]: await raw('/api/graphs/' + g1), [g2]: await raw('/api/graphs/' + g2) };
 
+    // ---- Analyze from Graph 1: one condition, the other rows excluded with a reason ----
+    await go('/ls/graphs/' + g1);
+    await settle();
+    await inspector(false);
+    await page.locator('.gb-analyze').click();
+    await page.waitForURL(/\/ls\/statistics\/new\?design=/);
+    await page.locator('.stat-graph-one').waitFor();
+    await sleep(600);
+    const reasons = await page.locator('table input.input').evaluateAll((els) => els.map((e) => e.value));
+    report.check(`${tag} Analyze from Graph 1 keeps the design's 24 rows, 12 excluded as not shown`, reasons.length === 24 && reasons.filter(Boolean).length === 12 && reasons.filter(Boolean).every((v) => v.includes(`F-SR ${tag}`)), JSON.stringify(reasons));
+    const one = await page.locator('select').evaluateAll((els) => els.map((e) => e.value));
+    report.check(`${tag} one condition proposes Time within units, not Condition × Time`, !one.includes('within_within') && one.includes('repeated'), one.join(','));
+    report.check(`${tag} the subset and the route are stated`, (await page.locator('.stat-graph-subset').count()) === 1);
+    await shot('analyze-one-condition');
+    await page.locator('fieldset input[type=checkbox]').first().check();
+    await page.locator('.stat-prepare').click();
+    await page.locator('.stat-run').waitFor({ timeout: 15000 }).catch(() => {});
+    report.check(`${tag} the core accepts the graph's rows against the saved design`, (await page.locator('.stat-run').count()) === 1, await page.locator('.notice.danger').allInnerTexts().then((x) => x.join(' | ')));
+
     // ---- Combine from the Graph Library ----
     await go('/ls/graphs');
     await page.locator('.graphs-kind select').selectOption('design_time');

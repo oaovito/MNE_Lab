@@ -259,8 +259,16 @@ export type GraphDef = {
   conditions?: string[];
   pairedAt?: string;
   groups?: string[];
+  // The members each group had when the graph was saved (the graph draws
+  // these until the person takes the group's current members).
+  groupSnapshots?: GroupSnapshot[];
+  // A combined design graph: each part is what one original graph drew.
+  parts?: DesignPart[];
   unitTrajectories?: boolean;
 };
+
+export type GroupSnapshot = { id: string; name?: string; measurements: string[]; hash?: string };
+export type DesignPart = { graphId: string; title?: string; conditions?: string[]; groups?: GroupSnapshot[] };
 
 /** A saved group or selection: references only (measurement and series IDs). */
 export type Group = {
@@ -393,7 +401,7 @@ export type CycleView = CycleDoc & {
 
 export type Relations = {
   files: Record<string, { graphs: string[] | null; cycles: string[] | null; analyses?:string[] | null; groups?: string[] | null }>;
-  graphs: Record<string, { files: string[] | null; cycle?: string; derivedFrom?: string[]; derived?: string[]; changedParents?: string[]; design?: string; groups?: string[] | null; analysis?: string }>;
+  graphs: Record<string, { files: string[] | null; cycle?: string; derivedFrom?: string[]; derived?: string[]; changedParents?: string[]; changedGroups?: string[]; design?: string; groups?: string[] | null; analysis?: string }>;
   cycles: Record<string, { files: string[] | null; graphs: string[] | null; analyses?:string[] | null }>;
   groups?: Record<string, { files: string[] | null; graphs: string[] | null; cycles: string[] | null }>;
 };
