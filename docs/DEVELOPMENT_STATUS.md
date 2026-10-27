@@ -256,7 +256,10 @@ de um módulo não deve impedir progresso independente dos demais.
 | Pesquisa externa | Revisar/publicar a configuração de rede pendente quando necessário; respostas 403/challenges não são evidência documental e não devem ser contornadas |
 
 As pré-releases de desenvolvimento são geradas por `.github/workflows/release.yml`
-a partir de uma tag de versão; não são Stable. GUI/USB no computador do
+a partir de uma tag de versão; não são Stable. Depois de cada merge na `main`
+com o CI verde, `.github/workflows/release-auto.yml` cria a próxima tag
+`vX.Y.Z-dev.N`, gera os pacotes e publica a pré-release; sem o secret
+`AUDIT_TERMS`, ela fica como rascunho para auditoria manual. GUI/USB no computador do
 proprietário ainda não foi confirmado.
 
 ## Histórico Git

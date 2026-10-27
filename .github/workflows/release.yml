@@ -1,17 +1,25 @@
 name: Release (draft)
 
 # A version tag builds every portable package from a commit that already
-# passed CI and stores them in a draft pre-release. Publishing the draft is a
-# separate, manual step after the packages are audited.
+# passed CI and stores them in a draft pre-release. A tag pushed by hand
+# leaves the draft for manual publishing; release-auto.yml calls this
+# workflow with the tag it created and publishes the draft itself.
 on:
   push:
     tags: ['v*']
+  workflow_call:
+    inputs:
+      tag:
+        description: Version tag to build
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 env:
   GH_REPO: ${{ github.repository }}
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   gate:
@@ -24,15 +32,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           fetch-depth: 0
           persist-credentials: false
       - id: v
         name: Version, branch and CI of the tagged commit
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-          SHA: ${{ github.sha }}
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
+          SHA=$(git rev-parse "refs/tags/$TAG^{commit}")
           version=${TAG#v}
           [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Tag $TAG is not a version"; exit 1; }
           [ -n "$(git branch -r --contains "$SHA")" ] || { echo "The tagged commit is not on a branch"; exit 1; }
@@ -48,6 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-go@v5
@@ -94,6 +104,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
@@ -125,6 +136,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           persist-credentials: false
       - name: Collect the statistical runtime source
         env:
@@ -144,7 +156,7 @@ jobs:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ env.RELEASE_TAG }}
       VERSION: ${{ needs.gate.outputs.version }}
     steps:
       - uses: actions/download-artifact@v4
