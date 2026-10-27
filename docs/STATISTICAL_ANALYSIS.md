@@ -87,9 +87,9 @@ experimental unit. A unit may span every level of both factors; a new
 condition never creates a new unit. The empty design keeps every original
 method, check and result unchanged. Structure must be `repeated` and every
 included observation needs an explicit unit; declaring these observations
-independent is refused (`statistics.review_structure`), which is the
-pseudoreplication guard: 3 units × 2 conditions × 4 times are 24
-measurements of 3 subjects, never 24.
+independent is refused (`statistics.pseudoreplication`, a structure refusal),
+which is part of the pseudoreplication guard below: 3 units × 2 conditions ×
+4 times are 24 measurements of 3 subjects, never 24.
 
 **Technical readings (D4).** Several measurements in the same unit ×
 condition × time cell are technical readings. R averages them (base `mean`)
@@ -177,6 +177,94 @@ mixed-within2/1`, plus `paired-simple-effects/1`.
   put the unit variance at the boundary (relative SD ≈ 7e-5) and
   `intervals(which = "var-cov")` failed, so the D13 refusal is a realistic
   outcome with 3 units.
+
+## Analysis from a saved design, pseudoreplication guard and review
+
+**Structure from a design (addendum B §45, A §40).** Experimental Design →
+Analyze, or Statistical Analysis → Experimental design, opens the editor with
+`designId` set to one saved, immutable design revision. Units, conditions and
+times come from that revision: factor A is the condition, factor B the time
+and every observation carries the design's unit. For a paired longitudinal
+structure the editor proposes `design: "within_within"`, classical repeated
+measures with Greenhouse–Geisser and simple effects with Holm; the person
+still chooses the method and must tick the structure review
+(`structureReviewed`). The rows are read-only: the person reviews, never
+rebuilds; corrections are made in the design, which creates a new revision.
+The core checks that the definition holds exactly the revision's
+measurements with the same unit, condition and time
+(`statistics.design_mismatch` otherwise); an observation may still be
+excluded with a reason. The snapshot records the revision itself
+(`experimentalDesign`), the current head revisions of that design
+(`designHeads`, so a later revision marks the analysis Source Changed) and the
+unit names when the snapshot was taken (`unitLabels`; names are presentation
+and never enter the source hash).
+
+**Pseudoreplication guard (B §37, A §14).** A saved design is the person's
+own statement of which measurements come from the same experimental unit:
+the named revision, or else the current revision of every design that places
+the analysed measurements. The core refuses (`statistics.pseudoreplication`)
+an independent structure in which two included observations belong to one
+design unit (for example the 24 owner measurements declared independent, with
+or without unit IDs on the observations), and any structure that gives one
+design unit several unit identities (A F-SR and A C-SR as separate subjects).
+Without a design, an independent structure that repeats a unit ID is refused
+the same way. Weaker evidence only warns: units whose names differ only by a
+condition label, or one sample identification under several units
+(`design.Assess`), give the warning `statistics.pseudoreplication`; the same
+sample identification repeated in observations without units gives
+`statistics.repeated_samples_without_units`. The refusal and the warnings use
+the owner's messages, localized in English, Portuguese (Brasil) and Spanish.
+The original layout (condition between units) refuses units observed under
+several conditions with `statistics.paired_longitudinal_detected`, and the
+editor offers the paired design ("Paired longitudinal design detected",
+A §57); it also offers a saved paired design that places the chosen
+measurements. Nothing is switched silently.
+
+**Design review card (B §38, A §15).** After "Review design and sources" and
+before "Run analysis locally", a card shows the experimental units by name,
+the within-unit factors with their levels in the design's order, the number
+of readings of each unit in each cell, the statement that technical readings
+are averaged (D4) or that there are none, and N = the number of experimental
+units, with a link to correct the design.
+
+**Presentation (A §11, §58-59).** Paired results show Condition, Time and
+Condition × Time in separate sections, each with its uncorrected test and the
+GG, HF and lower-bound corrections, ε, the error stratum, partial, generalized
+and classical η², and the sphericity note (Mauchly result, or not testable
+with the recommendation of the mixed model). Mixed results show the marginal
+Wald F tests with the denominator df as nlme returned them, both random
+components and the coefficients. Simple effects name their correction; the
+estimated differences (right − left) carry individual paired-t intervals
+labelled as unadjusted. A notice states N and asks that small p-values be read
+together with effect sizes, intervals and the units' own values. Every unit's
+observation in each cell (the mean of its technical readings, with their
+number) is listed.
+
+**Exports.** For the paired design XLSX, CSV, TSV and TXT carry the
+repeated-measures ANOVA (with denominator df, ε and generalized η²), the
+repeated-measures ANOVA of time within each condition (`simple_effects`), the
+paired comparisons (family, t, df, unadjusted p, adjusted p, unadjusted CI,
+pairs), the unit observations with unit names, and a `design` table with the
+design revision, unit names and condition and time levels; observations carry
+`unit_label`. The PDF lists the same tables after a header that states the
+design revision, the units and the levels. JSON keeps the whole snapshot,
+including the design revision. The analysis package adds
+`statistics/analysis-definitions/experimental-design.json` (the revision,
+current heads and unit names) and `statistics/posthoc-tests/simple-effects.json`;
+a cycle research package includes them through its linked analyses.
+
+**Tests.** `internal/app/statistics_guard_test.go` covers the guard (the 24
+design measurements declared independent are refused with or without unit
+IDs; one design unit split into two subjects is refused; distinct units that
+look like one preparation and repeated sample IDs without units warn), design
+binding, revision and rename effects on the source hash, and every export
+format. `web/tests/e2e/statistics-design.mjs` opens Statistics from a design,
+checks the refusal message, the review card before the calculation, runs the
+classical paired analysis with Holm simple effects in the bundled base-R
+engine offline, and checks the result sections and the review card in the
+three languages. The paired Mixed method needs the bundled nlme image; it is
+covered by Go contract tests and the oracle tests that run where the package
+image can be built (CI), not by this browser test.
 
 ## Review and persistence
 

@@ -21,9 +21,14 @@ import {
   type StatisticalAnalysis,
   type StatisticalResults,
 } from "../../lib/statistics";
-import type { CycleView } from "../../lib/types";
+import type { CycleView, DesignView } from "../../lib/types";
 import { Button, Empty, Notice, Skeleton, useAsync } from "../../ui/kit";
 import { MeasurementPicker } from "./picker";
+import {
+  DesignReviewCard,
+  definitionFromDesign,
+  PairedResults,
+} from "./statistics-paired";
 
 export function StatisticalModule(p: { id?: string }) {
   const s = useStore(app, (x) => x.s);
@@ -47,7 +52,8 @@ function StatisticalPage(p: { id?: string }) {
         : Promise.resolve(null),
     [p.id, rev],
   );
-  if (p.id === "new") return <AnalysisEditor cycleId={cycleId} />;
+  if (p.id === "new")
+    return <AnalysisEditor key={location.search} cycleId={cycleId} />;
   if (p.id) {
     if (saved.error)
       return <Notice kind="danger">{errText(saved.error)}</Notice>;
@@ -167,6 +173,21 @@ function AnalysisLibrary() {
 function AnalysisEditor(p: { cycleId: string }) {
   const files = useFiles();
   const previousId = new URL(location.href).searchParams.get("previous") || "";
+  const designParam = new URL(location.href).searchParams.get("design") || "";
+  const designs = useAsync(
+    () =>
+      get<DesignView[]>("/api/designs", { headers: statisticsHeaders() }),
+    [],
+  );
+  const designView = useAsync(
+    () =>
+      designParam
+        ? get<DesignView>("/api/designs/" + designParam, {
+            headers: statisticsHeaders(),
+          })
+        : Promise.resolve(null),
+    [designParam],
+  );
   const cycle = useAsync(
     () =>
       p.cycleId
@@ -202,6 +223,7 @@ function AnalysisEditor(p: { cycleId: string }) {
   const [snapshot, setSnapshot] = useState<AnalysisSnapshot | null>(null),
     [result, setResult] = useState<StatisticalResults | null>(null),
     [error, setError] = useState(""),
+    [errorCode, setErrorCode] = useState(""),
     [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
@@ -231,6 +253,11 @@ function AnalysisEditor(p: { cycleId: string }) {
     }));
   }, [cycle.data]);
   useEffect(() => {
+    // The structure comes from the saved design revision; the person
+    // reviews it here and corrects it in the design, never rebuilds it.
+    if (designView.data) setDef((d) => definitionFromDesign(designView.data!, d));
+  }, [designView.data]);
+  useEffect(() => {
     if (!previousId) return;
     let active = true;
     get<StatisticalAnalysis>("/api/statistics/" + previousId, {
@@ -256,7 +283,22 @@ function AnalysisEditor(p: { cycleId: string }) {
     setSnapshot(null);
     setResult(null);
     setError("");
+    setErrorCode("");
   };
+  const fromDesign = !!def.designId;
+  const attached = designView.data?.design.id === def.designId ? designView.data : null;
+  const paired = def.design === "within_within";
+  // A saved paired design that places the chosen measurements, offered for
+  // review when the person organized them by hand (addendum A §57).
+  const suggested = fromDesign
+    ? undefined
+    : (designs.data || []).find(
+        (v) =>
+          v.structure.detected === "paired_longitudinal" &&
+          def.observations.some((o) =>
+            v.design.assignments.some((a) => a.measurementId === o.measurementId),
+          ),
+      );
   const available = [
     ...allMeasurements(
       (files.data || []).filter((f) => f.module === "lightscattering"),
@@ -284,9 +326,9 @@ function AnalysisEditor(p: { cycleId: string }) {
       setSnapshot(s);
       setResult(null);
     } catch (e) {
-      setError(
-        errText((e as { code?: string }).code || "statistics.engine_failed"),
-      );
+      const code = (e as { code?: string }).code || "statistics.engine_failed";
+      setErrorCode(code);
+      setError(errText(code));
     } finally {
       setBusy(false);
     }
@@ -360,6 +402,56 @@ function AnalysisEditor(p: { cycleId: string }) {
         class="card pad col gap3"
         style={{ border: "1px solid var(--border)" }}
       >
+        <div class="row gap3 wrap stat-design-pick">
+          <label class="col gap1 grow">
+            {t('stat.design_source')}
+            <select
+              class="input"
+              value={designParam}
+              onChange={(e) => {
+                const id = e.currentTarget.value;
+                navigate("/ls/statistics/new" + (id ? "?design=" + id : ""));
+              }}
+            >
+              <option value="">{t('stat.design_none')}</option>
+              {(designs.data || []).map((v) => (
+                <option value={v.design.id}>
+                  {t('stat.design_option', { name: v.design.name, n: v.design.revision })}
+                </option>
+              ))}
+            </select>
+          </label>
+          {attached && (
+            <Button icon="layers" onClick={() => navigate("/ls/designs/" + attached.design.id)}>
+              {t('stat.open_design')}
+            </Button>
+          )}
+        </div>
+        {attached && (
+          <Notice kind="info">
+            {t('stat.design_attached', {
+              name: attached.design.name,
+              n: attached.design.revision,
+              units: attached.structure.experimentalUnits,
+              m: attached.structure.measurements,
+            })}
+          </Notice>
+        )}
+        {designView.error && <Notice kind="danger">{errText(designView.error)}</Notice>}
+        {suggested && (
+          <Notice kind="info">
+            <span class="col gap2">
+              <span>
+                <b>{t('stat.paired_detected')}</b> {t('stat.paired_detected_body', { name: suggested.design.name })}
+              </span>
+              <span class="row gap2">
+                <Button kind="primary" onClick={() => navigate("/ls/statistics/new?design=" + suggested.design.id)}>
+                  {t('stat.paired_use')}
+                </Button>
+              </span>
+            </span>
+          </Notice>
+        )}
         <div class="row gap3 wrap">
           {field("title", "stat.name")}
           <label class="col gap1">
@@ -395,7 +487,8 @@ function AnalysisEditor(p: { cycleId: string }) {
                       : def.observations.some((o) => o.factorB)
                         ? "two_way"
                         : "one_way",
-                  postHoc: "none",
+                  postHoc: structure === "repeated" && paired ? "simple_effects" : "none",
+                  adjustment: structure === "repeated" && paired ? "holm" : "",
                   control: "",
                   sphericityCorrection: "GG",
                   effectCI: false,
@@ -407,6 +500,28 @@ function AnalysisEditor(p: { cycleId: string }) {
               <option value="repeated">{t("stat.repeated")}</option>
             </select>
           </label>
+          {def.structure === "repeated" && (
+            <label class="col gap1">
+              {t('stat.layout')}
+              <select
+                class="input"
+                value={def.design || ""}
+                onChange={(e) => {
+                  const design = e.currentTarget.value as "" | "within_within";
+                  change({
+                    design,
+                    method: "repeated",
+                    sphericityCorrection: "GG",
+                    postHoc: design ? "simple_effects" : "none",
+                    adjustment: design ? "holm" : "",
+                  });
+                }}
+              >
+                <option value="">{t('stat.layout_between')}</option>
+                <option value="within_within">{t('stat.layout_within')}</option>
+              </select>
+            </label>
+          )}
         </div>
         <label class="row gap2">
           <input
@@ -425,7 +540,7 @@ function AnalysisEditor(p: { cycleId: string }) {
               class="input"
               value={def.method}
               onChange={(e) =>
-                change({ method: e.currentTarget.value, effectCI: false, postHoc: "none", control: "", sphericityCorrection: e.currentTarget.value === "mixed" ? "" : "GG" })
+                change({ method: e.currentTarget.value, effectCI: false, postHoc: paired ? def.postHoc : "none", control: "", sphericityCorrection: e.currentTarget.value === "mixed" ? "" : "GG" })
               }
             >
               {(def.structure === "repeated"
@@ -453,15 +568,31 @@ function AnalysisEditor(p: { cycleId: string }) {
             <select
               class="input"
               value={def.postHoc}
-              onChange={(e) => change({ postHoc: e.currentTarget.value, control: "" })}
+              onChange={(e) => change({ postHoc: e.currentTarget.value, control: "", adjustment: e.currentTarget.value === "simple_effects" ? def.adjustment || "holm" : "" })}
             >
               <option value="none">{t("stat.none")}</option>
-              {["one_way", "two_way"].includes(def.method) && (
+              {paired && def.structure === "repeated" && (
+                <option value="simple_effects">{t('stat.simple_effects')}</option>
+              )}
+              {!paired && ["one_way", "two_way"].includes(def.method) && (
                 <option value="tukey">Tukey HSD</option>
               )}
-              {def.method === "one_way" && <option value="dunnett">Dunnett</option>}
+              {!paired && def.method === "one_way" && <option value="dunnett">Dunnett</option>}
             </select>
           </label>
+          {def.postHoc === "simple_effects" && (
+            <label class="col gap1">
+              {t('stat.adjustment')}
+              <select
+                class="input"
+                value={def.adjustment || "holm"}
+                onChange={(e) => change({ adjustment: e.currentTarget.value })}
+              >
+                <option value="holm">Holm</option>
+                <option value="bonferroni">Bonferroni</option>
+              </select>
+            </label>
+          )}
           {def.postHoc === "dunnett" && (
             <label class="col gap1">
               {t("stat.control")}
@@ -492,7 +623,7 @@ function AnalysisEditor(p: { cycleId: string }) {
           <span class="row gap2"><input type="checkbox" aria-label={t("stat.effect_ci")} checked={!!def.effectCI} onChange={e=>change({effectCI:e.currentTarget.checked})}/>{t("stat.effect_ci")}</span>
           <small>{t("stat.effect_ci_scope")}</small>
         </label>}
-        {def.method === "mixed" && <Notice kind="info">{t("stat.mixed_scope")}</Notice>}
+        {def.method === "mixed" && <Notice kind="info">{t(paired ? 'stat.paired_mixed_scope' : 'stat.mixed_scope')}</Notice>}
         <details>
           <summary>{t("stat.units")}</summary>
           <p>{t("stat.units_help")}</p>
@@ -523,7 +654,7 @@ function AnalysisEditor(p: { cycleId: string }) {
           </div>
         </details>
         <div class="row gap2">
-          <Button icon="plus" onClick={() => setPicking(true)}>
+          <Button icon="plus" disabled={fromDesign} onClick={() => setPicking(true)}>
             {t("stat.choose_measurements")}
           </Button>
           <span>{t("files.selected", { n: def.observations.length })}</span>
@@ -585,6 +716,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                           t("stat.include") + " " + measurementName(m, f)
                         }
                         checked={!!o}
+                        disabled={fromDesign}
                         onChange={(e) =>
                           change({
                             observations: e.currentTarget.checked
@@ -615,7 +747,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                         aria-label={
                           t("stat.factor_a") + " " + measurementName(m, f)
                         }
-                        disabled={!o}
+                        disabled={!o || fromDesign}
                         value={o?.factorA || ""}
                         onInput={(e) =>
                           assignment(m.id, { factorA: e.currentTarget.value })
@@ -629,7 +761,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                         aria-label={
                           t("stat.factor_b") + " " + measurementName(m, f)
                         }
-                        disabled={!o}
+                        disabled={!o || fromDesign}
                         value={o?.factorB || ""}
                         onInput={(e) =>
                           assignment(m.id, { factorB: e.currentTarget.value })
@@ -643,7 +775,7 @@ function AnalysisEditor(p: { cycleId: string }) {
                         aria-label={
                           t("stat.unit") + " " + measurementName(m, f)
                         }
-                        disabled={!o}
+                        disabled={!o || fromDesign}
                         value={o?.unitId || ""}
                         onChange={(e) =>
                           assignment(m.id, { unitId: e.currentTarget.value })
@@ -686,7 +818,28 @@ function AnalysisEditor(p: { cycleId: string }) {
           {t("stat.prepare")}
         </Button>
       </fieldset>
-      {error && <Notice kind="danger">{error}</Notice>}
+      {error && (
+        <Notice kind="danger">
+          <span class="col gap2">
+            <span>{error}</span>
+            {errorCode === "statistics.paired_longitudinal_detected" && (
+              <span class="row gap2">
+                <Button
+                  kind="primary"
+                  onClick={() =>
+                    suggested
+                      ? navigate("/ls/statistics/new?design=" + suggested.design.id)
+                      : change({ design: "within_within", method: "repeated", sphericityCorrection: "GG", postHoc: "simple_effects", adjustment: "holm", structureReviewed: false })
+                  }
+                >
+                  {t('stat.paired_use')}
+                </Button>
+              </span>
+            )}
+          </span>
+        </Notice>
+      )}
+      {snapshot && <DesignReviewCard snapshot={snapshot} />}
       {snapshot && (
         <div class="card pad col gap2">
           <b>{t("stat.design")}</b>
@@ -742,6 +895,8 @@ function AnalysisResults(p: {
   const u = s.unit ? ` (${s.unit})` : "";
   const u2 = s.unit ? ` (${squared(s.unit)})` : "";
   const after = (text: string) => (s.unit ? `${text} ${s.unit}` : text);
+  const paired = r.design === "within_within";
+  const design = s.experimentalDesign;
   return (
     <div class="col gap3">
       <div class="card pad">
@@ -757,7 +912,8 @@ function AnalysisResults(p: {
       {r.warnings.map((w) => (
         <Notice kind="warning">{warnText(w)}</Notice>
       ))}
-      <section class="card pad col gap2">
+      {paired && <PairedResults snapshot={s} result={r} />}
+      {!paired && <section class="card pad col gap2">
         <h3>{t(r.model ? "stat.mixed_tests" : "stat.anova_table")}</h3>
         <div style={{ overflowX: "auto" }}>
           <table class="table">
@@ -796,7 +952,7 @@ function AnalysisResults(p: {
             </tbody>
           </table>
         </div>
-      </section>
+      </section>}
       {!!r.effectIntervals?.length && <section class="card pad col gap2">
         <h3>{t("stat.effect_ci")}</h3><p>{t("stat.effect_ci_scope")}</p>
         <table class="table"><thead><tr><th>{t("stat.source")}</th><th>{t("stat.confidence_level")}</th><th>CI</th><th>{t("stat.status")}</th></tr></thead><tbody>
@@ -804,7 +960,7 @@ function AnalysisResults(p: {
         </tbody></table>
         <small>{r.effectIntervals[0].method}</small>
       </section>}
-      {r.model && <section class="card pad col gap2">
+      {r.model && !paired && <section class="card pad col gap2">
         <h3>{t("stat.mixed_model")}</h3>
         <p>{t("stat.mixed_scope")}</p>
         <p>{r.model.estimation} · y ~ {r.model.fixed} · {r.model.random} · {r.model.test}</p>
@@ -854,7 +1010,7 @@ function AnalysisResults(p: {
           ))}
         </details>
       </section>
-      {r.comparisons.length > 0 && (
+      {r.comparisons.length > 0 && !paired && (
         <section class="card pad">
           <h3>{t("stat.posthoc")}</h3>
           <table class="table">
@@ -910,6 +1066,13 @@ function AnalysisResults(p: {
       <details class="card pad">
         <summary>{t("stat.provenance")}</summary>
         <p>SHA-256: {s.sourceHash}</p>
+        {design && (
+          <p class="stat-design-source">
+            {t('stat.review_from_design', { name: design.name, n: design.revision })} · {design.id}
+            {" "}
+            <Button size="sm" onClick={() => navigate("/ls/designs/" + design.id)}>{t('stat.open_design')}</Button>
+          </p>
+        )}
         <p>{t("stat.units_help")}</p>
         {s.sources.map((src) => (
           <p>

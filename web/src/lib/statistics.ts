@@ -2,6 +2,7 @@ import { WebR, ChannelType } from "webr";
 import code from "./statistics-engine.R";
 import mbessNCF from "./vendor/mbess/conf.limits.ncf.R";
 import mbessPVAF from "./vendor/mbess/ci.pvaf.R";
+import type { Design } from "./types";
 
 export type AnalysisDefinition = {
   schema: number;
@@ -23,6 +24,8 @@ export type AnalysisDefinition = {
   design?: "" | "within_within";
   // Paired simple effects only: "holm" or "bonferroni".
   adjustment?: string;
+  // The saved experimental design revision the structure was taken from.
+  designId?: string;
   observations: {
     measurementId: string;
     factorA: string;
@@ -38,6 +41,9 @@ export type AnalysisSnapshot = {
   receipt?: string;
   accountId: string;
   profileId: string;
+  experimentalDesign?: Design;
+  designHeads?: string[];
+  unitLabels?: Record<string, string>;
   sources: {
     measurement: {
       id: string;

@@ -179,6 +179,11 @@ function DesignEditor(p: { id?: string }) {
         <Button size="sm" icon="plus" onClick={() => setPicking(true)}>
           {t('dsg.add_measurements')}
         </Button>
+        {saved.data && (
+          <Button size="sm" icon="sigma" disabled={dirty} onClick={() => navigate('/ls/statistics/new?design=' + saved.data!.design.id)}>
+            {t('stat.analyze_design')}
+          </Button>
+        )}
         <Button size="sm" kind="primary" icon="save" busy={saving} disabled={!dirty || !draft.name.trim() || !head} onClick={save}>
           {t('dsg.save')}
         </Button>

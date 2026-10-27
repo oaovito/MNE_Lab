@@ -2361,3 +2361,12 @@ h4.design-h { font-size: var(--fs-xs); }
   .design-review { grid-column: 1; grid-row: 2; }
   .design-main { grid-column: 2; grid-row: 1 / span 2; }
 }
+
+/* Statistical Analysis: design review card and paired results. */
+.stat-review { border-left: 3px solid var(--accent); }
+.stat-review-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s3, 12px); }
+.stat-review-units { font-weight: 600; }
+.stat-review-cells td, .stat-review-cells th { text-align: center; white-space: nowrap; }
+.stat-review-cells td:first-child, .stat-review-cells th:first-child { text-align: left; }
+.stat-cell-readings { font-style: italic; }
+.stat-paired h4 { margin: 4px 0 0; font-size: 13px; }

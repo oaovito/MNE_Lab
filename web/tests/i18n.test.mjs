@@ -213,3 +213,23 @@ test('the phone loads every text it shows', async () => {
   assert.deepEqual([...new Set(keys)].filter((k) => !(k in loaded) && !(k in goEn)).sort(), []);
   for (const p of prefixes) assert.ok(Object.keys(loaded).concat(Object.keys(goEn)).some((k) => k.startsWith(p)), `no phone texts for ${p}*`);
 });
+
+test('the pseudoreplication guard speaks the owner message in every language', () => {
+  // Addendum B §37 (refusal and warning) and A §14 (repeated observations).
+  const b37 = 'These measurements appear to originate from the same experimental unit. Treating them as independent may inflate the effective sample size and produce misleading p-values.';
+  const a14 = 'These measurements appear to originate from repeated observations of the same experimental units. Treating them as independent may inflate the effective sample size and produce misleading p-values.';
+  for (const [key, owner] of [['err.statistics.pseudoreplication', b37], ['warn.statistics.pseudoreplication', b37], ['warn.statistics.repeated_samples_without_units', a14]]) {
+    const row = catalog[key];
+    assert.ok(row, key);
+    assert.ok(row[0].startsWith(owner), `${key} does not carry the owner message`);
+    assert.ok(row[1] !== row[0] && row[2] !== row[0] && row[1] !== row[2], `${key} is not localized`);
+    assert.match(row[1], /unidade experimental|unidades experimentais/);
+    assert.match(row[2], /unidad experimental|unidades experimentales/);
+  }
+  for (const key of ['err.statistics.paired_longitudinal_detected', 'err.statistics.design_mismatch', 'stat.paired_detected', 'stat.review_card', 'stat.small_n']) {
+    assert.ok(catalog[key] && new Set(catalog[key]).size === 3, `${key} missing or untranslated`);
+  }
+  // The core identifiers that are not plain errors.New values.
+  const model = readFileSync(join(root, 'internal/science/analysis/model.go'), 'utf8');
+  for (const code of list(/codedError\{"([a-z_.]+)"/g, model)) assert.ok(catalog['err.' + code], `untranslated ${code}`);
+});
