@@ -174,6 +174,7 @@ func SeriesValues(def Definition, in Input) (Result, error) {
 	mapped := false
 	ymin, ymax := math.Inf(1), math.Inf(-1)
 	var used []model.Measurement
+	var stored []string // stored unit of each drawn series
 	sourced := map[string]bool{}
 	for _, id := range def.SeriesIDs {
 		ref, err := series.Parse(id)
@@ -211,9 +212,8 @@ func SeriesValues(def Definition, in Input) (Result, error) {
 			key, unit = ref.Param, u
 		} else if ref.Param != key {
 			return res, ErrMixedVariables
-		} else if u != unit {
-			return res, ErrMixedUnits
 		}
+		stored = append(stored, u)
 		label := ""
 		if st, ok := def.Series[id]; ok && st.Label != "" {
 			label = st.Label
@@ -239,6 +239,38 @@ func SeriesValues(def Definition, in Input) (Result, error) {
 	if len(res.Series) == 0 {
 		return res, ErrNoData
 	}
+	if us := uniqueStrings(stored); len(us) > 1 {
+		// Series stated in different units are drawn together only in a
+		// display unit every one converts to with an exact factor (a
+		// combination the person accepted); never mixed silently.
+		if def.DisplayUnit == "" {
+			return res, ErrMixedUnits
+		}
+		var factors []string
+		for _, u := range us {
+			r, err := exactFactor(u, def.DisplayUnit)
+			if err != nil {
+				return res, ErrMixedUnits
+			}
+			factors = append(factors, u+": "+r)
+		}
+		ymin, ymax = math.Inf(1), math.Inf(-1)
+		for i := range res.Series {
+			se := &res.Series[i]
+			c, err := units.Display(se.Y[0], "", stored[i], def.DisplayUnit)
+			if err != nil {
+				return res, ErrMixedUnits
+			}
+			se.YOriginal = append([]float64(nil), se.Y...)
+			se.Meta["unit.original"] = stored[i]
+			se.Y[0] = c.DisplayValue
+			ymin, ymax = math.Min(ymin, se.Y[0]), math.Max(ymax, se.Y[0])
+		}
+		unit = def.DisplayUnit
+		res.Y.Conversion = &AxisConversion{From: strings.Join(us, ", "), To: def.DisplayUnit, Factor: strings.Join(factors, "; ")}
+		res.Provenance.Transformations = append(res.Provenance.Transformations,
+			"display unit "+def.DisplayUnit+" for series stated in "+strings.Join(us, ", ")+" (exact factors "+strings.Join(factors, "; ")+"); stored values and units unchanged")
+	}
 	distinctLabels(def, res.Series, used)
 	for _, s := range res.Series {
 		res.X.Categories = append(res.X.Categories, s.Label)
@@ -253,6 +285,15 @@ func SeriesValues(def Definition, in Input) (Result, error) {
 	res.X.Min, res.X.Max = .5, float64(len(res.Series))+.5
 	res.Y.Min, res.Y.Max = ymin, ymax
 	return res, nil
+}
+
+// exactFactor is the exact factor from one unit to another, as text.
+func exactFactor(from, to string) (string, error) {
+	r, err := units.Ratio(from, to)
+	if err != nil {
+		return "", err
+	}
+	return r.RatString(), nil
 }
 
 // readingOf finds one numeric cell of a stored runs table.
@@ -287,7 +328,9 @@ const MaxTextNotes = 20
 // stay in the result, and a display unit keeps the stored values next to
 // the converted ones.
 func Finish(def Definition, res *Result) {
-	res.Subtitle = def.Subtitle
+	if def.Subtitle != "" || res.Kind != KindPairedCondition {
+		res.Subtitle = def.Subtitle
+	}
 	if def.XLabel != "" {
 		res.X.Title = def.XLabel
 	}
@@ -309,7 +352,7 @@ func Finish(def Definition, res *Result) {
 			}
 		}
 	}
-	if def.ShowIndividual != nil && !*def.ShowIndividual && (res.Kind == KindParameterTime || res.Kind == KindStatistical) {
+	if def.ShowIndividual != nil && !*def.ShowIndividual && (res.Kind == KindParameterTime || res.Kind == KindStatistical || res.Kind == KindDesignTime) {
 		for i := range res.Series {
 			if res.Series[i].Kind == "individual" {
 				res.Series[i].Hidden = true
@@ -376,7 +419,19 @@ func displayUnit(to string, res *Result) {
 		}
 	}
 	for i := range res.Annotations {
-		res.Annotations[i].Y = conv(res.Annotations[i].Y)
+		a := &res.Annotations[i]
+		a.Y = conv(a.Y)
+		if a.Difference != nil {
+			// Effect labels follow the axis: the stored difference and its
+			// interval are converted with the same exact factor.
+			d := conv(*a.Difference)
+			a.Difference = &d
+			if a.Lower != nil && a.Upper != nil {
+				lo, hi := conv(*a.Lower), conv(*a.Upper)
+				a.Lower, a.Upper = &lo, &hi
+			}
+			a.Label = effectLabel(d, a.Lower, a.Upper, a.AdjustedP, to)
+		}
 	}
 	res.Y.Min, res.Y.Max = conv(res.Y.Min), conv(res.Y.Max)
 	res.Y.Unit = to

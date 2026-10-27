@@ -529,8 +529,36 @@ func unitUsageIndex(tx unitTx) (map[string][]UnitUse, error) {
 		for sym := range analyses[g.AnalysisID] {
 			syms[sym] = true
 		}
+		// A display unit is the graph's own choice (assigned by the
+		// person); the stored values keep their units.
+		if g.DisplayUnit != "" {
+			add(g.DisplayUnit, UnitUse{Kind: "graph", ID: g.ID, Label: g.Title, Fields: []string{"displayUnit"}, Origin: "user_assigned", Replaceable: true})
+			delete(syms, g.DisplayUnit)
+		}
 		for sym := range syms {
 			add(sym, UnitUse{Kind: "graph", ID: g.ID, Label: g.Title, Origin: "follows_measurements", Replaceable: true})
+		}
+	}
+	// Instrument reading tables: the units written in their headers are
+	// stated by the source file and never rewritten.
+	if rows, err = tx.List(CollReadings); err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		var fr model.FileReadings
+		if decodeRecord(r, &fr) != nil {
+			continue
+		}
+		fields := map[string][]string{}
+		for _, t := range fr.Tables {
+			for _, c := range t.Columns {
+				if c.Unit != "" {
+					fields[c.Unit] = append(fields[c.Unit], "reading."+firstNonEmpty(c.Key, c.Label, c.Header))
+				}
+			}
+		}
+		for sym, f := range fields {
+			add(sym, UnitUse{Kind: "reading", ID: fr.FileID, Label: files[fr.FileID], Fields: uniqueSorted(f), Origin: "source_file"})
 		}
 	}
 	return idx, nil
@@ -730,6 +758,21 @@ func (p *Profile) ReplaceMeasurementUnit(id, replacementID string) (UnitReplacem
 				}
 				if _, err := tx.Put(CollImportProfiles, ip.ID, ip); err != nil {
 					return err
+				}
+			case "graph":
+				if !contains(use.Fields, "displayUnit") {
+					continue
+				}
+				var g graph.Definition
+				if _, err := tx.Get(CollGraphs, use.ID, &g); err != nil {
+					return err
+				}
+				if g.DisplayUnit == from {
+					g.DisplayUnit = to
+					rec.Changes = append(rec.Changes, UnitChange{Kind: "graph", ID: g.ID, Field: "displayUnit", From: from, To: to})
+					if _, err := tx.Put(CollGraphs, g.ID, g); err != nil {
+						return err
+					}
 				}
 			}
 		}

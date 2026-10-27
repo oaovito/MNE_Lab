@@ -33,6 +33,13 @@ const (
 	// KindSeriesValues draws the values of chosen summary or instrument
 	// reading series side by side, one category per series.
 	KindSeriesValues = "series_values"
+	// KindDesignTime draws a parameter of an experimental design over its
+	// time points, one mean ± error bar per condition, with n counted in
+	// experimental units (condition × time graphs).
+	KindDesignTime = "design_time"
+	// KindPairedCondition joins each experimental unit's values under the
+	// conditions of the design at one time point (paired view).
+	KindPairedCondition = "paired_condition"
 )
 
 // Errors (stable identifiers).
@@ -133,6 +140,18 @@ type Definition struct {
 	SourceFiles        []string  `json:"sourceFiles,omitempty"`
 	ParserVersions     []string  `json:"parserVersions,omitempty"`
 	CalculationVersion string    `json:"calculationVersion,omitempty"`
+
+	// Design graphs (design_time and paired_condition). DesignID names the
+	// saved design revision (pinned, so the graph stays reproducible);
+	// Conditions are the levels shown, in order (empty: every condition of
+	// the design); PairedAt is the time point of the paired view; Groups
+	// restrict the measurements to the members of saved groups (references
+	// only); UnitTrajectories draws each unit's thin secondary line.
+	DesignID         string   `json:"designId,omitempty"`
+	Conditions       []string `json:"conditions,omitempty"`
+	PairedAt         string   `json:"pairedAt,omitempty"`
+	Groups           []string `json:"groups,omitempty"`
+	UnitTrajectories bool     `json:"unitTrajectories,omitempty"`
 }
 
 // DefaultVisual is the visual configuration of a new graph.
@@ -152,6 +171,9 @@ type Axis struct {
 	Title string `json:"title,omitempty"`
 	// Conversion records a display-only unit change of this axis.
 	Conversion *AxisConversion `json:"conversion,omitempty"`
+	// Ticks places the labelled ticks at these values (the time points of
+	// a design) instead of evenly spaced ones.
+	Ticks []float64 `json:"ticks,omitempty"`
 }
 
 // Series is one plotted series.
@@ -178,6 +200,12 @@ type Series struct {
 	// YOriginal keeps the values in their stored unit when the axis shows
 	// them in a display unit.
 	YOriginal []float64 `json:"yOriginal,omitempty"`
+	// PointLabels names the experimental unit of each point of a series of
+	// unit values (design graphs).
+	PointLabels []string `json:"pointLabels,omitempty"`
+	// Gaps are X positions where this series has no value: its line is
+	// interrupted there, never drawn across.
+	Gaps []float64 `json:"gaps,omitempty"`
 }
 
 // Source is one input of a graph.
@@ -233,6 +261,8 @@ type Result struct {
 	// never drawn without a description.
 	ErrorBars string           `json:"errorBars,omitempty"`
 	TextNotes []TextAnnotation `json:"textNotes,omitempty"`
+	// Design identifies the experimental design revision of a design graph.
+	Design *DesignRef `json:"design,omitempty"`
 }
 
 // Input bundles what the engine needs. Readings (by file ID) are needed

@@ -110,9 +110,10 @@ func For(kind string) Options {
 		o.Sections = []Section{
 			{"recommended", []string{"png", "svg", "pdf", "tiff"}},
 			{"data", []string{"csv", "xlsx", "tsv", "txt"}},
-			{"all", append(append([]string{}, figureAll...), dataAll...)},
+			{"full", []string{"package"}},
+			{"all", append(append(append([]string{}, figureAll...), dataAll...), "package")},
 		}
-		o.Presets = []string{PresetQuick, PresetPresentation, PresetPublication, PresetRawData, PresetCustom}
+		o.Presets = []string{PresetQuick, PresetPresentation, PresetPublication, PresetRawData, PresetPackage, PresetCustom}
 		o.Default = Choice{PresetQuick, []string{"png"}}
 	case KindDataset:
 		o.Sections = []Section{

@@ -260,10 +260,14 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		ts := fs * 1.25
 		fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: top + ts, Text: fit(fig.Title, FontSansBold, ts, right-left), Size: ts, Font: FontSansBold, Fill: inkText, Anchor: "start", Role: "title"})
 		top += ts * 1.7
-		if res.Subtitle != "" {
+		subtitle := res.Subtitle
+		if subtitle == "" && res.Kind == graph.KindPairedCondition && len(res.Series) > 0 && res.Series[0].Meta["time"] != "" {
+			subtitle = T("plot.paired_at", "time", res.Series[0].Meta["time"])
+		}
+		if subtitle != "" {
 			ss := fs * 0.95
 			top -= ts * 0.35
-			fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: top + ss, Text: fit(res.Subtitle, FontSans, ss, right-left), Size: ss, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "subtitle"})
+			fig.Ops = append(fig.Ops, Op{K: "text", X: left, Y: top + ss, Text: fit(subtitle, FontSans, ss, right-left), Size: ss, Font: FontSans, Fill: inkMuted, Anchor: "start", Role: "subtitle"})
 			top += ss * 1.7
 		}
 	}
@@ -291,9 +295,10 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		if looks[i].shown() {
 			res.Series[i].Marker = looks[i].marker
 		}
-		if se.Muted {
+		if se.Muted || se.Kind == "trajectory" {
 			// Focus mode: series outside the focus stay as muted context
-			// and are not listed.
+			// and are not listed. Unit trajectories are secondary marks,
+			// named by the metadata and their end labels.
 			continue
 		}
 		switch res.Visual.LegendMode {
@@ -496,7 +501,7 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 
 	// Axes.
 	view := res.Visual.View
-	xa := buildAxis(res.X, view, true, res.Kind == graph.KindParameterTime, s.Decimal)
+	xa := buildAxis(res.X, view, true, res.Kind == graph.KindParameterTime || res.Kind == graph.KindDesignTime, s.Decimal)
 	ya := buildAxis(res.Y, view, false, false, s.Decimal)
 	tick := fs * 0.45
 	yLabelW := 0.0
@@ -536,13 +541,22 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 
 	// Data, clipped to the plot area (matters only when zoomed).
 	fig.Ops = append(fig.Ops, Op{K: "clip", X: pl, Y: pt, W: pr - pl, H: pb - pt})
-	gapBetween := func(a, b float64) bool {
-		for _, g := range res.Gaps {
+	gapBetween := func(a, b float64, own []float64) bool {
+		for _, g := range append(own, res.Gaps...) {
 			if g > a && g < b {
 				return true
 			}
 		}
 		return false
+	}
+	// A unit's name at the last point of its line (design graphs).
+	endLabel := func(se graph.Series, c string) {
+		n := len(se.X)
+		if n == 0 || len(se.PointLabels) == 0 {
+			return
+		}
+		label := se.PointLabels[len(se.PointLabels)-1]
+		fig.Ops = append(fig.Ops, Op{K: "text", X: mx(se.X[n-1]) + fs*.45, Y: my(se.Y[n-1]) + fs*.25, Text: fit(label, FontSans, fs*.72, fs*8), Size: fs * .72, Font: FontSans, Fill: c, Anchor: "start", Role: "point-label"})
 	}
 	curve := 0 // visible curves so far, to stagger their markers
 	order := make([]int, 0, len(res.Series))
@@ -588,7 +602,7 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 				pts = nil
 			}
 			for i := range se.X {
-				if i > 0 && gapBetween(se.X[i-1], se.X[i]) {
+				if i > 0 && gapBetween(se.X[i-1], se.X[i], se.Gaps) {
 					flush()
 				}
 				pts = append(pts, mx(se.X[i]), my(se.Y[i]))
@@ -608,6 +622,35 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 				fig.Ops = append(fig.Ops, markerOp(lk.marker, x, y, fs*0.3, c, 0, "", lw*0.8, "point"))
 				fig.Hits = append(fig.Hits, Hit{si, i, x, y})
 			}
+		case "trajectory", "paired":
+			// One experimental unit: a line through its own values, broken
+			// where it has none (never drawn across a missing point).
+			w := lw
+			if se.Kind == "trajectory" {
+				w = lw * .55
+			}
+			var pts []float64
+			flush := func() {
+				if len(pts) >= 4 {
+					fig.Ops = append(fig.Ops, Op{K: "poly", Pts: pts, Stroke: c, SW: w, Dash: lk.dash, Role: "series"})
+				}
+				pts = nil
+			}
+			for i := range se.X {
+				if i > 0 && gapBetween(se.X[i-1], se.X[i], se.Gaps) {
+					flush()
+				}
+				pts = append(pts, mx(se.X[i]), my(se.Y[i]))
+			}
+			flush()
+			if se.Kind == "paired" {
+				for i := range se.X {
+					x, y := mx(se.X[i]), my(se.Y[i])
+					fig.Ops = append(fig.Ops, markerOp(lk.marker, x, y, fs*.3, c, .85, c, .7*s.Scale, "point"))
+					fig.Hits = append(fig.Hits, Hit{si, i, x, y})
+				}
+			}
+			endLabel(se, c)
 		default:
 			pts := make([]float64, 0, len(se.X)*2)
 			for i := range se.X {
@@ -735,6 +778,9 @@ func legendSwatch(x, y, w float64, lk look, kind string, hidden bool, lw, fs flo
 		return []Op{markerOp(lk.marker, x+w/2, y, fs*0.26, color, 0.35, color, 0.7, "legend")}
 	case "value":
 		return []Op{markerOp(lk.marker, x+w/2, y, fs*0.34, color, 0.85, color, 0.7, "legend")}
+	case "paired":
+		return []Op{{K: "line", X: x, Y: y, X2: x + w, Y2: y, Stroke: color, SW: lw, Dash: lk.dash, Role: "legend"},
+			markerOp(lk.marker, x+w/2, y, fs*0.3, color, .85, color, 0.7, "legend")}
 	case "mean":
 		return []Op{{K: "line", X: x, Y: y, X2: x + w, Y2: y, Stroke: color, SW: lw, Dash: lk.dash, Role: "legend"},
 			{K: "line", X: x + w/2, Y: y - fs*0.35, X2: x + w/2, Y2: y + fs*0.35, Stroke: color, SW: lw * 0.8, Role: "legend"},
@@ -836,6 +882,21 @@ func buildAxis(ax graph.Axis, view *graph.Range, isX, integer bool, dec string) 
 	if hi <= lo {
 		pad := math.Max(math.Abs(lo)*0.1, 1)
 		lo, hi = lo-pad, hi+pad
+	}
+	if isX && len(ax.Ticks) > 0 {
+		// The time points of a design label the axis where they are.
+		a.min, a.max = lo, hi
+		d := 0
+		for _, v := range ax.Ticks {
+			d = max(d, min(stepDecimals(v), 3))
+		}
+		for _, v := range ax.Ticks {
+			if v >= lo && v <= hi {
+				a.ticks = append(a.ticks, v)
+				a.labels = append(a.labels, formatTick(v, d, dec))
+			}
+		}
+		return a
 	}
 	if !fixed && !isX && ax.Label != "" && !strings.HasPrefix(ax.Label, "axis.intensity") && !strings.HasPrefix(ax.Label, "axis.volume") && !strings.HasPrefix(ax.Label, "axis.number") {
 		pad := (hi - lo) * 0.08
@@ -956,6 +1017,15 @@ func SeriesLabel(label string, T Translator) string {
 		if len(parts) == 3 && keys[parts[1]] != "" {
 			return T(keys[parts[1]]) + " · " + parts[2]
 		}
+	case strings.HasPrefix(label, "design:"):
+		parts := strings.SplitN(label, ":", 3) // design:<kind>:<condition>
+		if len(parts) == 3 {
+			text := T("series.design_" + parts[1])
+			if parts[2] != "" {
+				text += " · " + parts[2]
+			}
+			return text
+		}
 	case strings.HasPrefix(label, "series."):
 		return T(label)
 	case strings.HasPrefix(label, "reading:"):
@@ -980,7 +1050,7 @@ func graphTitle(res graph.Result, T Translator) string {
 		return res.Title
 	}
 	switch res.Kind {
-	case graph.KindParameterTime:
+	case graph.KindParameterTime, graph.KindDesignTime:
 		return T(res.Y.Label)
 	default:
 		return T("graph.kind." + res.Kind)
@@ -1006,6 +1076,8 @@ func metadataLines(res graph.Result, T Translator, dec string) []string {
 			out = append(out, T("plot.meta.gaps", "points", strings.Join(g, ", ")))
 		}
 		out = append(out, T("plot.meta.sources", "n", strconv.Itoa(len(res.Provenance.Sources))))
+	case graph.KindDesignTime, graph.KindPairedCondition:
+		out = append(out, designMetadata(res, T)...)
 	default:
 		for _, se := range res.Series {
 			if se.Hidden {
@@ -1032,6 +1104,51 @@ func metadataLines(res graph.Result, T Translator, dec string) []string {
 			out = append(out, strings.Join(parts, " · "))
 		}
 	}
+	return out
+}
+
+// designMetadata describes a design graph: what the mean and the error
+// bars are, how many experimental units each point counts, and the design
+// revision it was drawn from.
+func designMetadata(res graph.Result, T Translator) []string {
+	var out []string
+	bars := res.ErrorBars
+	if bars == "" {
+		bars = "sd"
+	}
+	out = append(out, T("plot.meta.design_stats_"+bars))
+	nmin, nmax := 0, 0
+	for _, se := range res.Series {
+		if se.Kind != "mean" {
+			continue
+		}
+		for _, n := range se.N {
+			if nmin == 0 || n < nmin {
+				nmin = n
+			}
+			nmax = max(nmax, n)
+		}
+	}
+	if nmax > 0 {
+		n := strconv.Itoa(nmin)
+		if nmax != nmin {
+			n += "–" + strconv.Itoa(nmax)
+		}
+		out = append(out, T("plot.meta.design_n", "n", n))
+	}
+	if res.Kind == graph.KindPairedCondition {
+		out = append(out, T("plot.meta.design_pairs"))
+	}
+	for _, se := range res.Series {
+		if se.Kind == "trajectory" && !se.Hidden {
+			out = append(out, T("plot.meta.design_trajectories"))
+			break
+		}
+	}
+	if res.Design != nil {
+		out = append(out, T("plot.meta.design", "name", res.Design.Name, "revision", strconv.Itoa(res.Design.Revision)))
+	}
+	out = append(out, T("plot.meta.sources", "n", strconv.Itoa(len(res.Provenance.Sources))))
 	return out
 }
 

@@ -22,6 +22,15 @@ type StatisticalAnnotation struct {
 	Label        string  `json:"label"`
 	AdjustedP    float64 `json:"adjustedP"`
 	Correction   string  `json:"correction"`
+	// Design graphs also carry the stored contrast, its context and family,
+	// and the estimated difference with its interval, exactly as saved.
+	AnalysisID string   `json:"analysisId,omitempty"`
+	Contrast   string   `json:"contrast,omitempty"`
+	Context    string   `json:"context,omitempty"`
+	Family     string   `json:"family,omitempty"`
+	Difference *float64 `json:"difference,omitempty"`
+	Lower      *float64 `json:"lower,omitempty"`
+	Upper      *float64 `json:"upper,omitempty"`
 }
 
 func ValidateAnnotations(def Definition, saved analysis.StatisticalAnalysis) error {

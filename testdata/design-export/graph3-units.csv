@@ -1,0 +1,13 @@
+﻿col.experimental_unit,col.unit_id,col.condition,col.time_level,col.n_readings,col.unit_value (nm),col.unit
+A,unit-a,F-SR,Day 0,2,121,nm
+B,unit-b,F-SR,Day 0,1,118.7,nm
+C,unit-c,F-SR,Day 0,1,122.4,nm
+A,unit-a,F-SR,Day 7,1,124.3,nm
+B,unit-b,F-SR,Day 7,1,121,nm
+C,unit-c,F-SR,Day 7,1,126.8,nm
+A,unit-a,C-SR,Day 0,1,100.2,nm
+B,unit-b,C-SR,Day 0,1,98.6,nm
+C,unit-c,C-SR,Day 0,1,103.1,nm
+A,unit-a,C-SR,Day 7,1,103.4,nm
+B,unit-b,C-SR,Day 7,1,101.9,nm
+C,unit-c,C-SR,Day 7,1,105.5,nm

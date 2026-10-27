@@ -36,6 +36,8 @@ const (
 	CollUnits          = "science.experimental_unit"
 	CollReadings       = "ls.reading"
 	CollDesigns        = "science.design"
+	// Groups and saved selections (references only).
+	CollGroups = "ls.group"
 	// Measurement units (units of measure), unrelated to experimental units.
 	CollUnitDefs         = "science.unit_definition"
 	CollUnitReplacements = "science.unit_replacement"

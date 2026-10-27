@@ -304,6 +304,9 @@ func (l look) shown() bool { return !l.curve || l.every || l.sparse }
 //     line style, except on statistical graphs, where each group already has
 //     its own position on the axis.
 func assignStyles(res graph.Result, lw float64, points bool) []look {
+	if designKind(res.Kind) {
+		return designStyles(res, lw)
+	}
 	looks := make([]look, len(res.Series))
 	statistical := res.Kind == graph.KindStatistical
 	groupColor := map[string]string{}
@@ -393,4 +396,72 @@ func assignStyles(res graph.Result, lw float64, points bool) []look {
 	return looks
 }
 
-func isCurveKind(kind string) bool { return kind != "individual" && kind != "mean" }
+func isCurveKind(kind string) bool {
+	return kind != "individual" && kind != "mean" && kind != "trajectory" && kind != "paired"
+}
+
+// designKind reports the graphs of an experimental design.
+func designKind(kind string) bool {
+	return kind == graph.KindDesignTime || kind == graph.KindPairedCondition
+}
+
+// designStyles styles the graphs of an experimental design. On a condition
+// × time graph each condition has its own colour, marker and line style
+// (never colour alone); the units' points and thin trajectories take the
+// colour and marker of their condition. On the paired view each
+// experimental unit has its own colour and marker, and the condition means
+// are drawn in ink.
+func designStyles(res graph.Result, lw float64) []look {
+	looks := make([]look, len(res.Series))
+	condIndex := map[string]int{}
+	k := 0
+	for _, se := range res.Series {
+		if c := se.Meta["condition"]; c != "" && se.Kind == "mean" {
+			if _, ok := condIndex[c]; !ok {
+				condIndex[c] = len(condIndex)
+			}
+		}
+	}
+	for i, se := range res.Series {
+		lk := &looks[i]
+		switch {
+		case res.Kind == graph.KindPairedCondition && se.Kind == "mean":
+			lk.color, lk.line, lk.marker = inkText, LineSolid, MarkerDiamond
+		case res.Kind == graph.KindPairedCondition:
+			lk.color = SeriesColor(k)
+			lk.line, lk.marker = LineSolid, Markers[k%len(Markers)]
+			k++
+		default:
+			ci := condIndex[se.Meta["condition"]]
+			lk.color = SeriesColor(ci)
+			lk.line, lk.marker = styleIndex(ci)
+			if se.Kind == "trajectory" {
+				lk.color = Tint(lk.color, 0.45)
+				lk.line = LineSolid
+			}
+		}
+		if se.Color != "" {
+			lk.color = se.Color
+		}
+		if validLineStyle(se.LineStyle) {
+			lk.line = se.LineStyle
+		}
+		if validMarker(se.Marker) && se.Marker != MarkerNone {
+			lk.marker = se.Marker
+		}
+		w := lw
+		if se.Kind == "trajectory" {
+			w = lw * .55
+		}
+		lk.dash = dashFor(lk.line, w)
+	}
+	return looks
+}
+
+// Tint mixes a #RRGGBB colour with white (f = 0 keeps it, 1 is white), for
+// secondary marks such as unit trajectories.
+func Tint(hex string, f float64) string {
+	c := ParseColor(hex)
+	mix := func(v uint8) int { return int(math.Round(float64(v) + (255-float64(v))*f)) }
+	return fmt.Sprintf("#%02X%02X%02X", mix(c.R), mix(c.G), mix(c.B))
+}

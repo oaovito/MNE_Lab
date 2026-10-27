@@ -85,6 +85,7 @@ func pathID(r *http.Request) string { return r.PathValue("id") }
 func (s *Server) routes() {
 	s.statisticsRoutes()
 	s.designRoutes()
+	s.groupRoutes()
 	s.measurementUnitRoutes()
 	a := s.app
 	ctxT := func(r *http.Request, d time.Duration) (context.Context, context.CancelFunc) {
@@ -790,7 +791,8 @@ func (s *Server) routes() {
 			return nil, err
 		}
 		return map[string]any{"figure": fig, "warnings": res.Warnings, "series": res.Series, "provenance": res.Provenance,
-			"x": res.X, "y": res.Y, "gaps": res.Gaps, "weightings": res.Weightings, "errorBars": res.ErrorBars}, nil
+			"x": res.X, "y": res.Y, "gaps": res.Gaps, "weightings": res.Weightings, "errorBars": res.ErrorBars,
+			"design": res.Design, "annotations": res.Annotations}, nil
 	})
 	s.handle("GET /api/graphs/{id}/thumb.svg", func(w http.ResponseWriter, r *http.Request) (any, error) {
 		p, err := prof()
