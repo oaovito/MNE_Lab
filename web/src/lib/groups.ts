@@ -41,7 +41,7 @@ export const combineGraphs = (ids: string[], title: string, displayUnit = '') =>
 export function analyzeRoute(def: GraphDef): string | null {
   if (!def.id) return null;
   const v = encodeURIComponent(def.param || 'effective_diameter');
-  const only = (def.conditions?.length ? '&conditions=' + def.conditions.map(encodeURIComponent).join(',') : '') + (def.groups?.length ? '&group=' + def.groups.join(',') : '');
+  const only = (def.conditions || []).map((c) => '&conditions=' + encodeURIComponent(c)).join('') + (def.groups?.length ? '&group=' + def.groups.join(',') : '');
   if (isDesignKind(def.kind) && def.designId) return `/ls/statistics/new?design=${def.designId}&variable=${v}${only}&graph=${def.id}`;
   if (def.kind === 'parameter_time' && def.cycleId) return `/ls/statistics/new?cycle=${def.cycleId}&variable=${v}&graph=${def.id}`;
   if (def.kind === 'statistical_groups' && def.analysisId) return '/ls/statistics/' + def.analysisId;

@@ -143,7 +143,7 @@ try {
   await page.locator('.stat-units').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(out, 'results-units-en.png') });
   await page.getByRole('button', { name: 'Save analysis', exact: true }).click();
-  await page.waitForURL(/\/ls\/statistics\/[^/n][^/]*$/);
+  await page.waitForURL(/\/ls\/statistics\/(?!new)[^/?]+$/);
   const savedId = new URL(page.url()).pathname.split('/').pop();
   const saved = await request('GET', '/api/statistics/' + savedId);
   const a = saved.results.terms.find((x) => x.source === 'A');

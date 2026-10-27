@@ -198,7 +198,8 @@ function AnalysisEditor(p: { cycleId: string }) {
   const designParam = params.get("design") || "";
   // Graph → Analyze and Groups → Analyze prefill (the person still reviews).
   const variableParam = params.get("variable") || "";
-  const conditionsParam = (params.get("conditions") || "").split(",").filter(Boolean);
+  // One parameter per condition, so a label may itself contain a comma.
+  const conditionsParam = params.getAll("conditions").filter(Boolean);
   const groupParam = params.get("group") || "";
   const graphParam = params.get("graph") || "";
   const group = useAsync(

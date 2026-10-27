@@ -36,7 +36,7 @@ function newDef(q: URLSearchParams): GraphDef {
     xScale: 'auto',
     cycleId,
     // Design graphs: the design revision, its conditions and groups (references only).
-    ...(isDesignKind(kind) ? { designId, conditions: list('conditions').length ? list('conditions') : undefined, groups: list('groups').length ? list('groups') : undefined, pairedAt: q.get('at') || undefined } : {}),
+    ...(isDesignKind(kind) ? { designId, conditions: q.getAll('conditions').filter(Boolean).length ? q.getAll('conditions').filter(Boolean) : undefined, groups: list('groups').length ? list('groups') : undefined, pairedAt: q.get('at') || undefined } : {}),
     param: q.get('param') || 'effective_diameter',
     series: {},
     visual: defaultVisual(),
