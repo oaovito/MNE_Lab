@@ -23,7 +23,9 @@ being accepted by this shared engine.
   covariance implementation. Requested correction is shown alongside
   the original terms. Singular/non-estimable corrections stop calculation.
   The pinned R internal `sphericity` function is version-sensitive; upgrades
-  must pass independent epsilon/df/p comparisons.
+  must pass independent epsilon/df/p comparisons. This rule covers the
+  original layout (A between units, B within). The paired Condition × Time
+  design below has its own sphericity rule.
 - Tukey HSD: independent classical one-factor models. Two-factor models
   expose conditional simple effects within each level of each factor;
   Bonferroni adjustment covers both sets of Tukey comparison families.
@@ -73,6 +75,108 @@ document the model and test conventions; the bundled source version is 3.1-169.
 Random slopes, heteroscedastic/serial residual structures, REML selection,
 mixed/Welch/RM post-hoc procedures and effect intervals for other designs
 remain pending. No simpler model or unadjusted pairwise t-test substitutes for them.
+The paired design below has its own REML model and simple effects; they do not
+extend to the original layout.
+
+## Paired Condition × Time design (both factors within the unit)
+
+The definition field `design: "within_within"` declares that factor A
+(condition, for example F-SR and its centrifuged aliquot C-SR) and factor B
+(time, for example days 0, 7, 14 and 21) both vary within each explicit
+experimental unit. A unit may span every level of both factors; a new
+condition never creates a new unit. The empty design keeps every original
+method, check and result unchanged. Structure must be `repeated` and every
+included observation needs an explicit unit; declaring these observations
+independent is refused (`statistics.review_structure`), which is the
+pseudoreplication guard: 3 units × 2 conditions × 4 times are 24
+measurements of 3 subjects, never 24.
+
+**Technical readings (D4).** Several measurements in the same unit ×
+condition × time cell are technical readings. R averages them (base `mean`)
+into one observation of that unit; the snapshot design records the number of
+unit cells and of cells with several readings, the result carries
+`technical_readings_averaged` and each group lists its units and their
+reading counts. Readings never count as N: group `n`, residual length and
+every df come from unit cells. To use one reading instead, exclude the others
+with a reason (the existing exclusion review).
+
+**Classical repeated measures (D1).** Complete unit × A × B tables only.
+R `aov(y ~ A*B + Error(unit/(A*B)))` reports Condition (A), Time (B) and
+Condition × Time (A:B) separately, each against its own error stratum
+(`residual_unit:A`, `residual_unit:B`, `residual_unit:A:B`; the subject
+stratum is `residual_subject`). Every term carries the denominator df that
+R returned, SS, MS, partial eta squared within its stratum, eta squared and
+generalized eta squared (Olejnik & Algina; Bakeman 2005). For each within
+term with more than one numerator df, epsilons come from R's
+`stats:::sphericity` on the unit × cell matrix (`mlm` with `idata`):
+Greenhouse–Geisser, Huynh–Feldt (applied as `min(1, HF)`; omitted when R's
+value is not positive or not finite) and the lower bound `1/df`. All available
+corrected terms are reported (`B_GG`, `B_HF`, `B_LB`, …) next to the
+uncorrected one, with their epsilon; the requested GG or HF correction is
+also recorded as `applied:<term>`. Mauchly's test is computed only when the
+contrast SSD is non-singular (units − 1 ≥ contrasts and full numerical rank);
+otherwise `mauchly_not_estimable` is reported with the reason and the
+analysis still runs, with the warnings `sphericity_not_testable` and
+`mixed_model_recommended`. This differs from the original layout, which stops
+when sphericity is not estimable, because with 3 units and 4 times Mauchly
+can never be computed (addendum A §9 allows RM ANOVA when methodologically
+adequate; the corrected and conservative results show the cost of the small N).
+Residual diagnostics use the residuals of the unit × A × B stratum.
+
+**Mixed model (D2, D13).** `nlme::lme(y ~ A*B, random = ~1|unit/A,
+method = "REML")` with sum contrasts: a random intercept per unit and per
+condition within unit, so Condition is tested against unit-by-condition
+variation instead of the pooled within-unit error. Marginal Wald F tests
+(`anova.lme(type = "marginal")`) report nlme's own containment denominator
+df as returned (for 3 complete units: A 1/2, B and A:B 3/12). Incomplete
+tables are allowed; missing values are omitted, never imputed; every
+condition × time cell must be observed. The model records both variance
+components, the residual variance, the REML log likelihood, fixed
+coefficients with individual `intervals.lme` limits and their df. A fit that
+does not converge, has non-positive or non-finite variance information, or
+whose relative SD of either random component is below `1e-4` is refused
+(`statistics.mixed_not_estimable`); it is never simplified silently. The
+classical analysis remains available for complete tables.
+
+**Simple effects (D3).** `postHoc: "simple_effects"` with `adjustment:
+"holm"` (the default the interface will offer) or `"bonferroni"`. Complete
+tables only. Base R `t.test(paired = TRUE)` compares conditions at each time
+(one family, `A_within_B`) and times within each condition (one family per
+condition, `B_within_A`); `p.adjust` corrects within each family. Each
+comparison keeps explicit left/right identities, the paired mean difference
+(right − left), t, df, unadjusted and adjusted p, the number of pairs and an
+individual (unadjusted) paired-t confidence interval. Within each condition a
+one-way repeated-measures ANOVA of time (`aov(y ~ B + Error(unit/B))`) is
+reported in `simpleEffects` with the same sphericity rule. Simple effects do
+not depend on the omnibus method: with Mixed they are the same paired tests.
+
+**Validation in Go** is structural only: term identities, numerator df equal
+to level counts minus one, positive finite denominator df as returned by R,
+epsilons in (0, 1] and corrected df equal to epsilon times numerator df,
+unit-level groups bound to the reviewed sources and reading counts, and
+comparison families. Denominator df are never derived in Go; the independent
+oracle tests them. Engine identities: `paired-rm/1`, `nlme/3.1-169;
+mixed-within2/1`, plus `paired-simple-effects/1`.
+
+**Spike (native R 4.3.3, nlme 3.1-164, before coding).** Synthetic 3-unit and
+6-unit complete designs and a 6-unit design with three missing cells:
+- `aov(y ~ A*B + Error(unit/(A*B)))` gives the four strata as expected on
+  complete data (3 units: A 1/2, B 3/6, A:B 3/6). With missing cells it warns
+  "Error() model is singular" and moves terms into wrong strata, so classical
+  RM is refused for incomplete tables.
+- With 3 units `stats:::sphericity` returns finite GG epsilons (for example
+  0.55 and 0.41) and an HF that can exceed one (2.97); `mauchly.test` returns
+  NaN for one term and a meaningless W ≈ 1e-15, p = 0.003 for the other.
+  Pingouin's Mauchly gives similar meaningless values. Hence the rank rule
+  above rather than trusting the returned statistic. With 6 units Mauchly is
+  estimable when the data are not degenerate. `anova.mlm(test = "Spherical")`
+  gives the same F and corrected p.
+- `lme(random = ~1|unit/A)` fits with REML and ML; containment df are 2/12
+  (3 units), 5/30 (6 units) and 5/27 (incomplete). On complete data the
+  Condition F equals the classical unit:A stratum F. One random 3-unit draw
+  put the unit variance at the boundary (relative SD ≈ 7e-5) and
+  `intervals(which = "var-cov")` failed, so the D13 refusal is a realistic
+  outcome with 3 units.
 
 ## Review and persistence
 
@@ -238,6 +342,38 @@ References:
 
 Runtime licensing and corresponding-source requirements are documented in
 [STATISTICAL_RUNTIME_LICENSES.md](STATISTICAL_RUNTIME_LICENSES.md).
+
+### Paired design independent reference
+
+`scripts/statistics_paired_oracle.py` writes
+`web/tests/fixtures/statistics-paired-golden.json` from invented, seeded
+values: the owner's 3 units × 2 conditions × 4 times (GG with Holm simple
+effects; HF), 6 complete units (Mauchly estimable; HF with Bonferroni), the
+same 6 units with shuffled rows, extra technical readings in three cells, an
+incomplete 6-unit table (Mixed only), and rejections (incomplete classical,
+incomplete simple effects, unknown unit, Tukey, missing adjustment,
+independent structure, a unit-by-condition variance at the boundary).
+Pingouin `rm_anova` (two within factors) gives SS, df, F, p, generalized eta
+squared, GG epsilon and Mauchly (R's convention); Statsmodels `AnovaRM`
+cross-checks F/df/p and an OLS decomposition gives the error strata. HF uses
+Pingouin's documented formula before clipping; corrected p values use SciPy.
+Mixed uses Statsmodels `MixedLM` (REML, unit random intercept plus a
+unit-by-condition variance component) with SciPy GLS covariance and Wald F;
+denominator df follow the nlme containment rule written out independently.
+Simple effects use SciPy `ttest_rel` and Statsmodels `multipletests`.
+The generating environment was SciPy 1.17.1, Statsmodels 0.15.0, Pingouin
+0.7.0, pandas 3.0.6 and NumPy 2.4.6 (recorded in the fixture).
+
+`web/tests/statistics-paired.test.mjs` runs the bundled engine in webR:
+classical cases to `1e-8` (df exact), Mixed to relative `1e-5` with
+probabilities `1e-6`, log likelihood absolute `1e-6` and df exact. It asserts
+the addendum B §60 rule: the 24 owner measurements give 3 units, every cell
+n = 3, the Condition denominator df equals the oracle's (2) and no term
+reports the pseudoreplicated df 16 or 18 (test sentinels only). Mixed cases
+need the bundled nlme package image. `internal/app/statistics_paired_test.go`
+binds the oracle values to imported synthetic measurements through prepare,
+save and reopen, and checks that the result contract rejects counting
+measurements as subjects.
 
 ### Mixed independent reference
 

@@ -164,6 +164,9 @@ func (p *Profile) analysisSnapshotTx(tx *store.Tx, def analysis.Definition) (ana
 }
 
 func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
+	if snapshot.Definition.Design == analysis.DesignWithinWithin {
+		return detectWithinWithinDesign(snapshot)
+	}
 	d := analysis.Design{Balanced: true, CompleteRepeated: true, Warnings: []string{}}
 	a, b, units := map[string]int{}, map[string]int{}, map[string]bool{}
 	cells, unitTime, unitGroup := map[string]int{}, map[string]bool{}, map[string]string{}
@@ -325,6 +328,110 @@ func detectAnalysisDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
 	return d, nil
 }
 
+// detectWithinWithinDesign reviews the paired Condition x Time layout. A unit
+// spans levels of both factors. Several measurements in one unit x A x B cell
+// are technical readings: the engine averages them and they never count as
+// experimental units. Only structure is checked here; R computes every df.
+func detectWithinWithinDesign(snapshot analysis.Snapshot) (analysis.Design, error) {
+	d := analysis.Design{CompleteRepeated: true, Warnings: []string{}}
+	def := snapshot.Definition
+	a, b, units, cells := map[string]bool{}, map[string]bool{}, []string{}, map[string]int{}
+	seenUnit, unitConditions, mapped := map[string]bool{}, map[string]map[string]bool{}, false
+	for _, o := range snapshot.Observations {
+		mapped = mapped || (o.Quantity != nil && o.Quantity.UnitOrigin == "user_mapping")
+		if o.ExcludeReason != "" {
+			d.Excluded++
+			continue
+		}
+		if o.Missing {
+			d.Missing++
+			continue
+		}
+		if o.UnitID == "" {
+			return d, analysis.ErrStructure
+		}
+		d.N++
+		a[o.FactorA], b[o.FactorB] = true, true
+		if !seenUnit[o.UnitID] {
+			seenUnit[o.UnitID] = true
+			units = append(units, o.UnitID)
+			unitConditions[o.UnitID] = map[string]bool{}
+		}
+		unitConditions[o.UnitID][o.FactorA] = true
+		cells[o.UnitID+"\x00"+o.FactorA+"\x00"+o.FactorB]++
+	}
+	if mapped {
+		d.Warnings = append(d.Warnings, "ls.user_mapping_unvalidated")
+	}
+	for name := range a {
+		d.LevelsA = append(d.LevelsA, name)
+	}
+	for name := range b {
+		d.LevelsB = append(d.LevelsB, name)
+	}
+	sort.Strings(d.LevelsA)
+	sort.Strings(d.LevelsB)
+	d.ExperimentalUnits = len(units)
+	d.UnitCells = len(cells)
+	if d.UnitCells > 10000 || len(d.LevelsA)*len(d.LevelsB) > 1000 {
+		return d, analysis.ErrDefinition
+	}
+	for _, n := range cells {
+		if n > 1 {
+			d.TechnicalReadingCells++
+		}
+	}
+	if d.TechnicalReadingCells > 0 {
+		d.Warnings = append(d.Warnings, "statistics.technical_readings_averaged")
+	}
+	if d.Missing > 0 {
+		d.Warnings = append(d.Warnings, "statistics.missing_not_zero")
+	}
+	if snapshot.Unit == "" && graph.NeedsUnit(def.Variable) {
+		d.Warnings = append(d.Warnings, "statistics.units_absent_not_inferred")
+	}
+	// Unit counts per A x B cell, so readings never make a design unbalanced.
+	perCell := map[string]int{}
+	for _, unit := range units {
+		for _, x := range d.LevelsA {
+			for _, y := range d.LevelsB {
+				if cells[unit+"\x00"+x+"\x00"+y] > 0 {
+					perCell[x+"\x00"+y]++
+				} else {
+					d.CompleteRepeated = false
+				}
+			}
+		}
+	}
+	d.Balanced = d.CompleteRepeated
+	paired := false
+	for _, conditions := range unitConditions {
+		paired = paired || len(conditions) > 1
+	}
+	if len(d.LevelsA) < 2 || len(d.LevelsB) < 2 || d.ExperimentalUnits < 2 || !paired || d.UnitCells < 3 {
+		return d, analysis.ErrDesign
+	}
+	d.Recommended = "repeated"
+	if !d.CompleteRepeated {
+		d.Recommended = "mixed"
+		if def.Method != "mixed" {
+			d.Warnings = append(d.Warnings, "statistics.mixed_selection_required")
+			return d, analysis.ErrDesign
+		}
+		if def.PostHoc == "simple_effects" {
+			return d, analysis.ErrDesign
+		}
+	}
+	if def.Method == "mixed" {
+		d.Recommended = "mixed"
+		// Every condition x time cell must be observed for a full-rank model.
+		if d.ExperimentalUnits < 3 || len(perCell) != len(d.LevelsA)*len(d.LevelsB) {
+			return d, analysis.ErrDesign
+		}
+	}
+	return d, nil
+}
+
 type analysisClaim struct {
 	Account string `json:"account"`
 	Profile string `json:"profile"`
@@ -350,6 +457,12 @@ func (p *Profile) PrepareAnalysis(def analysis.Definition) (analysis.Snapshot, e
 }
 
 func validateAnalysisResults(snapshot analysis.Snapshot, result analysis.Results) error {
+	if snapshot.Definition.Design == analysis.DesignWithinWithin {
+		return validateWithinWithinResults(snapshot, result)
+	}
+	if result.Design != "" || len(result.SimpleEffects) != 0 {
+		return analysis.ErrDefinition
+	}
 	minimumTerms := 2
 	if snapshot.Definition.Method == "mixed" {
 		minimumTerms = 1
@@ -570,6 +683,223 @@ func validateAnalysisResults(snapshot analysis.Snapshot, result analysis.Results
 		}
 		if !precision["dunnett_integration"] || !precision["dunnett_quantile"] || !precision["dunnett_confidence_integration"] {
 			return analysis.ErrDefinition
+		}
+	}
+	if _, err := json.Marshal(result); err != nil {
+		return analysis.ErrNumeric
+	}
+	return nil
+}
+
+// validateWithinWithinResults binds a paired-design result to its reviewed
+// snapshot. It checks structure only: term identities, numerator df from the
+// level counts, positive finite denominator df as returned by R, epsilons in
+// (0, 1], unit-level groups that match the sources, and comparison families.
+// Denominator df are never derived here; the independent oracle tests them.
+func validateWithinWithinResults(snapshot analysis.Snapshot, result analysis.Results) error {
+	def, design := snapshot.Definition, snapshot.Design
+	if result.Engine != analysis.ExpectedEngine(def) || result.Calculation != analysis.CalculationVersion || result.Method != def.Method || result.Design != analysis.DesignWithinWithin || len(result.Terms) > 40 || len(result.Groups) > 1000 || len(result.Comparisons) > 10000 || len(result.SimpleEffects) > 1000 || len(result.Residuals) != design.UnitCells || len(result.QQObserved) != len(result.Residuals) || len(result.QQTheoretical) != len(result.Residuals) || len(result.EffectIntervals) != 0 {
+		return analysis.ErrDefinition
+	}
+	finite := func(v *float64) bool { return v != nil && !math.IsNaN(*v) && !math.IsInf(*v, 0) }
+	nA, nB := len(design.LevelsA), len(design.LevelsB)
+	numerator := map[string]float64{"A": float64(nA - 1), "B": float64(nB - 1), "A:B": float64((nA - 1) * (nB - 1))}
+	checkTerms := func(terms []analysis.Term, effects []string, residuals []string, classical bool) error {
+		want := map[string]bool{}
+		for _, name := range effects {
+			want[name] = true
+		}
+		for _, name := range residuals {
+			want[name] = true
+		}
+		seen := map[string]bool{}
+		for _, t := range terms {
+			if seen[t.Source] || !(t.DF > 0) || math.IsInf(t.DF, 0) {
+				return analysis.ErrDefinition
+			}
+			seen[t.Source] = true
+			if t.P != nil && !(*t.P >= 0 && *t.P <= 1) {
+				return analysis.ErrNumeric
+			}
+			base, kind, corrected := strings.Cut(t.Source, "_")
+			if strings.HasPrefix(t.Source, "residual_") {
+				if !want[t.Source] || !classical || !finite(t.SS) || !(*t.SS > 0) || t.F != nil || t.DenominatorDF != nil {
+					return analysis.ErrDefinition
+				}
+				delete(want, t.Source)
+				continue
+			}
+			if !finite(t.F) || !(*t.F >= 0) || t.P == nil || !finite(t.DenominatorDF) || !(*t.DenominatorDF > 0) {
+				return analysis.ErrDefinition
+			}
+			if corrected {
+				if !classical || (kind != "GG" && kind != "HF" && kind != "LB") || !seen[base] || numerator[base] <= 1 || !finite(t.Epsilon) || !(*t.Epsilon > 0 && *t.Epsilon <= 1) || math.Abs(t.DF-numerator[base]**t.Epsilon) > 1e-9*numerator[base] {
+					return analysis.ErrDefinition
+				}
+				continue
+			}
+			if !want[t.Source] || t.DF != numerator[t.Source] || t.Epsilon != nil {
+				return analysis.ErrDefinition
+			}
+			if classical && !(finite(t.SS) && finite(t.MS) && finite(t.PartialEtaSquared) && finite(t.GeneralizedEtaSquared)) || !classical && (t.SS != nil || t.MS != nil || t.PartialEtaSquared != nil || t.GeneralizedEtaSquared != nil || t.EtaSquared != nil || t.OmegaSquared != nil) {
+				return analysis.ErrDefinition
+			}
+			delete(want, t.Source)
+		}
+		if len(want) != 0 {
+			return analysis.ErrDefinition
+		}
+		return nil
+	}
+	if def.Method == "repeated" {
+		if result.SSType != "repeated_within_within_strata" || result.Model != nil {
+			return analysis.ErrDefinition
+		}
+		if err := checkTerms(result.Terms, []string{"A", "B", "A:B"}, []string{"residual_subject", "residual_unit:A", "residual_unit:B", "residual_unit:A:B"}, true); err != nil {
+			return err
+		}
+		for k, v := range result.Corrections {
+			if !analysis.ValidText(k, 40) || math.IsNaN(v) || math.IsInf(v, 0) || !(v > 0) {
+				return analysis.ErrNumeric
+			}
+		}
+	} else {
+		m := result.Model
+		if result.SSType != "not_applicable_marginal_Wald_F" || len(result.Corrections) != 0 || m == nil || m.Family != "nested_random_intercepts" || m.Fixed != "A*B" || m.Estimation != "REML" || m.Random != "1|unit/A" || m.ResidualCovariance != "homoscedastic conditional errors" || m.Test != "marginal Wald F; sum contrasts; nlme containment denominator df" || m.BoundaryTolerance != 1e-4 || m.CoefficientConfidenceLevel != 1-def.Alpha || m.CoefficientIntervalMethod != "nlme::intervals.lme fixed; Student t; conditional GLS; approximate; individual" {
+			return analysis.ErrDefinition
+		}
+		if len(m.RandomComponents) != 2 || m.RandomComponents[0].Level != "unit" || m.RandomComponents[1].Level != "unit:A" || m.RandomComponents[0].Variance != m.RandomVariance || !(m.ResidualVariance > 0) {
+			return analysis.ErrDefinition
+		}
+		for _, c := range m.RandomComponents {
+			if !(c.Variance > 0) || math.Sqrt(c.Variance/m.ResidualVariance) < m.BoundaryTolerance {
+				return analysis.ErrDefinition
+			}
+		}
+		for _, pair := range [][2][]string{{m.LevelsA, design.LevelsA}, {m.LevelsB, design.LevelsB}} {
+			got := append([]string{}, pair[0]...)
+			sort.Strings(got)
+			if strings.Join(got, "\x00") != strings.Join(pair[1], "\x00") || len(got) != len(pair[1]) {
+				return analysis.ErrDefinition
+			}
+		}
+		want := map[string]bool{"(Intercept)": true}
+		for i := 1; i < nA; i++ {
+			want[fmt.Sprintf("A%d", i)] = true
+			for j := 1; j < nB; j++ {
+				want[fmt.Sprintf("A%d:B%d", i, j)] = true
+			}
+		}
+		for j := 1; j < nB; j++ {
+			want[fmt.Sprintf("B%d", j)] = true
+		}
+		if len(m.FixedCoefficients) != len(want) {
+			return analysis.ErrDefinition
+		}
+		for _, v := range m.FixedCoefficients {
+			if !want[v.Name] || !(v.SE > 0) || !finite(v.DF) || !(*v.DF > 0) || v.Lower == nil || v.Upper == nil || !(*v.Lower < v.Estimate && *v.Upper > v.Estimate) {
+				return analysis.ErrDefinition
+			}
+			delete(want, v.Name)
+		}
+		if err := checkTerms(result.Terms, []string{"A", "B", "A:B"}, nil, false); err != nil {
+			return err
+		}
+	}
+	// Groups hold one value per experimental unit: the reviewed reading
+	// itself, or the mean of that unit's technical readings in the cell.
+	type cell struct {
+		units    []string
+		readings map[string][]float64
+	}
+	expected := map[string]*cell{}
+	for _, o := range snapshot.Observations {
+		if o.Missing || o.ExcludeReason != "" {
+			continue
+		}
+		key := o.FactorA + "\x00" + o.FactorB
+		c := expected[key]
+		if c == nil {
+			c = &cell{readings: map[string][]float64{}}
+			expected[key] = c
+		}
+		if _, ok := c.readings[o.UnitID]; !ok {
+			c.units = append(c.units, o.UnitID)
+		}
+		c.readings[o.UnitID] = append(c.readings[o.UnitID], o.Quantity.Value)
+	}
+	if len(result.Groups) != len(expected) {
+		return analysis.ErrDefinition
+	}
+	for _, g := range result.Groups {
+		key := g.FactorA + "\x00" + g.FactorB
+		c, ok := expected[key]
+		if !ok || g.N != len(c.units) || len(g.Values) != g.N || len(g.Units) != g.N || len(g.Readings) != g.N {
+			return analysis.ErrDefinition
+		}
+		for i, unit := range c.units {
+			values := c.readings[unit]
+			if g.Units[i] != unit || g.Readings[i] != len(values) {
+				return analysis.ErrDefinition
+			}
+			if len(values) == 1 && g.Values[i] != values[0] {
+				return analysis.ErrSource
+			}
+			if len(values) > 1 {
+				low, high := values[0], values[0]
+				for _, v := range values {
+					low, high = math.Min(low, v), math.Max(high, v)
+				}
+				if !(g.Values[i] >= low && g.Values[i] <= high) {
+					return analysis.ErrSource
+				}
+			}
+		}
+		delete(expected, key)
+	}
+	// Simple effects: paired t-test families and B within each level of A.
+	if def.PostHoc != "simple_effects" {
+		if len(result.Comparisons) != 0 || len(result.SimpleEffects) != 0 {
+			return analysis.ErrDefinition
+		}
+	} else {
+		correction := map[string]string{"holm": "Holm; paired t; individual CI", "bonferroni": "Bonferroni; paired t; individual CI"}[def.Adjustment]
+		levelA, levelB := map[string]bool{}, map[string]bool{}
+		for _, v := range design.LevelsA {
+			levelA[v] = true
+		}
+		for _, v := range design.LevelsB {
+			levelB[v] = true
+		}
+		ids, pairs := map[string]bool{}, map[string]bool{}
+		for _, c := range result.Comparisons {
+			ok := c.ID != "" && analysis.ValidText(c.ID, 96) && !ids[c.ID] && c.Correction == correction && levelA[c.LeftA] && levelA[c.RightA] && levelB[c.LeftB] && levelB[c.RightB] && finite(c.Statistic) && finite(c.DF) && *c.DF > 0 && c.P != nil && *c.P >= 0 && *c.P <= 1 && c.AdjustedP >= *c.P-1e-12 && c.AdjustedP <= 1 && c.N == design.ExperimentalUnits && c.Lower != nil && c.Upper != nil && *c.Lower <= c.Difference && *c.Upper >= c.Difference
+			switch c.Family {
+			case "A_within_B":
+				ok = ok && c.LeftB == c.RightB && c.LeftA != c.RightA && c.Context == "B="+c.LeftB
+			case "B_within_A":
+				ok = ok && c.LeftA == c.RightA && c.LeftB != c.RightB && c.Context == "A="+c.LeftA
+			default:
+				ok = false
+			}
+			pair := strings.Join([]string{c.LeftA, c.LeftB, c.RightA, c.RightB}, "\x00")
+			if !ok || pairs[pair] {
+				return analysis.ErrDefinition
+			}
+			ids[c.ID], pairs[pair] = true, true
+		}
+		if len(result.Comparisons) > nB*nA*(nA-1)/2+nA*nB*(nB-1)/2 {
+			return analysis.ErrDefinition
+		}
+		contexts := map[string]bool{}
+		for _, e := range result.SimpleEffects {
+			if !levelA[e.FactorA] || e.Context != "A="+e.FactorA || contexts[e.Context] {
+				return analysis.ErrDefinition
+			}
+			contexts[e.Context] = true
+			if err := checkTerms(e.Terms, []string{"B"}, []string{"residual_subject", "residual_unit:B"}, true); err != nil {
+				return err
+			}
 		}
 	}
 	if _, err := json.Marshal(result); err != nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/go-pdf/fpdf"
 	"github.com/oaovito/mne_lab/internal/plot"
@@ -117,6 +118,17 @@ func StatisticalData(a analysis.StatisticalAnalysis) DataSet {
 		if v, ok := a.Results.Corrections[k]; ok {
 			corrections.Rows = append(corrections.Rows, []Cell{text(k), num(v, -1)})
 		}
+	}
+	// The paired design keys each epsilon by its term (for example GG:B).
+	extra := []string{}
+	for k := range a.Results.Corrections {
+		if k != "GG" && k != "HF" && k != "applied" {
+			extra = append(extra, k)
+		}
+	}
+	sort.Strings(extra)
+	for _, k := range extra {
+		corrections.Rows = append(corrections.Rows, []Cell{text(k), num(a.Results.Corrections[k], -1)})
 	}
 	u := a.Snapshot.Unit
 	withUnit(&an, u, true, "SS", "MS")

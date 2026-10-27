@@ -6,6 +6,7 @@ import { errors } from './errors';
 import { exp } from './export';
 import { help } from './help';
 import { ls } from './ls';
+import { statistics } from './statistics';
 import { tutorial } from './tutorial';
 
-addCatalogs(core, ls, exp, help, errors, tutorial, design);
+addCatalogs(core, ls, exp, help, errors, tutorial, design, statistics);

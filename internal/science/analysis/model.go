@@ -18,8 +18,24 @@ const Schema = 1
 const CalculationVersion = "mnelab-statistics/1"
 const EngineVersion = "webR/0.6.0; R/4.6.0"
 
+// DesignWithinWithin marks the paired Condition x Time design: factor A
+// (condition) and factor B (time) both vary within each experimental unit.
+// The empty design keeps the original between-A, within-B behaviour.
+const DesignWithinWithin = "within_within"
+
 func ExpectedEngine(d Definition) string {
 	engine := EngineVersion
+	if d.Design == DesignWithinWithin {
+		if d.Method == "mixed" {
+			engine += "; nlme/3.1-169; mixed-within2/1"
+		} else {
+			engine += "; paired-rm/1"
+		}
+		if d.PostHoc == "simple_effects" {
+			engine += "; paired-simple-effects/1"
+		}
+		return engine
+	}
 	if d.Method == "mixed" {
 		engine += "; nlme/3.1-169; mixed-random-intercept/2"
 	}
@@ -62,22 +78,27 @@ type ObservationDefinition struct {
 }
 
 type Definition struct {
-	Schema               int                     `json:"schema"`
-	Module               string                  `json:"module"`
-	Title                string                  `json:"title"`
-	CycleID              string                  `json:"cycleId,omitempty"`
-	Variable             string                  `json:"variable"`
-	FactorAName          string                  `json:"factorAName"`
-	FactorBName          string                  `json:"factorBName,omitempty"`
-	Structure            string                  `json:"structure"` // independent or repeated; explicit user decision
-	StructureReviewed    bool                    `json:"structureReviewed"`
-	Method               string                  `json:"method"`
-	Alpha                float64                 `json:"alpha"`
-	PostHoc              string                  `json:"postHoc"`
-	EffectCI             bool                    `json:"effectCI,omitempty"`
-	Control              string                  `json:"control,omitempty"`
-	SphericityCorrection string                  `json:"sphericityCorrection,omitempty"`
-	Observations         []ObservationDefinition `json:"observations"`
+	Schema               int     `json:"schema"`
+	Module               string  `json:"module"`
+	Title                string  `json:"title"`
+	CycleID              string  `json:"cycleId,omitempty"`
+	Variable             string  `json:"variable"`
+	FactorAName          string  `json:"factorAName"`
+	FactorBName          string  `json:"factorBName,omitempty"`
+	Structure            string  `json:"structure"` // independent or repeated; explicit user decision
+	StructureReviewed    bool    `json:"structureReviewed"`
+	Method               string  `json:"method"`
+	Alpha                float64 `json:"alpha"`
+	PostHoc              string  `json:"postHoc"`
+	EffectCI             bool    `json:"effectCI,omitempty"`
+	Control              string  `json:"control,omitempty"`
+	SphericityCorrection string  `json:"sphericityCorrection,omitempty"`
+	// Design is empty for the original layout or DesignWithinWithin.
+	Design string `json:"design,omitempty"`
+	// Adjustment is the multiplicity correction of paired simple effects
+	// (holm or bonferroni); empty for every other post-hoc choice.
+	Adjustment   string                  `json:"adjustment,omitempty"`
+	Observations []ObservationDefinition `json:"observations"`
 }
 
 type Observation struct {
@@ -120,6 +141,10 @@ type Design struct {
 	CompleteRepeated  bool     `json:"completeRepeated"`
 	Recommended       string   `json:"recommended"`
 	Warnings          []string `json:"warnings"`
+	// Paired design only: distinct unit x A x B cells (one observation each
+	// after technical readings are averaged) and cells holding several readings.
+	UnitCells             int `json:"unitCells,omitempty"`
+	TechnicalReadingCells int `json:"technicalReadingCells,omitempty"`
 }
 
 type Term struct {
@@ -133,6 +158,10 @@ type Term struct {
 	EtaSquared        *float64 `json:"etaSquared,omitempty"`
 	PartialEtaSquared *float64 `json:"partialEtaSquared,omitempty"`
 	OmegaSquared      *float64 `json:"omegaSquared,omitempty"`
+	// Paired design: generalized eta squared and, on corrected terms, the
+	// sphericity epsilon applied to both df.
+	GeneralizedEtaSquared *float64 `json:"generalizedEtaSquared,omitempty"`
+	Epsilon               *float64 `json:"epsilon,omitempty"`
 }
 
 type Group struct {
@@ -145,6 +174,10 @@ type Group struct {
 	SEM     *float64  `json:"sem,omitempty"`
 	CILower *float64  `json:"ciLower,omitempty"`
 	CIUpper *float64  `json:"ciUpper,omitempty"`
+	// Paired design: values are one per experimental unit (the mean of its
+	// technical readings), with the unit ID and reading count in the same order.
+	Units    []string `json:"units,omitempty"`
+	Readings []int    `json:"readings,omitempty"`
 }
 
 type Comparison struct {
@@ -160,6 +193,26 @@ type Comparison struct {
 	Upper      *float64 `json:"upper,omitempty"`
 	AdjustedP  float64  `json:"adjustedP"`
 	Correction string   `json:"correction"`
+	// Paired simple effects: family, paired t statistic, its df, unadjusted
+	// p and number of pairs. Lower/Upper are then individual paired-t limits.
+	Family    string   `json:"family,omitempty"`
+	Statistic *float64 `json:"statistic,omitempty"`
+	DF        *float64 `json:"df,omitempty"`
+	P         *float64 `json:"p,omitempty"`
+	N         int      `json:"n,omitempty"`
+}
+
+// SimpleEffect is the repeated-measures ANOVA of B inside one level of A.
+type SimpleEffect struct {
+	Context     string             `json:"context"`
+	FactorA     string             `json:"factorA"`
+	Terms       []Term             `json:"terms"`
+	Corrections map[string]float64 `json:"corrections,omitempty"`
+}
+
+type RandomComponent struct {
+	Level    string  `json:"level"`
+	Variance float64 `json:"variance"`
 }
 
 type Diagnostic struct {
@@ -193,6 +246,7 @@ type MixedModel struct {
 	CoefficientConfidenceLevel float64            `json:"coefficientConfidenceLevel,omitempty"`
 	CoefficientIntervalMethod  string             `json:"coefficientIntervalMethod,omitempty"`
 	FixedCoefficients          []FixedCoefficient `json:"fixedCoefficients"`
+	RandomComponents           []RandomComponent  `json:"randomComponents,omitempty"`
 }
 
 type Results struct {
@@ -211,6 +265,8 @@ type Results struct {
 	Corrections     map[string]float64 `json:"corrections,omitempty"`
 	Model           *MixedModel        `json:"model,omitempty"`
 	EffectIntervals []EffectInterval   `json:"effectIntervals,omitempty"`
+	Design          string             `json:"design,omitempty"`
+	SimpleEffects   []SimpleEffect     `json:"simpleEffects,omitempty"`
 }
 
 type EffectInterval struct {
@@ -245,6 +301,12 @@ func (d Definition) Validate() error {
 	}
 	if !d.StructureReviewed || (d.Structure != "independent" && d.Structure != "repeated") {
 		return ErrStructure
+	}
+	if d.Design != "" {
+		return d.validateWithinWithin()
+	}
+	if d.Adjustment != "" {
+		return ErrMethod
 	}
 	switch d.Variable {
 	case model.EffectiveDiameter, model.Polydispersity, model.CountRate, model.AverageCountRate, model.BaselineIndex:
@@ -301,6 +363,60 @@ func (d Definition) Validate() error {
 			return ErrDesign
 		}
 		if o.ExcludeReason == "" && (strings.TrimSpace(o.FactorA) == "" || ((d.Method == "two_way" || d.Method == "repeated" || d.Method == "mixed") && strings.TrimSpace(o.FactorB) == "")) {
+			return ErrDesign
+		}
+	}
+	return nil
+}
+
+// validateWithinWithin checks the paired Condition x Time definition: both
+// factors are within-unit, so only repeated structures and methods apply.
+func (d Definition) validateWithinWithin() error {
+	if d.Design != DesignWithinWithin {
+		return ErrDefinition
+	}
+	switch d.Variable {
+	case model.EffectiveDiameter, model.Polydispersity, model.CountRate, model.AverageCountRate, model.BaselineIndex:
+	default:
+		return ErrDefinition
+	}
+	if d.Structure != "repeated" {
+		return ErrStructure
+	}
+	switch d.Method {
+	case "repeated":
+		if d.SphericityCorrection != "GG" && d.SphericityCorrection != "HF" {
+			return ErrDefinition
+		}
+	case "mixed":
+		if d.SphericityCorrection != "" {
+			return ErrDesign
+		}
+	default:
+		return ErrDesign
+	}
+	if d.EffectCI || d.Control != "" {
+		return ErrDesign
+	}
+	switch d.PostHoc {
+	case "none":
+		if d.Adjustment != "" {
+			return ErrMethod
+		}
+	case "simple_effects":
+		if d.Adjustment != "holm" && d.Adjustment != "bonferroni" {
+			return ErrDefinition
+		}
+	default:
+		return ErrDesign
+	}
+	seen := map[string]bool{}
+	for _, o := range d.Observations {
+		if o.MeasurementID == "" || seen[o.MeasurementID] || !ValidText(o.FactorA, 120) || !ValidText(o.FactorB, 120) || !ValidText(o.ExcludeReason, 1000) {
+			return ErrDefinition
+		}
+		seen[o.MeasurementID] = true
+		if o.ExcludeReason == "" && (strings.TrimSpace(o.FactorA) == "" || strings.TrimSpace(o.FactorB) == "") {
 			return ErrDesign
 		}
 	}
