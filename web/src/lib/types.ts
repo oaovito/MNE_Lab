@@ -330,3 +330,79 @@ export type Relations = {
   graphs: Record<string, { files: string[] | null; cycle?: string }>;
   cycles: Record<string, { files: string[] | null; graphs: string[] | null; analyses?:string[] | null }>;
 };
+
+// ---- experimental designs and the series catalog ----
+
+export type DesignUnit = { id: string; label: string; kind: 'independent_preparation' };
+export type DesignCondition = { label: string; derivedFrom?: string; process?: string };
+export type DesignTime = { label: string; offset?: number; unit?: string };
+export type DesignAssignment = { measurementId: string; unitId?: string; condition?: string; time?: string; replicateKind: 'experimental' | 'technical'; note?: string };
+export type DesignPair = { unitId: string; from: string; to: string };
+export type DesignChange = { field: string; measurementId?: string; subject?: string; from?: string; to?: string };
+export type Design = {
+  id: string;
+  root: string;
+  revision: number;
+  previousId?: string;
+  created: string;
+  version: string;
+  module: string;
+  name: string;
+  notes?: string;
+  cycleId?: string;
+  units: DesignUnit[];
+  conditions: DesignCondition[];
+  times: DesignTime[];
+  assignments: DesignAssignment[];
+  pairs: DesignPair[];
+  source: 'user' | 'suggestion';
+  reason?: string;
+  changes: DesignChange[];
+};
+export type DesignCell = { unitId: string; condition?: string; time?: string; experimental: number; technical: number; measurements?: string[] };
+export type DesignFinding = { code: string; units?: string[]; measurements?: string[]; subject?: string };
+export type DesignStructure = {
+  measurements: number;
+  assigned: number;
+  experimentalUnits: number;
+  observations: number;
+  technicalReadings: number;
+  units: string[];
+  conditions: string[];
+  times: string[];
+  conditionWithin: boolean;
+  timeWithin: boolean;
+  complete: boolean;
+  cells: DesignCell[];
+  missing: DesignCell[];
+  pairs: (DesignPair & { times: string[]; complete: boolean })[];
+  detected: string;
+  recommended?: string;
+  findings: DesignFinding[];
+};
+export type DesignView = { design: Design; structure: DesignStructure; unitLabels: Record<string, string>; head: boolean; heads: number; history?: Design[] };
+export type DesignSuggestion = { measurementId: string; source: string; evidence: string; condition?: string; unitId?: string; unitLabel?: string; newUnit?: boolean; time?: string; notes?: string[] };
+
+export type SeriesEntry = {
+  id: string;
+  kind: 'scalar' | 'curve' | 'reading';
+  fileId: string;
+  fileName: string;
+  measurementId: string;
+  measurementIndex: number;
+  sample?: string;
+  label?: string;
+  experimentalUnitId?: string;
+  experimentalUnit?: string;
+  condition?: string;
+  time?: DesignTime;
+  replicate?: number;
+  replicateKind?: string;
+  measuredAt?: Timestamp;
+  measurementType: string;
+  x?: { key: string; label?: string; unit?: string; points?: number };
+  y: { key: string; label?: string; unit?: string; points?: number };
+  value?: Quantity;
+  parser: string;
+  spec: string;
+};

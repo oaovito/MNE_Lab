@@ -91,6 +91,7 @@ for (const kind of ['dls_distribution', 'parameter_time', 'dls_by_time']) {
 }
 await screen('cycles', () => go('/ls/cycles'));
 if (cycles[0]) await screen('cycle', () => go('/ls/cycles/' + cycles[0].id));
+await screen('designs', () => go('/ls/designs'));
 const exportLabel = label({ en: 'Export', 'pt-BR': 'Exportar', es: 'Exportar' });
 if (graphs[0]) await screen('export-graph', async () => (await go('/ls/graphs/' + graphs[0].id), await click(`button:has-text("${exportLabel}")`), await sleep(800)));
 if (cycles[0]) await screen('export-cycle', async () => (await go('/ls/cycles/' + cycles[0].id), await click(`button:has-text("${exportLabel}")`), await sleep(800)));

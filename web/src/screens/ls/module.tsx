@@ -13,6 +13,7 @@ import { GraphView } from './graph';
 import { GraphLibrary } from './graphs';
 import { StatisticalModule } from './statistics';
 import { useAnalyses } from '../../lib/analyses';
+import { DesignModule } from './design';
 
 export function LsModule() {
   const { path } = useRoute();
@@ -20,7 +21,7 @@ export function LsModule() {
   const graphs = useGraphs();
   const cycles = useCycles();
   const analyses = useAnalyses();
-  const tab = path.startsWith('/ls/statistics') ? 'statistics' : path.startsWith('/ls/graphs') ? 'graphs' : path.startsWith('/ls/cycles') ? 'cycles' : 'files';
+  const tab = path.startsWith('/ls/designs') ? 'designs' : path.startsWith('/ls/statistics') ? 'statistics' : path.startsWith('/ls/graphs') ? 'graphs' : path.startsWith('/ls/cycles') ? 'cycles' : 'files';
 
   useEffect(() => {
     // The guided tutorial passes through here and covers the introduction.
@@ -30,15 +31,17 @@ export function LsModule() {
   const g = match('/ls/graphs/:id', path);
   const c = match('/ls/cycles/:id', path);
   const a = match('/ls/statistics/:id', path);
+  const d = match('/ls/designs/:id', path);
   let body;
-  if (tab === 'statistics') body = <StatisticalModule id={a?.id} />;
+  if (tab === 'designs') body = <DesignModule id={d?.id} />;
+  else if (tab === 'statistics') body = <StatisticalModule id={a?.id} />;
   else if (g) body = <GraphView id={g.id} />;
   else if (c) body = <CycleView id={c.id} />;
   else if (tab === 'graphs') body = <GraphLibrary />;
   else if (tab === 'cycles') body = <CycleLibrary />;
   else body = <FileLibrary />;
 
-  const detail = !!(g || c || a);
+  const detail = !!(g || c || a || d);
   return (
     <div class="page" style={{ paddingTop: 'var(--s3)', gap: 'var(--s3)' }}>
       {!detail && (
@@ -55,6 +58,7 @@ export function LsModule() {
               { value: 'files', label: t('ls.tab.files'), icon: 'files', count: files.data?.length },
               { value: 'graphs', label: t('ls.tab.graphs'), icon: 'chart', count: graphs.data?.length },
               { value: 'cycles', label: t('ls.tab.cycles'), icon: 'cycle', count: cycles.data?.length },
+              { value: 'designs', label: t('ls.tab.designs'), icon: 'layers' },
               { value: 'statistics', label: t('ls.tab.statistics'), icon: 'sigma', count: analyses.data?.length },
             ]}
           />

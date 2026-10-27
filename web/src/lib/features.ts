@@ -73,6 +73,7 @@ export const FEATURES: Feature[] = [
   { id: 'import', group: 'ls', icon: 'fileUp', open: () => navigate('/ls/files'), avail: needsProfile, words: 'import file upload drag' },
   { id: 'file_library', group: 'ls', icon: 'files', open: () => navigate('/ls/files'), avail: needsProfile, words: 'files library search filter' },
   { id: 'original', group: 'ls', icon: 'file', open: () => navigate('/ls/files'), avail: needsProfile, words: 'original raw source checksum' },
+  { id: 'experimental_design', group: 'ls', icon: 'layers', open: () => navigate('/ls/designs'), avail: needsProfile, words: 'experimental design unit preparation condition time paired pairing replicate technical reading pseudoreplication desenho experimental unidade pareado diseno unidad emparejado', isNew: true },
   { id: 'provenance', group: 'ls', icon: 'workflow', avail: needsProfile, words: 'provenance traceability hash' },
 
   { id: 'dls_graph', group: 'graphs', icon: 'chart', open: () => navigate('/ls/files'), avail: needsProfile, words: 'graph distribution intensity diameter' },

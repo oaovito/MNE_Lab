@@ -25,7 +25,10 @@ function walk(dir, ext, out = []) {
 async function loadCatalogs() {
   const tmp = mkdtempSync(join(tmpdir(), 'mnelab-i18n-'));
   const all = {};
-  for (const name of ['core', 'ls', 'export', 'help', 'errors', 'tutorial']) {
+  // Every catalog the desktop window registers (src/i18n/desktop.ts).
+  const names = [...readFileSync(join(src, 'i18n', 'desktop.ts'), 'utf8').matchAll(/from '\.\/(\w+)'/g)].map((m) => m[1]);
+  assert.ok(names.includes('core') && names.includes('ls'));
+  for (const name of names) {
     const code = transformSync(readFileSync(join(src, 'i18n', name + '.ts'), 'utf8'), { loader: 'ts', format: 'esm' }).code;
     const f = join(tmp, name + '.mjs');
     writeFileSync(f, code);
