@@ -2,6 +2,8 @@ package plot
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,7 +19,9 @@ import (
 // drawing exactly what they drew. The golden file was written by the
 // engine as it was before the v2 fields existed (MNELAB_UPDATE_GOLDEN=1
 // rewrites it; never do so to make a difference go away). Only the engine
-// version and the computation time are left out of the comparison.
+// version and the computation time are left out of the comparison; numbers
+// are compared to a relative 1e-9 so the golden file written on one
+// platform holds on another (see sameJSON).
 
 func compatInput(t *testing.T) (graph.Input, []string) {
 	in := graph.Input{Measurements: map[string]model.Measurement{}, Files: map[string]model.SourceFile{}}
@@ -132,11 +136,80 @@ func TestV1DefinitionsRenderIdentically(t *testing.T) {
 			var a, b any
 			json.Unmarshal(part.want, &a)
 			json.Unmarshal(part.got, &b)
-			wa, _ := json.Marshal(a)
-			gb, _ := json.Marshal(b)
-			if string(wa) != string(gb) {
-				t.Errorf("%s: the %s of a v1 definition changed", want[i].Name, part.name)
+			if where := sameJSON(a, b, ""); where != "" {
+				t.Errorf("%s: the %s of a v1 definition changed at %s", want[i].Name, part.name, where)
 			}
+		}
+	}
+}
+
+// compatTolerance is the relative difference allowed between two numbers of
+// the golden figure. Layout coordinates are sums and products of floats, and
+// a platform that fuses multiply and add (arm64) rounds them differently in
+// the last bits; any real change of the drawing moves them by far more.
+const compatTolerance = 1e-9
+
+// sameJSON compares two decoded JSON values: the same keys, lengths, texts
+// and booleans exactly, numbers within compatTolerance (relative, with an
+// absolute floor at 1). It returns the path of the first difference, or "".
+func sameJSON(want, got any, path string) string {
+	switch w := want.(type) {
+	case map[string]any:
+		g, ok := got.(map[string]any)
+		if !ok || len(g) != len(w) {
+			return path + " (fields)"
+		}
+		for k, v := range w {
+			gv, ok := g[k]
+			if !ok {
+				return path + "." + k + " (missing)"
+			}
+			if d := sameJSON(v, gv, path+"."+k); d != "" {
+				return d
+			}
+		}
+		return ""
+	case []any:
+		g, ok := got.([]any)
+		if !ok || len(g) != len(w) {
+			return path + " (length)"
+		}
+		for i := range w {
+			if d := sameJSON(w[i], g[i], fmt.Sprintf("%s[%d]", path, i)); d != "" {
+				return d
+			}
+		}
+		return ""
+	case float64:
+		g, ok := got.(float64)
+		if !ok || math.Abs(w-g) > compatTolerance*math.Max(1, math.Max(math.Abs(w), math.Abs(g))) {
+			return fmt.Sprintf("%s (%v, want %v)", path, got, want)
+		}
+		return ""
+	default:
+		if want != got {
+			return fmt.Sprintf("%s (%v, want %v)", path, got, want)
+		}
+		return ""
+	}
+}
+
+// The comparison absorbs last-bit rounding only: a moved point, a changed
+// label or a missing field is still a difference.
+func TestSameJSONToleratesRoundingOnly(t *testing.T) {
+	base := map[string]any{"ops": []any{map[string]any{"x": 46.253231114665354, "t": "10", "k": "line"}}}
+	same := map[string]any{"ops": []any{map[string]any{"x": 46.25323111466536, "t": "10", "k": "line"}}}
+	if d := sameJSON(base, same, ""); d != "" {
+		t.Fatalf("last-bit rounding must be accepted: %s", d)
+	}
+	for name, got := range map[string]any{
+		"moved":   map[string]any{"ops": []any{map[string]any{"x": 46.2533, "t": "10", "k": "line"}}},
+		"label":   map[string]any{"ops": []any{map[string]any{"x": 46.253231114665354, "t": "100", "k": "line"}}},
+		"missing": map[string]any{"ops": []any{map[string]any{"x": 46.253231114665354, "t": "10"}}},
+		"extra":   map[string]any{"ops": []any{map[string]any{"x": 46.253231114665354, "t": "10", "k": "line"}, map[string]any{}}},
+	} {
+		if sameJSON(base, got, "") == "" {
+			t.Fatalf("%s: a real change must fail", name)
 		}
 	}
 }
