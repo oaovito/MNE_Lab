@@ -98,7 +98,7 @@ func TestDesignTimeCountsExperimentalUnits(t *testing.T) {
 	}
 	// Individual unit values are drawn by default, each named by its unit.
 	units, ok := seriesByID(res, "units:F-SR")
-	if !ok || units.Hidden || len(units.Y) != 12 || units.PointLabels[0] != "A" {
+	if !ok || units.Hidden || len(units.Y) != 12 || units.PointLabels[0] != "A · Day 0" {
 		t.Fatalf("individual points: %+v", units)
 	}
 	if res.Design == nil || res.Design.ID != "rev1" || res.Design.Revision != 1 {

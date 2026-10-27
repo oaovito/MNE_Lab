@@ -413,6 +413,8 @@ func (p *Profile) produceItem(it ExportItem, req ExportRequest, spec plot.Spec, 
 		return outs, base, nil
 	case export.KindCycle:
 		return p.cycleOutputs(it.ID, req, spec, multi)
+	case export.KindGroup:
+		return p.groupOutputs(it.ID, req, multi)
 	}
 	return nil, "", export.ErrFormat
 }
@@ -583,6 +585,45 @@ func (p *Profile) graphOutputs(def graph.Definition, formats []string, spec plot
 			return nil, "", err
 		}
 		outs = append(outs, output{name: sub + base + info.Ext, role: info.Group, data: b})
+	}
+	return outs, base, nil
+}
+
+// groupOutputs exports the members of a saved group or selection as
+// tables, with the group's own references in the metadata.
+func (p *Profile) groupOutputs(id string, req ExportRequest, multi bool) ([]output, string, error) {
+	T := p.app.T
+	g, err := p.Group(id)
+	if err != nil {
+		return nil, "", err
+	}
+	in, err := p.Input(g.Measurements)
+	if err != nil {
+		return nil, "", err
+	}
+	ds := export.MeasurementData(g.Name, g.Measurements, in, nil, T)
+	ds.AddCommonMeta(T, version.String(), version.Schema,
+		export.KV{Key: "group", Label: T("meta.group"), Value: g.Name + " (" + g.ID + ")"},
+		export.KV{Key: "group_kind", Label: T("meta.group_kind"), Value: T("meta.group_kind." + g.Kind)},
+		export.KV{Key: "members", Label: T("meta.measurements"), Value: fmt.Sprint(len(g.Measurements))})
+	if len(g.SeriesIDs) > 0 {
+		ds.Meta = append(ds.Meta, export.KV{Key: "series", Label: T("meta.series"), Value: strings.Join(g.SeriesIDs, " ")})
+	}
+	base := export.Sanitize(g.Name)
+	sub := ""
+	if multi {
+		sub = base + "/"
+	}
+	var outs []output
+	for _, f := range req.Formats {
+		if !export.Compatible(export.KindGroup, f) {
+			return nil, "", export.ErrFormat
+		}
+		b, err := export.WriteData(ds, f, req.Data)
+		if err != nil {
+			return nil, "", err
+		}
+		outs = append(outs, output{name: sub + base + export.Formats[f].Ext, role: "data", data: b})
 	}
 	return outs, base, nil
 }

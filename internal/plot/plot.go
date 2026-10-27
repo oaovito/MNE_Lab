@@ -555,7 +555,8 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		if n == 0 || len(se.PointLabels) == 0 {
 			return
 		}
-		label := se.PointLabels[len(se.PointLabels)-1]
+		// The unit's name, without the condition or time of that point.
+		label := strings.SplitN(se.PointLabels[len(se.PointLabels)-1], " · ", 2)[0]
 		fig.Ops = append(fig.Ops, Op{K: "text", X: mx(se.X[n-1]) + fs*.45, Y: my(se.Y[n-1]) + fs*.25, Text: fit(label, FontSans, fs*.72, fs*8), Size: fs * .72, Font: FontSans, Fill: c, Anchor: "start", Role: "point-label"})
 	}
 	curve := 0 // visible curves so far, to stagger their markers
@@ -698,7 +699,7 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 			Op{K: "line", X: x1, Y: y + fs*.35, X2: x1, Y2: y, Stroke: inkAxis, SW: .8 * s.Scale, Role: "statistical-annotation"},
 			Op{K: "line", X: x1, Y: y, X2: x2, Y2: y, Stroke: inkAxis, SW: .8 * s.Scale, Role: "statistical-annotation"},
 			Op{K: "line", X: x2, Y: y, X2: x2, Y2: y + fs*.35, Stroke: inkAxis, SW: .8 * s.Scale, Role: "statistical-annotation"},
-			Op{K: "text", X: (x1 + x2) / 2, Y: y - fs*.35, Text: label, Size: fs * .85, Font: FontSans, Fill: inkAxis, Anchor: "middle", Role: "statistical-annotation"})
+			Op{K: "text", X: labelX((x1+x2)/2, TextWidth(FontSans, label, fs*.85), pl, pr), Y: y - fs*.35, Text: label, Size: fs * .85, Font: FontSans, Fill: inkAxis, Anchor: "middle", Role: "statistical-annotation"})
 	}
 	fig.Ops = append(fig.Ops, Op{K: "unclip"})
 
@@ -791,6 +792,15 @@ func legendSwatch(x, y, w float64, lk look, kind string, hidden bool, lw, fs flo
 		ops = append(ops, markerOp(lk.marker, x+w/2, y, curveMarker(lw, fs), color, 0, "", lw*0.8, "legend"))
 	}
 	return ops
+}
+
+// labelX keeps a centred label of width w inside the plot area [pl, pr]:
+// a bracket near an edge keeps its whole label (values are never cut).
+func labelX(cx, w, pl, pr float64) float64 {
+	if w >= pr-pl {
+		return (pl + pr) / 2
+	}
+	return math.Min(math.Max(cx, pl+w/2), pr-w/2)
 }
 
 // fit shortens text with an ellipsis so it fits a width.
@@ -1019,8 +1029,9 @@ func SeriesLabel(label string, T Translator) string {
 		}
 	case strings.HasPrefix(label, "design:"):
 		parts := strings.SplitN(label, ":", 3) // design:<kind>:<condition>
-		if len(parts) == 3 {
-			text := T("series.design_" + parts[1])
+		keys := map[string]string{"mean_sd": "series.design_mean_sd", "mean_sem": "series.design_mean_sem", "mean_ci": "series.design_mean_ci", "units": "series.design_units", "trajectory": "series.design_trajectory"}
+		if len(parts) == 3 && keys[parts[1]] != "" {
+			text := T(keys[parts[1]])
 			if parts[2] != "" {
 				text += " · " + parts[2]
 			}
@@ -1116,7 +1127,11 @@ func designMetadata(res graph.Result, T Translator) []string {
 	if bars == "" {
 		bars = "sd"
 	}
-	out = append(out, T("plot.meta.design_stats_"+bars))
+	stats := map[string]string{"sd": "plot.meta.design_stats_sd", "sem": "plot.meta.design_stats_sem", "ci": "plot.meta.design_stats_ci"}
+	if stats[bars] == "" {
+		bars = "sd"
+	}
+	out = append(out, T(stats[bars]))
 	nmin, nmax := 0, 0
 	for _, se := range res.Series {
 		if se.Kind != "mean" {

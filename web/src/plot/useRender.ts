@@ -4,10 +4,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { post } from '../lib/api';
 import type { Figure, GraphDef, Series, Visual } from '../lib/types';
 
-export type Axis = { label: string; unit: string; scale: string; min: number; max: number; title?: string; categories?: string[] | null; conversion?: { from: string; to: string; factor: string } | null };
+export type Axis = { label: string; unit: string; scale: string; min: number; max: number; title?: string; categories?: string[] | null; conversion?: { from: string; to: string; factor: string } | null; ticks?: number[] | null };
 export type Source = { measurementId: string; fileId: string; fileName: string; sha256: string; parser: string; spec: string; sampleId?: string; measuredAt?: string; lines?: string; sourceSheet?: string; distributionId?: string; method?: string; format?: string };
 export type Provenance = { engine: string; spec: string; rules: string[] | null; sources: Source[] | null; transformations: string[] | null; statistics?: string; computedAt: string };
-export type Rendered = { figure: Figure; warnings: string[] | null; series: Series[] | null; provenance: Provenance; x: Axis; y: Axis; gaps?: number[] | null; weightings?: string[] | null; errorBars?: string };
+export type DesignRef = { id: string; root: string; revision: number; name: string };
+export type Annotation = { comparisonId: string; x1: number; x2: number; y: number; label: string; adjustedP: number; correction: string; analysisId?: string; contrast?: string; context?: string; family?: string };
+export type Rendered = { figure: Figure; warnings: string[] | null; series: Series[] | null; provenance: Provenance; x: Axis; y: Axis; gaps?: number[] | null; weightings?: string[] | null; errorBars?: string; design?: DesignRef | null; annotations?: Annotation[] | null };
 
 export const defaultVisual = (): Visual => ({ legend: true, metadata: true, grid: true, points: false, lineWidth: 1.75, fontScale: 1, view: null });
 

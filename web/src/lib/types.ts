@@ -213,9 +213,9 @@ export type SeriesStyle = { label?: string; color?: string; hidden?: boolean; ma
 export type Visual = { legend: boolean; metadata: boolean; grid: boolean; points: boolean; lineWidth: number; fontScale: number; view?: { XMin: number; XMax: number; YMin: number; YMax: number } | null; legendMode?: 'all' | 'visible' | 'selected'; legendSeries?: string[]; margin?: number; preset?: string };
 
 /** A graph's origin, written only by the core (Duplicate; Combine later). */
-export type Lineage = { graphId: string; relation: 'duplicate' | string; title?: string; definitionHash: string; at: string };
+export type Lineage = { graphId: string; relation: 'duplicate' | 'combine' | string; title?: string; definitionHash: string; at: string };
 export type TextNote = { text: string; x: number; y: number };
-export type GraphKind = 'dls_distribution' | 'series_values' | 'parameter_time' | 'dls_by_time' | 'statistical_groups';
+export type GraphKind = 'dls_distribution' | 'series_values' | 'parameter_time' | 'dls_by_time' | 'statistical_groups' | 'design_time' | 'paired_condition';
 
 export type GraphDef = {
   schema?: number;
@@ -225,7 +225,7 @@ export type GraphDef = {
   analysisId?: string;
   errorBars?: 'sd'|'sem'|'ci';
   annotations?: string[];
-  annotationStyle?: 'exact'|'stars';
+  annotationStyle?: 'exact'|'stars'|'effect';
   measurements: string[];
   distributions?: Record<string, string>;
   weighting?: string;
@@ -254,6 +254,39 @@ export type GraphDef = {
   sourceFiles?: string[];
   parserVersions?: string[];
   calculationVersion?: string;
+  // design graphs (condition × time and paired view)
+  designId?: string;
+  conditions?: string[];
+  pairedAt?: string;
+  groups?: string[];
+  unitTrajectories?: boolean;
+};
+
+/** A saved group or selection: references only (measurement and series IDs). */
+export type Group = {
+  schema?: number;
+  id?: string;
+  name: string;
+  kind?: 'group' | 'selection';
+  measurements: string[];
+  seriesIds?: string[];
+  notes?: string;
+  tags?: string[];
+  created?: string;
+  updated?: string;
+};
+
+/** The core's verdict on combining saved graphs. */
+export type CombineCheck = {
+  compatible: boolean;
+  kind?: string;
+  variable?: string;
+  units: string[];
+  xUnits?: string[];
+  problems: string[];
+  notes: string[];
+  conversions?: string[];
+  displayUnit?: string;
 };
 
 export type Op = {
@@ -309,6 +342,8 @@ export type Series = {
   muted?: boolean;
   noLine?: boolean;
   yOriginal?: number[];
+  pointLabels?: string[];
+  gaps?: number[];
 };
 
 export type CycleConfig = {
@@ -330,6 +365,7 @@ export type CycleDoc = {
   config: CycleConfig;
   measurements: string[];
   overrides?: Record<string, { point: number; replicate?: number; at: string }>;
+  groupId?: string;
   tags?: string[];
   notes?: string;
   created?: string;
@@ -356,9 +392,10 @@ export type CycleView = CycleDoc & {
 };
 
 export type Relations = {
-  files: Record<string, { graphs: string[] | null; cycles: string[] | null; analyses?:string[] | null }>;
-  graphs: Record<string, { files: string[] | null; cycle?: string; derivedFrom?: string[]; derived?: string[] }>;
+  files: Record<string, { graphs: string[] | null; cycles: string[] | null; analyses?:string[] | null; groups?: string[] | null }>;
+  graphs: Record<string, { files: string[] | null; cycle?: string; derivedFrom?: string[]; derived?: string[]; changedParents?: string[]; design?: string; groups?: string[] | null; analysis?: string }>;
   cycles: Record<string, { files: string[] | null; graphs: string[] | null; analyses?:string[] | null }>;
+  groups?: Record<string, { files: string[] | null; graphs: string[] | null; cycles: string[] | null }>;
 };
 
 // ---- experimental designs and the series catalog ----

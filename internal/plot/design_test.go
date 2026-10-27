@@ -108,3 +108,15 @@ func TestPairedConditionLayout(t *testing.T) {
 		t.Fatalf("units must differ in marker and colour: %+v %+v", looks[1], looks[2])
 	}
 }
+
+func TestAnnotationLabelStaysInsidePlot(t *testing.T) {
+	if x := labelX(10, 100, 50, 500); x != 100 {
+		t.Fatalf("left edge: %v", x)
+	}
+	if x := labelX(490, 100, 50, 500); x != 450 {
+		t.Fatalf("right edge: %v", x)
+	}
+	if x := labelX(200, 100, 50, 500); x != 200 {
+		t.Fatalf("inside: %v", x)
+	}
+}

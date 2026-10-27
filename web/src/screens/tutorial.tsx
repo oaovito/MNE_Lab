@@ -196,12 +196,13 @@ export const CHAPTERS: Chapter[] = [
         key: 'tut.graphs_kinds',
         icon: 'layers',
         route: GRAPHS,
-        target: ['.toolbar .seg[aria-label]'],
+        target: ['.toolbar .graphs-kind'],
         points: [
           { icon: 'chart', key: 'tut.p.kind_dist' },
           { icon: 'activity', key: 'tut.p.kind_param' },
           { icon: 'spline', key: 'tut.p.kind_cycle' },
           { icon: 'sigma', key: 'tut.p.kind_stat' },
+          { icon: 'users', key: 'tut.p.kind_design' },
         ],
       },
       {
@@ -233,6 +234,30 @@ export const CHAPTERS: Chapter[] = [
       { key: 'tut.graph_display', icon: 'palette', route: GRAPH, target: ['.builder-right .gb-sec-lines'], alt: ['.builder-right'], click: DRAWER_OPEN },
       { key: 'tut.graph_inspector', icon: 'panel', route: GRAPH, target: ['.builder > .builder-right'], click: DRAWER_OPEN },
       { key: 'tut.graph_save', icon: 'save', route: GRAPH, target: ['.builder-bar .gb-save'], click: DRAWER_CLOSE },
+      {
+        key: 'tut.graph_design',
+        icon: 'layers',
+        route: GRAPH,
+        target: ['.builder-right .gb-sec-bars', '.builder-right .gb-settings'],
+        click: DRAWER_OPEN,
+        points: [
+          { icon: 'eye', key: 'tut.p.design_points' },
+          { icon: 'link', key: 'tut.p.design_paired' },
+        ],
+      },
+      {
+        key: 'tut.graph_combine',
+        icon: 'layers',
+        route: GRAPH,
+        target: ['.builder-bar .gb-combine', '.builder-bar .gb-analyze'],
+        click: DRAWER_CLOSE,
+        points: [
+          { icon: 'ban', key: 'tut.p.combine_refused' },
+          { icon: 'history', key: 'tut.p.combine_lineage' },
+          { icon: 'sigma', key: 'tut.p.annotate_saved' },
+        ],
+      },
+      { key: 'tut.groups', icon: 'listChecks', route: () => '/ls/groups', target: ['.groups-lib'], alt: ['.page .panel'] },
     ],
   },
   {

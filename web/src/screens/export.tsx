@@ -152,7 +152,7 @@ function Dialog(p: { items: Item[]; kind: string; o: Options }) {
           <span class="section-title">{t('export.intent')}</span>
           <div class="intents">
             {o.options.presets.map((ps) => (
-              <button type="button" class={`intent ${preset === ps ? 'on' : ''}`} onClick={() => choosePreset(ps)} aria-pressed={preset === ps}>
+              <button type="button" class={`intent ${preset === ps ? 'on' : ''}`} data-preset={ps} onClick={() => choosePreset(ps)} aria-pressed={preset === ps}>
                 <Icon name={presetIcon[ps] || 'sliders'} />
                 <div class="col" style={{ gap: 0 }}>
                   <b>{t('export.preset.' + ps)}</b>

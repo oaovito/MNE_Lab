@@ -13,6 +13,7 @@ import type { Field as FieldT, FileView, ImportInspection, ImportResult, ImportS
 import { Icon } from '../../ui/icons';
 import { Badge, Button, Check, confirmDialog, Empty, Field, Input, Menu as MenuLazy, Modal, Notice, Seg, Select, Skeleton, Spinner, Tabs, useAsync } from '../../ui/kit';
 import { UnitSelect } from '../../ui/unit-select';
+import { SaveGroupDialog } from './groups';
 
 /** The measurements selected for a graph, a cycle or an export. */
 export const selection = createStore<{ ids: string[] }>({ ids: [] });
@@ -601,6 +602,7 @@ function SetsMenu() {
 
 function SelectionBar() {
   const sel = useStore(selection, (s) => s.ids);
+  const [naming, setNaming] = useState(false);
   return (
     <div style={{ padding: 'var(--s3)', borderTop: '1px solid var(--border)' }}>
       <div class="selbar">
@@ -613,11 +615,15 @@ function SelectionBar() {
         <Button size="sm" icon="cycle" onClick={() => openPanel('cycle-wizard', { measurements: sel })}>
           {t('files.cycle')}
         </Button>
+        <Button size="sm" icon="layers" class="files-save-group" onClick={() => setNaming(true)}>
+          {t('grp.save')}
+        </Button>
         <Button size="sm" icon="download" onClick={() => openPanel('export', { items: [{ kind: 'dataset', ids: sel }] })}>
           {t('ui.export')}
         </Button>
         <Button size="sm" kind="ghost" icon="x" tip={t('files.clear_sel')} onClick={() => setSel([])} />
       </div>
+      {naming && <SaveGroupDialog measurements={sel} onClose={() => setNaming(false)} />}
     </div>
   );
 }

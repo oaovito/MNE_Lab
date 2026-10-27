@@ -206,5 +206,9 @@
  "meta.analysis": "Análisis guardado",
  "meta.derived_from": "Derivado de",
  "export.readme.design": "Revisiones del diseño experimental, nombres de las unidades y emparejamiento (JSON).",
- "export.readme.groups": "Grupos y selecciones guardados: solo referencias, sin valores copiados."
+ "export.readme.groups": "Grupos y selecciones guardados: solo referencias, sin valores copiados.",
+ "meta.group_kind": "Tipo",
+ "meta.group_kind.group": "Grupo de mediciones",
+ "meta.group_kind.selection": "Selección guardada de series",
+ "meta.series": "Series"
 }

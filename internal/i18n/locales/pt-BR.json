@@ -206,5 +206,9 @@
  "meta.analysis": "Análise salva",
  "meta.derived_from": "Derivado de",
  "export.readme.design": "Revisões do desenho experimental, nomes das unidades e pareamento (JSON).",
- "export.readme.groups": "Grupos e seleções salvos: apenas referências, sem valores copiados."
+ "export.readme.groups": "Grupos e seleções salvos: apenas referências, sem valores copiados.",
+ "meta.group_kind": "Tipo",
+ "meta.group_kind.group": "Grupo de medições",
+ "meta.group_kind.selection": "Seleção salva de séries",
+ "meta.series": "Séries"
 }

@@ -180,6 +180,11 @@ function DesignEditor(p: { id?: string }) {
           {t('dsg.add_measurements')}
         </Button>
         {saved.data && (
+          <Button size="sm" icon="chart" class="dsg-graph" disabled={dirty} label={t('dg.graph')} tip={t('dg.graph.d')} onClick={() => navigate(`/ls/graphs/new?kind=design_time&design=${saved.data!.design.id}&title=${encodeURIComponent(saved.data!.design.name)}`)}>
+            <span class="wide-label">{t('dg.graph')}</span>
+          </Button>
+        )}
+        {saved.data && (
           <Button size="sm" icon="sigma" disabled={dirty} onClick={() => navigate('/ls/statistics/new?design=' + saved.data!.design.id)}>
             {t('stat.analyze_design')}
           </Button>

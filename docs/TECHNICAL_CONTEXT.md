@@ -120,8 +120,10 @@ interface translates.
   Help) and first-use explanations, "made by oaovito" footer.
 - Localization: English, Portuguese (Brazil) and Spanish.
 - LIGHTSCATTERING: import, parser, file library, measurement review, size
-  distribution graphs, comparisons, graphs over time, Cycles with statistics,
-  Presentation Mode, Smart Export, research package.
+  distribution graphs, comparisons, graphs over time, condition × time and
+  paired design graphs, groups and saved selections, Combine with lineage,
+  Graph → Analyze, statistical annotations from saved analyses, Cycles with
+  statistics, Presentation Mode, Smart Export, research package.
 
 ### Partially implemented
 
@@ -488,7 +490,20 @@ a note naming it; the graph fails only when nothing remains.
 
 - values per series (`series_values`): one summary quantity or instrument
   reading per selected series on a categorical axis, refused when the
-  selection mixes parameters or units.
+  selection mixes parameters or units (several units only with an exact
+  `displayUnit`, which Combine offers).
+- condition × time (`design_time`): a saved design revision drawn by
+  experimental unit. Each condition is one mean series (mean ± SD by
+  default, SEM on request, CI only from a linked saved analysis) with its own
+  colour, marker and line pattern on a shared integer time axis (labels from
+  the design), each unit's value as an individual point (shown unless
+  `showIndividual: false`) and optional unit trajectories
+  (`unitTrajectories`, tinted thin lines out of the legend). Technical
+  readings of a unit in a cell are averaged first; n counts units.
+- paired view (`paired_condition`): at one time point (`pairedAt`, default
+  the first), each unit's values under the conditions joined by a line, the
+  mean of each condition beside it (display-only offset), and a note when a
+  unit has both conditions but no declared pair.
 
 Graph definitions are stored with `schema: 2` (engine `graph-engine/1.3.0`).
 Schema 2 only adds fields; a schema 1 definition renders exactly as before
@@ -510,12 +525,47 @@ Schema 2 only adds fields; a schema 1 definition renders exactly as before
   statistical graph from a saved analysis.
 - `derivedFrom` (lineage, written only by the core), `sourceFiles`,
   `parserVersions` and `calculationVersion` (snapshots taken on save).
+- design graphs: `designId` (a design revision, pinned; the editor offers a
+  newer head but never moves to it alone), `conditions` (subset, in design
+  order), `pairedAt`, `groups` (saved groups restricting the members) and
+  `unitTrajectories`. On save the core derives `measurements` from the
+  design's assignments. `analysisId` must name a saved analysis of the same
+  design root and variable (`graph.analysis_incompatible`); without one a
+  CI request falls back to SD and annotations are dropped.
+- annotations of design graphs: up to 12 comparison IDs of the linked
+  analysis, styles `exact` (adjusted p), `stars` (from the adjusted p) or
+  `effect` (stored difference, its interval and the adjusted p). Brackets,
+  labels and values are read from the saved comparisons and never
+  recalculated; a paired view draws only comparisons between conditions at
+  its time point; a graph whose conditions are stored in different units
+  draws none (`graph.annotations_mixed_units`). Bracket labels are kept
+  inside the plot area.
 
 `POST /api/graphs/{id}/duplicate` (optional `title`) stores a copy with a
 new ID and `derivedFrom: [{graphId, relation: "duplicate", title,
 definitionHash, at}]`, where the hash is the SHA-256 of the stored original;
 the original record is not touched and a graph in the trash is refused.
-Relations list `derivedFrom`/`derived` for each graph. The render handler
+Combine (`POST /api/graphs/combine/check` and `POST /api/graphs/combine`,
+`{ids, title, displayUnit}`, account and profile headers) reads 2–8 saved
+graphs of one combinable kind (`design_time`, `series_values`,
+`dls_distribution`) and the same variable, and refuses different variables,
+designs or revisions, X domains (variable or unit), units without an exact
+conversion, empty graphs and graphs in the trash, each with a stable code
+(`graph.combine_*`). When units differ it lists the units every parent
+converts to with an exact factor; only an accepted one is applied as
+`displayUnit`. The new definition is built from the parents' definitions
+(the union of their conditions or series, never images), with lineage
+`derivedFrom: [{graphId, relation: "combine", title, definitionHash, at}]`
+for every parent. The parents are re-read inside the write transaction and
+the combination is refused with `graph.combine_conflict` when one changed
+after the check; parents are never written. Linked analyses and annotations
+are not carried over. A parent's later edits never propagate: relations
+report `changedParents` when a parent's current hash differs from the one
+recorded.
+
+Relations list `derivedFrom`/`derived` for each graph, plus `design`,
+`groups`, `analysis` and `changedParents`, and the files, graphs and cycles
+of each group. The render handler
 passes the request context down to the series loading and stops with
 `graph.render_cancelled` when the request is cancelled; the interface aborts
 a preview as soon as a newer one supersedes it and shows a Stop control
@@ -524,18 +574,38 @@ when one takes noticeable time.
 ### Graph Builder
 
 The graph screen (`web/src/screens/ls/graph.tsx`) has the Series Explorer
-(`series-explorer.tsx`), Data and a Groups placeholder on the left, the live
-preview in the centre, the settings (type and variables, axes and units,
-error bars and points, lines and markers, legend, labels and notes,
-publication preset), per-series style and details (provenance with lineage
-and version snapshots, comparison, notes) on the right, and Save,
-Duplicate, Combine and Analyze (placeholders for the next phase), Present and
-Export below. The Explorer reads `GET /api/series`, draws only the rows in
+(`series-explorer.tsx`), Data and Groups on the left, the live preview in
+the centre, the settings (type and variables, design revision, conditions
+and paired time point, axes and units, error bars and points, statistical
+annotations, lines and markers, legend, labels and notes, publication
+preset), per-series style and details (provenance with lineage both ways:
+Derived From and Used By, changed-parent notes and version snapshots,
+comparison, notes) on the right, and Save, Duplicate, Combine
+(`combine.tsx`), Analyze, Present and Export below. The figure tooltip shows
+each point's own name (time, unit · condition) for design graphs. Analyze
+opens `/ls/statistics/new` prefilled from the graph (`design`, `variable`,
+`conditions`, `group`, `graph`, or `cycle`); the editor still shows the
+design review card and applies the pseudoreplication guard, and after
+saving it offers Annotate, which opens the graph with `?analysis=` linked
+for the person to choose comparisons and save. The Explorer reads `GET /api/series`, draws only the rows in
 view (fixed row height), searches and filters by file, condition, time,
 replicate kind (instrument readings included) and unit, selects one, a
 Shift range or everything listed, and offers per-series hide and focus.
 Selecting series stores only their IDs; series left out and every record
 stay unchanged.
+
+### Groups and saved selections
+
+`ls.group` (synced) holds groups (`kind: "group"`, measurement IDs) and saved
+selections (`kind: "selection"`, SeriesIDs; their measurements are derived on
+save). Both store references only, never values (`/api/groups`, account and
+profile headers; at most 2000 members). A group feeds a design graph
+(`groups`), a series graph (adds its series to the selection), a cycle
+(`groupId` kept on the cycle) and an analysis (`/ls/statistics/new?group=`).
+Deleting a group a saved graph draws is refused (`groups.in_use`); its
+measurements, cycles and analyses are never touched. The Groups tab lists
+them; the File Library saves a selection of measurements as a group and the
+Graph Builder saves its selection of series.
 
 ### Cycles
 
@@ -558,6 +628,19 @@ semicolon as column separator, and cells that a spreadsheet would run as a
 formula are neutralized. The research package for a cycle is one ZIP with a
 README, a manifest with checksums, the original files, normalized data,
 statistics, graphs (SVG, PDF, PNG) and provenance.
+
+A design graph exports its data as three tables (readings with their
+replicate kind, unit values per condition × time, and the summary with n,
+mean, SD, SEM and, from a linked analysis, the CI) plus metadata naming the
+design revision, n, error bars, groups, analysis and every Derived From
+parent (`internal/export/design.go`; golden files in
+`testdata/design-export/`). A single graph can also be exported as a
+research package (`package` preset): figures, normalized data, original
+files, `graphs/definitions.json` with parents and lineage hashes,
+`design/design.json` with units, conditions, times, pairs and revision
+history, `groups/<id>.json`, the linked analyses under `statistics/analyses/`
+and provenance. A cycle package adds the design and group it was built from.
+A group exports its members as tables (kind `group`).
 
 ### Experimental designs and series
 
@@ -675,7 +758,13 @@ uncertainty rather than inventing a field or an algorithm.
   synthetic series (`testdata/lightscattering/synthetic-twenty-series.txt`):
   search, filter, select three, edit, save, reopen, duplicate with lineage
   and stopped previews, checking that the other seventeen series and the
-  file's records do not change.
+  file's records do not change. `paired.mjs` imports 24 synthetic
+  measurements (units A, B, C; F-SR and C-SR; days 0, 7, 14, 21), saves the
+  design, draws Graph 1 (F-SR) and Graph 2 (C-SR), combines them into Graph 3
+  (refusing a graph of another variable; parents byte-identical; lineage
+  both ways), runs the classical paired analysis offline from Analyze,
+  annotates Graph 3 from it, exports the research package and reopens the
+  graph with its pairing intact, in every language and both themes.
 
 ## 20. Known issues
 

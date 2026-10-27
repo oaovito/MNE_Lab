@@ -158,6 +158,44 @@ person declared (plus one short remaining word as a possible new unit name),
 shows the text it read each proposal from, stores nothing, and applies only
 the proposals the person confirms; every part can be corrected afterwards.
 
+## Design graphs, Combine and annotations
+
+A condition × time graph draws a saved design revision. For each condition
+and time point the value of an experimental unit is the arithmetic mean of
+its readings in that cell (one reading gives itself); technical readings are
+averaged first and never counted, so twelve readings of one unit are n = 1.
+The mean and error bar of a cell are computed over the units' values, and n
+is the number of units with a value. Error bars are always named on the
+figure: sample SD (n − 1) by default, SEM on request, and a confidence
+interval only when the graph links a saved analysis of the same design and
+variable, whose stored interval is drawn as saved. A cell with one unit has
+no SD and is drawn without a bar. Each unit's value is visible as a point;
+its trajectory over time is optional. A paired view joins the values of the
+same unit under the conditions at one time point; the line means the same
+experimental unit, never two units, and when the design declares no pair for
+that unit the figure says so.
+
+Combine builds a new graph from the data of saved graphs, never from their
+images, and keeps every parent unchanged. It is refused when the graphs draw
+different variables, different designs or design revisions, different X
+domains or values stored in different units. When the units differ but
+every one converts to a common unit with an exact factor (nm, µm, m; cps,
+kcps, Mcps; s, min, h, d), that conversion is offered and applied to the
+display only; there is no conversion otherwise. Two conditions stored in
+different units are never compared by a bracket.
+
+Statistical annotations (brackets with the adjusted p-value, stars from the
+adjusted p-value, or the estimated difference with its interval and adjusted
+p-value) come only from the comparisons of a saved analysis; nothing is
+recalculated to draw them, and the correction named by the analysis is shown
+with them. Star thresholds are display conventions and do not change the
+analysis alpha. A comparison the graph does not show (another condition or
+time point) is not drawn and is reported.
+
+Groups and saved selections are lists of measurement or series identifiers.
+They never copy values, and a group that holds several readings of one unit
+does not make them independent: N still comes from the design.
+
 ## Time and replication
 
 Measurement time comes from the original file, never the import time. Only

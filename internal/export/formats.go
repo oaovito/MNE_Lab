@@ -15,6 +15,7 @@ const (
 	KindFile     = "file"     // an imported original file
 	KindBatch    = "batch"    // several items at once
 	KindAnalysis = "analysis" // immutable statistical result and its audit data
+	KindGroup    = "group"    // a saved group or selection: its members as tables
 )
 
 // Format groups.
@@ -132,6 +133,10 @@ func For(kind string) Options {
 		}
 		o.Presets = []string{PresetPackage, PresetPublication, PresetPresentation, PresetRawData, PresetCustom}
 		o.Default = Choice{PresetPackage, []string{"package"}}
+	case KindGroup:
+		o.Sections = []Section{{"recommended", []string{"xlsx", "csv", "json"}}, {"all", append([]string{}, dataAll...)}}
+		o.Presets = []string{PresetRawData, PresetCustom}
+		o.Default = Choice{PresetRawData, []string{"xlsx", "csv"}}
 	case KindFile:
 		o.Sections = []Section{{"original", []string{"original"}}, {"all", append([]string{"original"}, dataAll...)}}
 		o.Presets = []string{PresetQuick, PresetCustom}

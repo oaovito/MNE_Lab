@@ -69,6 +69,7 @@ run tests/e2e/producer-origin.mjs "$work/portable" "$out"
 run tests/e2e/design.mjs "$work/portable" "$out"
 run tests/e2e/statistics-design.mjs "$work/portable" "$out"
 run tests/e2e/builder.mjs "$work/portable" "$out"
+run tests/e2e/paired.mjs "$work/portable" "$out"
 
 start temporary temporary
 ready temporary

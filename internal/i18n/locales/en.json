@@ -206,5 +206,9 @@
  "meta.analysis": "Saved analysis",
  "meta.derived_from": "Derived from",
  "export.readme.design": "Experimental design revisions, unit names and pairing (JSON).",
- "export.readme.groups": "Saved groups and selections: references only, no copied values."
+ "export.readme.groups": "Saved groups and selections: references only, no copied values.",
+ "meta.group_kind": "Kind",
+ "meta.group_kind.group": "Group of measurements",
+ "meta.group_kind.selection": "Saved selection of series",
+ "meta.series": "Series"
 }

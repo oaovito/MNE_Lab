@@ -14,6 +14,8 @@ import { GraphLibrary } from './graphs';
 import { StatisticalModule } from './statistics';
 import { useAnalyses } from '../../lib/analyses';
 import { DesignModule } from './design';
+import { GroupLibrary } from './groups';
+import { useGroups } from '../../lib/groups';
 
 export function LsModule() {
   const { path } = useRoute();
@@ -21,7 +23,8 @@ export function LsModule() {
   const graphs = useGraphs();
   const cycles = useCycles();
   const analyses = useAnalyses();
-  const tab = path.startsWith('/ls/designs') ? 'designs' : path.startsWith('/ls/statistics') ? 'statistics' : path.startsWith('/ls/graphs') ? 'graphs' : path.startsWith('/ls/cycles') ? 'cycles' : 'files';
+  const groups = useGroups();
+  const tab = path.startsWith('/ls/groups') ? 'groups' : path.startsWith('/ls/designs') ? 'designs' : path.startsWith('/ls/statistics') ? 'statistics' : path.startsWith('/ls/graphs') ? 'graphs' : path.startsWith('/ls/cycles') ? 'cycles' : 'files';
 
   useEffect(() => {
     // The guided tutorial passes through here and covers the introduction.
@@ -39,6 +42,7 @@ export function LsModule() {
   else if (c) body = <CycleView id={c.id} />;
   else if (tab === 'graphs') body = <GraphLibrary />;
   else if (tab === 'cycles') body = <CycleLibrary />;
+  else if (tab === 'groups') body = <GroupLibrary />;
   else body = <FileLibrary />;
 
   const detail = !!(g || c || a || d);
@@ -58,6 +62,7 @@ export function LsModule() {
               { value: 'files', label: t('ls.tab.files'), icon: 'files', count: files.data?.length },
               { value: 'graphs', label: t('ls.tab.graphs'), icon: 'chart', count: graphs.data?.length },
               { value: 'cycles', label: t('ls.tab.cycles'), icon: 'cycle', count: cycles.data?.length },
+              { value: 'groups', label: t('ls.tab.groups'), icon: 'listChecks', count: groups.data?.length },
               { value: 'designs', label: t('ls.tab.designs'), icon: 'layers' },
               { value: 'statistics', label: t('ls.tab.statistics'), icon: 'sigma', count: analyses.data?.length },
             ]}

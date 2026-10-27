@@ -16,6 +16,11 @@ export type View = { XMin: number; XMax: number; YMin: number; YMax: number };
 export function seriesLabel(label: string): string {
   if(label.startsWith('statistics:')){const [,key,...rest]=label.split(':');return t('series.stat_'+key)+' · '+rest.join(':');}
   if (label.startsWith('series.')) return t(label);
+  if (label.startsWith('design:')) {
+    const [, key, ...rest] = label.split(':'); // design:<kind>:<condition>
+    const cond = rest.join(':');
+    return t('series.design_' + key) + (cond ? ' · ' + cond : '');
+  }
   if (label.startsWith('reading:')) {
     const i = label.indexOf(':', 8); // reading:<run>:<series label>
     if (i > 0) return t('series.reading', { name: label.slice(i + 1), run: label.slice(8, i) });
@@ -34,7 +39,7 @@ export function seriesLabel(label: string): string {
  * SD, SEM or confidence interval (half-width).
  */
 export function errStat(label: string): 'sd' | 'sem' | 'ci' | '' {
-  const m = label.match(/^(?:series\.mean_|statistics:mean_)(sd|sem|ci)(?:$|:)/);
+  const m = label.match(/^(?:series\.mean_|statistics:mean_|design:mean_)(sd|sem|ci)(?:$|:)/);
   return m ? (m[1] as 'sd' | 'sem' | 'ci') : '';
 }
 
@@ -221,6 +226,10 @@ export function FigureView(p: Props) {
   if (hover && se) {
     const xv = se.x[hover.i],
       yv = se.y[hover.i];
+    // Design graphs name each point (time, unit · condition…): the X
+    // position there is only a drawing slot.
+    const pl = se.pointLabels || [];
+    const pointLabel = pl.length === se.x.length ? pl[hover.i] : pl.length === 1 ? pl[0] : '';
     const left = (hover.x / f.width) * 100;
     const top = (hover.y / f.height) * 100;
     tip = (
@@ -229,9 +238,15 @@ export function FigureView(p: Props) {
           <span class="dot" style={{ color: se.color || 'var(--accent)' }} />
           <strong class="ellipsis">{seriesLabel(se.label)}</strong>
         </div>
-        <div class="num">
-          {fmtNum(xv)} {p.xUnit || ''} · {fmtNum(yv)} {p.yUnit || ''}
-        </div>
+        {pointLabel ? (
+          <div class="num">
+            {pointLabel} · {fmtNum(yv)} {p.yUnit || ''}
+          </div>
+        ) : (
+          <div class="num">
+            {fmtNum(xv)} {p.xUnit || ''} · {fmtNum(yv)} {p.yUnit || ''}
+          </div>
+        )}
         {se.err?.[hover.i] !== undefined && (
           <div class="faint num">
             ± {fmtNum(se.err[hover.i])}

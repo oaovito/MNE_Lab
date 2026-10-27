@@ -4,6 +4,7 @@ import { core } from './core';
 import { design } from './design';
 import { errors } from './errors';
 import { exp } from './export';
+import { groups } from './groups';
 import { help } from './help';
 import { ls } from './ls';
 import { series } from './series';
@@ -11,4 +12,4 @@ import { statistics } from './statistics';
 import { tutorial } from './tutorial';
 import { units } from './units';
 
-addCatalogs(core, ls, exp, help, errors, tutorial, design, statistics, units, series);
+addCatalogs(core, ls, exp, help, errors, tutorial, design, statistics, units, series, groups);

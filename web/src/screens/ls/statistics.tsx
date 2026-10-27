@@ -21,7 +21,7 @@ import {
   type StatisticalAnalysis,
   type StatisticalResults,
 } from "../../lib/statistics";
-import type { CycleView, DesignView } from "../../lib/types";
+import type { CycleView, DesignView, GraphDef, Group } from "../../lib/types";
 import { Button, Empty, Notice, Skeleton, useAsync } from "../../ui/kit";
 import { MeasurementPicker } from "./picker";
 import {
@@ -43,6 +43,8 @@ function StatisticalPage(p: { id?: string }) {
   const rev = useRev();
   const { path } = useRoute();
   const cycleId = new URL(location.href).searchParams.get("cycle") || "";
+  // Saved from an analysis started in a graph: offer to annotate it.
+  const fromGraph = new URL(location.href).searchParams.get("graph") || "";
   const saved = useAsync(
     () =>
       p.id && p.id !== "new"
@@ -101,6 +103,25 @@ function StatisticalPage(p: { id?: string }) {
         </div>
         {saved.data.sourceChanged && (
           <Notice kind="warning">{t("stat.changed")}</Notice>
+        )}
+        {fromGraph && (
+          <Notice
+            kind="info"
+            action={
+              <Button
+                kind="primary"
+                icon="chart"
+                class="stat-annotate"
+                onClick={() =>
+                  navigate(`/ls/graphs/${fromGraph}?analysis=${saved.data!.id}`)
+                }
+              >
+                {t("ga.annotate")}
+              </Button>
+            }
+          >
+            {t("ga.annotate.d")}
+          </Notice>
         )}
         <AnalysisResults
           snapshot={saved.data.snapshot}
@@ -173,7 +194,26 @@ function AnalysisLibrary() {
 function AnalysisEditor(p: { cycleId: string }) {
   const files = useFiles();
   const previousId = new URL(location.href).searchParams.get("previous") || "";
-  const designParam = new URL(location.href).searchParams.get("design") || "";
+  const params = new URL(location.href).searchParams;
+  const designParam = params.get("design") || "";
+  // Graph → Analyze and Groups → Analyze prefill (the person still reviews).
+  const variableParam = params.get("variable") || "";
+  const conditionsParam = (params.get("conditions") || "").split(",").filter(Boolean);
+  const groupParam = params.get("group") || "";
+  const graphParam = params.get("graph") || "";
+  const group = useAsync(
+    () =>
+      groupParam
+        ? Promise.all(groupParam.split(",").map((id) => get<Group>("/api/groups/" + id, { headers: statisticsHeaders() }))).then(
+            (gs): Group => ({ name: gs.map((g) => g.name).join(" · "), measurements: [...new Set(gs.flatMap((g) => g.measurements))] }),
+          )
+        : Promise.resolve(null),
+    [groupParam],
+  );
+  const graph = useAsync(
+    () => (graphParam ? get<GraphDef>("/api/graphs/" + graphParam) : Promise.resolve(null)),
+    [graphParam],
+  );
   const designs = useAsync(
     () =>
       get<DesignView[]>("/api/designs", { headers: statisticsHeaders() }),
@@ -209,7 +249,7 @@ function AnalysisEditor(p: { cycleId: string }) {
     module: "lightscattering",
     title: "",
     cycleId: p.cycleId || undefined,
-    variable: "effective_diameter",
+    variable: (PARAMS as readonly string[]).includes(variableParam) ? variableParam : "effective_diameter",
     factorAName: "",
     factorBName: "",
     structure: "",
@@ -255,8 +295,30 @@ function AnalysisEditor(p: { cycleId: string }) {
   useEffect(() => {
     // The structure comes from the saved design revision; the person
     // reviews it here and corrects it in the design, never rebuilds it.
-    if (designView.data) setDef((d) => definitionFromDesign(designView.data!, d));
-  }, [designView.data]);
+    if (!designView.data || (groupParam && group.loading) || (graphParam && graph.loading)) return;
+    const members = group.data ? new Set(group.data.measurements) : null;
+    setDef((d) => {
+      const next = definitionFromDesign(designView.data!, { ...d, title: d.title || graph.data?.title || group.data?.name || "" });
+      // A graph that draws some conditions or groups analyzes those only.
+      const observations = next.observations.filter((o) => (!conditionsParam.length || conditionsParam.includes(o.factorA)) && (!members || members.has(o.measurementId)));
+      return { ...next, observations };
+    });
+  }, [designView.data, group.data, group.loading, graph.data, graph.loading]);
+  useEffect(() => {
+    // A group without a design: its measurements, as the picker would add them.
+    if (designParam || !group.data || !files.data) return;
+    const byId = allMeasurements(files.data);
+    setDef((d) => ({
+      ...d,
+      title: d.title || group.data!.name,
+      observations: group.data!.measurements
+        .filter((id) => byId.has(id))
+        .map((id) => {
+          const m = byId.get(id)!.m;
+          return { measurementId: id, factorA: m.group || m.condition || "", unitId: m.experimentalUnitId || "" };
+        }),
+    }));
+  }, [group.data, files.data]);
   useEffect(() => {
     if (!previousId) return;
     let active = true;
@@ -365,7 +427,7 @@ function AnalysisEditor(p: { cycleId: string }) {
         },
         { headers: statisticsHeaders() },
       );
-      navigate("/ls/statistics/" + a.id);
+      navigate("/ls/statistics/" + a.id + (graphParam ? "?graph=" + graphParam : ""));
     } catch (e) {
       setError(
         errText((e as { code?: string }).code || "statistics.engine_failed"),
@@ -438,6 +500,12 @@ function AnalysisEditor(p: { cycleId: string }) {
           </Notice>
         )}
         {designView.error && <Notice kind="danger">{errText(designView.error)}</Notice>}
+        {graph.data && (
+          <Notice kind="info">
+            <span class="stat-from-graph">{t("ga.from_graph", { name: graph.data.title || t("graph.kind." + graph.data.kind) })}</span>
+          </Notice>
+        )}
+        {group.data && !graph.data && <Notice kind="info">{t("ga.from_group", { name: group.data.name })}</Notice>}
         {suggested && (
           <Notice kind="info">
             <span class="col gap2">
@@ -812,6 +880,7 @@ function AnalysisEditor(p: { cycleId: string }) {
         <Notice kind="warning">{t("stat.limits")}</Notice>
         <Button
           kind="primary"
+          class="stat-prepare"
           disabled={!def.structureReviewed || def.observations.length < 3}
           onClick={prepare}
         >
@@ -853,7 +922,7 @@ function AnalysisEditor(p: { cycleId: string }) {
             <Notice kind="warning">{warnText(w)}</Notice>
           ))}
           <div class="row gap2">
-            <Button kind="primary" disabled={busy} onClick={calculate}>
+            <Button kind="primary" class="stat-run" disabled={busy} onClick={calculate}>
               {busy ? t("stat.running") : t("stat.run")}
             </Button>
             {busy && (
@@ -862,7 +931,7 @@ function AnalysisEditor(p: { cycleId: string }) {
               </Button>
             )}
             {result && (
-              <Button kind="primary" disabled={busy} onClick={save}>
+              <Button kind="primary" class="stat-save" disabled={busy} onClick={save}>
                 {t("stat.save")}
               </Button>
             )}

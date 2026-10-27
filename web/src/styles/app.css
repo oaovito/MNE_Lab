@@ -2439,6 +2439,10 @@
   .narrow-only {
     display: inline-flex;
   }
+  /* Secondary header actions keep their icon and tooltip. */
+  .wide-label {
+    display: none;
+  }
   .export {
     grid-template-columns: 220px minmax(0, 1fr) 270px;
   }
@@ -2616,3 +2620,18 @@ h4.design-h { font-size: var(--fs-xs); }
 .stat-review-cells td:first-child, .stat-review-cells th:first-child { text-align: left; }
 .stat-cell-readings { font-style: italic; }
 .stat-paired h4 { margin: 4px 0 0; font-size: 13px; }
+
+/* Combine dialog, groups and design graph settings. */
+.gc-list { display: flex; flex-direction: column; gap: 2px; max-height: min(260px, 30vh); overflow-y: auto; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 4px; }
+.gc-row { display: flex; align-items: center; gap: var(--s2); padding: 5px 8px; border-radius: var(--r-sm); min-width: 0; cursor: pointer; }
+.gc-row:hover { background: var(--surface-hover); }
+.gc-row.on { background: var(--accent-soft, var(--surface-hover)); }
+.gc-var { max-width: 160px; flex: none; }
+.grp-card { padding: var(--s3) var(--s4); }
+.grp-actions { flex: none; }
+.grp-row .check { flex: none; }
+.dg-settings, .dg-conditions { min-width: 0; }
+.an-family { padding-top: 2px; }
+.an-comparison { align-items: flex-start; gap: var(--s2); }
+.an-comparison input { margin-top: 3px; flex: none; }
+.lineage-parent, .lineage-child { display: inline-flex; align-items: center; gap: 6px; }

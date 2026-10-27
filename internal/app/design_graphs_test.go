@@ -378,6 +378,11 @@ func TestGroupsStoreReferencesOnly(t *testing.T) {
 			}
 		}
 	}
+	// A group exports its members as tables.
+	outs, _, err := p.groupOutputs(g.ID, ExportRequest{Formats: []string{"csv"}}, false)
+	if err != nil || len(outs) != 1 || strings.Count(string(outs[0].data), "\r\n") != 13 {
+		t.Fatalf("group export: %v %d", err, len(outs))
+	}
 	// Groups live in a synced collection.
 	if strings.HasPrefix(CollGroups, "_") {
 		t.Fatal("groups must sync")

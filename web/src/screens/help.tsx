@@ -41,7 +41,7 @@ const GROUP_ICON: Record<string, IconName> = {
   updates: 'package', locked: 'lock', privacy: 'shield', security: 'shieldOk', ls: 'flask', graphs: 'chart', cycles: 'cycle', export: 'download',
 };
 const GUIDES: { id: string; icon: IconName; parts: string[] }[] = [
-  { id: 'ls', icon: 'microscope', parts: ['files', 'params', 'meaning', 'graphs', 'combine', 'cycles', 'present', 'export'] },
+  { id: 'ls', icon: 'microscope', parts: ['files', 'params', 'meaning', 'graphs', 'combine', 'groups', 'cycles', 'present', 'export'] },
   { id: 'export', icon: 'image', parts: ['kinds', 'vector', 'lossless', 'dpi', 'publication', 'package'] },
 ];
 

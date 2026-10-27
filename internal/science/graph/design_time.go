@@ -500,7 +500,7 @@ func DesignTime(def Definition, in Input, din DesignInput) (Result, error) {
 			for i, v := range s.values {
 				xj := x + (float64(i)-(n-1)/2)*step*0.32
 				ind.X, ind.Y = append(ind.X, xj), append(ind.Y, v)
-				ind.PointLabels = append(ind.PointLabels, dd.labels[s.units[i]])
+				ind.PointLabels = append(ind.PointLabels, dd.labels[s.units[i]]+" · "+tl.Label)
 				t := traj[s.units[i]]
 				t.X, t.Y = append(t.X, xj), append(t.Y, v)
 				ymin, ymax = math.Min(ymin, v), math.Max(ymax, v)
@@ -511,7 +511,7 @@ func DesignTime(def Definition, in Input, din DesignInput) (Result, error) {
 				}
 			}
 			mean.X, mean.Y, mean.N = append(mean.X, x), append(mean.Y, s.mean), append(mean.N, s.n)
-			mean.Err = append(mean.Err, s.bar)
+			mean.Err, mean.PointLabels = append(mean.Err, s.bar), append(mean.PointLabels, tl.Label)
 			ymin, ymax = math.Min(ymin, s.mean-s.bar), math.Max(ymax, s.mean+s.bar)
 		}
 		if bars == "ci" && din.Analysis != nil {
@@ -626,13 +626,14 @@ func PairedCondition(def Definition, in Input, din DesignInput) (Result, error) 
 		present = true
 		x := float64(i+1) + 0.2
 		mean.X, mean.Y, mean.N, mean.Err = append(mean.X, x), append(mean.Y, s.mean), append(mean.N, s.n), append(mean.Err, s.bar)
+		mean.PointLabels = append(mean.PointLabels, cond)
 		ymin, ymax = math.Min(ymin, s.mean-s.bar), math.Max(ymax, s.mean+s.bar)
 	}
 	if !present {
 		return res, ErrNoParameter
 	}
 	if bars == "ci" && din.Analysis != nil {
-		mean.Label += " · " + number(100*(1-din.Analysis.Snapshot.Definition.Alpha)) + "%"
+		mean.Label += number(100*(1-din.Analysis.Snapshot.Definition.Alpha)) + "%"
 	}
 	styled(def, &mean)
 	res.Series = append(res.Series, mean)
@@ -647,7 +648,7 @@ func PairedCondition(def Definition, in Input, din DesignInput) (Result, error) 
 			}
 			v := c.unitValue() * dd.factor[cond]
 			se.X, se.Y = append(se.X, float64(i+1)), append(se.Y, v)
-			se.PointLabels = append(se.PointLabels, dd.labels[u])
+			se.PointLabels = append(se.PointLabels, dd.labels[u]+" · "+cond)
 			conds = append(conds, cond)
 			ymin, ymax = math.Min(ymin, v), math.Max(ymax, v)
 		}

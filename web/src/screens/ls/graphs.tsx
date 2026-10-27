@@ -4,13 +4,17 @@ import { useState } from 'preact/hooks';
 import { api, post } from '../../lib/api';
 import { fmtDate } from '../../lib/format';
 import { errText, t } from '../../lib/i18n';
+import { analyzeRoute, COMBINABLE } from '../../lib/groups';
 import { useCycles, useGraphs, useRelations } from '../../lib/library';
 import { navigate } from '../../lib/route';
 import { openPanel, run, toast } from '../../lib/state';
 import type { GraphDef } from '../../lib/types';
 import { Thumb } from '../../ui/common';
 import { Icon } from '../../ui/icons';
-import { Badge, Button, Check, confirmDialog, Empty, Input, Seg, Skeleton } from '../../ui/kit';
+import { Badge, Button, Check, confirmDialog, Empty, Input, Seg, Select, Skeleton } from '../../ui/kit';
+import { CombineDialog } from './combine';
+
+const KINDS = ['dls_distribution', 'series_values', 'parameter_time', 'dls_by_time', 'design_time', 'paired_condition', 'statistical_groups'];
 
 export async function presentGraphs(ids: string[], index = 0) {
   await run(() => post('/api/present', { action: 'start', graphs: ids, index }));
@@ -24,11 +28,15 @@ export function GraphLibrary() {
   const [q, setQ] = useState('');
   const [kind, setKind] = useState('all');
   const [sel, setSel] = useState<string[]>([]);
+  const [combine, setCombine] = useState<string[] | null>(null);
   const list = (graphs.data || []).filter((g) => (kind === 'all' || g.kind === kind) && (!q || [g.title, g.notes, ...(g.tags || [])].join(' ').toLowerCase().includes(q.toLowerCase())));
   const cycleName = (id?: string) => cycles.data?.find((c) => c.id === id)?.config.name;
   const toggle = (id: string) => setSel(sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]);
-  // Measurements of the selected graphs, for a new comparison or cycle.
-  const selMeasurements = [...new Set((graphs.data || []).filter((g) => sel.includes(g.id!)).flatMap((g) => g.measurements || []))];
+  // Measurements of the selected graphs, for a new cycle.
+  const selGraphs = (graphs.data || []).filter((g) => sel.includes(g.id!));
+  const selMeasurements = [...new Set(selGraphs.flatMap((g) => g.measurements || []))];
+  const canCombine = selGraphs.length >= 2 && selGraphs.every((g) => COMBINABLE.includes(g.kind));
+  const analyze = selGraphs.length === 1 ? analyzeRoute(selGraphs[0]) : null;
 
   const trashSel = async () => {
     for (const id of sel) await run(() => post(`/api/graphs/${id}/trash`, { trashed: true }));
@@ -64,20 +72,9 @@ export function GraphLibrary() {
         <div style={{ width: 'min(300px, 36vw)' }}>
           <Input icon="search" size="sm" value={q} onValue={setQ} placeholder={t('graphs.search')} aria-label={t('graphs.search')} />
         </div>
-        <Seg
-          size="sm"
-          value={kind}
-          onValue={setKind}
-          label={t('graphs.kind')}
-          options={[
-            { value: 'all', label: t('ui.all') },
-            { value: 'dls_distribution', label: t('graph.kind.dls_distribution') },
-            { value: 'series_values', label: t('graph.kind.series_values') },
-            { value: 'parameter_time', label: t('graph.kind.parameter_time') },
-            { value: 'dls_by_time', label: t('graph.kind.dls_by_time') },
-            { value: 'statistical_groups', label: t('graph.kind.statistical_groups') },
-          ]}
-        />
+        <div class="graphs-kind" style={{ width: 'min(220px, 24vw)' }}>
+          <Select size="sm" value={kind} onValue={setKind} label={t('graphs.kind')} options={[{ value: 'all', label: t('graphs.kind.all') }, ...KINDS.map((k) => ({ value: k, label: t('graph.kind.' + k) }))]} />
+        </div>
         <span class="spacer" />
         {sel.length > 0 &&
           (trash ? (
@@ -97,15 +94,18 @@ export function GraphLibrary() {
               <Button size="sm" icon="copy" class="graphs-duplicate" tip={t('gb.duplicate.d')} onClick={duplicateSel}>
                 {t('graphs.duplicate')}
               </Button>
+              <Button size="sm" icon="layers" class="graphs-combine" disabled={!canCombine} tip={t('gb.combine.d')} onClick={() => setCombine(sel)}>
+                {t('graphs.combine')}
+              </Button>
+              {analyze && (
+                <Button size="sm" icon="sigma" class="graphs-analyze" tip={t('gb.analyze.d')} onClick={() => navigate(analyze)}>
+                  {t('gb.analyze')}
+                </Button>
+              )}
               {selMeasurements.length > 0 && (
-                <>
-                  <Button size="sm" icon="layers" onClick={() => navigate('/ls/graphs/new?m=' + selMeasurements.join(','))}>
-                    {t('files.compare')}
-                  </Button>
-                  <Button size="sm" icon="cycle" onClick={() => openPanel('cycle-wizard', { measurements: selMeasurements })}>
-                    {t('files.cycle')}
-                  </Button>
-                </>
+                <Button size="sm" icon="cycle" onClick={() => openPanel('cycle-wizard', { measurements: selMeasurements })}>
+                  {t('files.cycle')}
+                </Button>
               )}
               <Button size="sm" icon="download" onClick={() => openPanel('export', { items: sel.map((id) => ({ kind: 'graph', id })) })}>
                 {t('ui.export')}
@@ -164,6 +164,7 @@ export function GraphLibrary() {
           )}
         </div>
       </div>
+      {combine && <CombineDialog ids={combine} onClose={() => (setCombine(null), setSel([]))} />}
     </>
   );
 }
@@ -188,8 +189,8 @@ function GraphCard(p: { g: GraphDef; on: boolean; onToggle: () => void; cycle?: 
             </Badge>
           )}
           {!!g.derivedFrom?.length && (
-            <Badge kind="info" icon="history" tip={t('gb.derived_from', { name: g.derivedFrom[0].title || '—' })}>
-              {t('gb.copy')}
+            <Badge kind="info" icon={g.derivedFrom.some((l) => l.relation === 'combine') ? 'layers' : 'history'} tip={g.derivedFrom.map((l) => t('gb.derived_from', { name: l.title || '—' })).join(' · ')}>
+              {g.derivedFrom.some((l) => l.relation === 'combine') ? t('gc.badge') : t('gb.copy')}
             </Badge>
           )}
         </div>
