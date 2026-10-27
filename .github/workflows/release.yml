@@ -77,7 +77,7 @@ jobs:
         env:
           AUDIT_TERMS: ${{ secrets.AUDIT_TERMS }}
         run: |
-          if [ -n "$AUDIT_TERMS" ]; then printf '%s\n' "$AUDIT_TERMS" > "$RUNNER_TEMP/terms"; export AUDIT_TERMS_FILE="$RUNNER_TEMP/terms"
+          if [ -n "$AUDIT_TERMS" ]; then printf '%s' "$AUDIT_TERMS" | base64 -d > "$RUNNER_TEMP/terms"; export AUDIT_TERMS_FILE="$RUNNER_TEMP/terms"
           else echo '::warning title=Unwanted terms not checked::Audit the draft packages with the terms list before publishing.'; fi
           scripts/audit.sh out web/dist
       - name: Package

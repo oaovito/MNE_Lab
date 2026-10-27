@@ -802,7 +802,7 @@ checkout and rejects shallow histories:
   artifact;
 - `scripts/audit.sh` on the tree, the history and the builds: secrets,
   private files, build-machine paths and the unwanted-terms list supplied
-  through the `AUDIT_TERMS` secret. Names are matched literally and after
+  through the `AUDIT_TERMS` secret (base64 of the list). Names are matched literally and after
   Unicode folding; binary blobs, UTF-16 text, ZIP-based files (also behind
   a prefix), tar archives and gzip, bzip2 and xz streams in the index, every
   revision and every annotated tag are opened, and archive formats it cannot
