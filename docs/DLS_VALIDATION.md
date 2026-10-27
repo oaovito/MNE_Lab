@@ -1,13 +1,13 @@
 # DLS evidence and validation scope
 
-The current parser is `lightscattering-parser/1.6.0`, with
+The current parser is `lightscattering-parser/1.7.0`, with
 `ls-spec/0.3-provisional`. The evidence below tests faithful extraction from
 the available private reports with version 1.4.0; it was not re-run for 1.5.0,
 which only stops reading ambiguous labels (`Count Rate`, `PDI`, a bare
 `Date`/`Time`) and keeps declared units as written. The labels compared below
 are read the same way. Version 1.6.0 adds the Effective Diameter unit from the
 runs table header of the same report (see SCIENTIFIC_RULES.md); on the 54
-private reports it found `nm` for every Effective Diameter and changed no value. It does not validate the instrument's acquisition
+private reports it found `nm` for every Effective Diameter and changed no value. Version 1.7.0 only adds read-only instrument readings from an explicit runs table (see SCIENTIFIC_RULES.md); the summary values of every public and synthetic fixture are identical to 1.6.0, and it was not re-run on the private reports. It does not validate the instrument's acquisition
 or analysis algorithms. Original files, identifiers, values and per-file proofs
 remain in the private recovery package, outside the repository and builds.
 

@@ -80,7 +80,9 @@ Cycle → New analysis or LIGHTSCATTERING → Statistical analyses opens the
 editor. Cycle associations only supply time levels for already confirmed or
 automatic valid assignments. The user reviews factors and explicitly decides
 whether observations are independent or repeated; unit identity is never
-inferred from names, replicate numbers or dates.
+inferred silently from names, replicate numbers or dates. An experimental
+design may propose units from names, but only as a preview the person
+confirms or corrects.
 
 The core builds a profile-scoped source snapshot. Missing quantities remain
 missing; exclusion reasons persist; units must match exactly. No automatic

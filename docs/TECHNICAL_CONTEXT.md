@@ -45,6 +45,8 @@ interface translates.
 | `internal/science/graph` | Graph Engine. |
 | `internal/science/cycle` | Cycles (temporal studies). |
 | `internal/science/stats` | Descriptive statistics. |
+| `internal/science/design` | Experimental designs: units, conditions, time points, replicate kinds, pairing, immutable revisions, structure detection and name suggestions that need confirmation. |
+| `internal/science/series` | Series catalog: deterministic SeriesIDs for scalar, curve and instrument-reading series, resolved against a design. |
 | `internal/science/reference` | Scientific specifications used, for provenance. |
 | `internal/plot` | Layout of a graph as a renderer-neutral display list; the same list is drawn on screen and written to SVG, PDF and raster files. |
 | `internal/export` | Smart Export engine. |
@@ -488,6 +490,24 @@ formula are neutralized. The research package for a cycle is one ZIP with a
 README, a manifest with checksums, the original files, normalized data,
 statistics, graphs (SVG, PDF, PNG) and provenance.
 
+### Experimental designs and series
+
+Designs live in the synced collection `science.design`; every save is a new
+immutable record (`root`, `revision`, `previousId`, `changes`), so two
+machines that edit the same revision keep both heads and show them as
+diverged instead of overwriting one. Instrument readings of a runs table live
+in `ls.reading`, one record per file, written at import and backfilled from
+the stored original for earlier imports. Neither collection changes a
+measurement. `GET /api/series` lists the series of the library (optionally
+`design=`, `file=`, `q=`); a SeriesID is `m:<measurement>/p:<parameter>` for a
+summary quantity, `m:<measurement>/d:<distribution>/w:<weighting>` for a
+distribution curve and `m:<measurement>/r:<run>/p:<parameter>` for an
+instrument reading, built only from stable identifiers, never from labels.
+Design endpoints (`/api/designs`, `/api/designs/review`,
+`/api/designs/suggest`, `PATCH /api/experimental-units/{id}`) require the
+account and profile headers, like statistical analyses. See
+[SCIENTIFIC_RULES.md](SCIENTIFIC_RULES.md) for the rules.
+
 ### Statistical analyses
 
 LIGHTSCATTERING includes profile-scoped, reviewed ANOVA definitions and
@@ -557,7 +577,9 @@ uncertainty rather than inventing a field or an algorithm.
 | Identifier | Status |
 |---|---|
 | `ls-spec/0.3-provisional` | Product field list; owner references consulted, instrument layout and semantic validation ongoing. |
-| `lightscattering-parser/1.6.0` | Parser version recorded in provenance. |
+| `lightscattering-parser/1.7.0` | Parser version recorded in provenance. |
+| `experimental-design/1` | Experimental design record version. |
+| `series-catalog/1` | Series catalog (SeriesID scheme) version. |
 | `graph-engine/1.1.0` | Graph Engine version recorded in provenance. |
 
 ## 19. Tests

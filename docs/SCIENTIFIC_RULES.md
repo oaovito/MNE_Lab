@@ -1,6 +1,6 @@
 # LIGHTSCATTERING scientific rules
 
-The current parser is `lightscattering-parser/1.6.0`, using
+The current parser is `lightscattering-parser/1.7.0`, using
 `ls-spec/0.3-provisional`. The owner-supplied scientific reference has been
 consulted privately; interpretation of instrument algorithms and undocumented
 fields remains provisional. Development validation uses private experimental corpora outside the source
@@ -66,6 +66,57 @@ Instrument `d(nm)` is diameter in nanometers. `G(d)` is retained as relative
 intensity with its original precision and no assumed percentage normalization.
 `C(d)` remains an unmapped auxiliary field. No conversion to volume or number
 weighting is inferred.
+
+## Instrument readings (runs table)
+
+Version 1.7.0 also keeps the rows of a NanoBrook runs table as read-only
+instrument readings, and only when the file has an explicit runs table: a
+header line naming its columns followed by numbered rows. Each reading keeps
+the run number, the source line, the header text and the header unit exactly
+as written, and every cell exactly as written next to the number read from it.
+Rows labelled `Mean`, `Combined` or similar are not readings. A second runs
+table in the same report is ignored with the warning
+`ls.run_table_ignored`. Files without a runs table get no readings; nothing is
+derived from the summary values. The summary quantities of the measurement are
+read exactly as in 1.6.0; the readings never replace or change them.
+
+Readings are technical readings of one measurement. They are never
+experimental units, never observations of a design and never count toward N:
+twelve runs of one sample are one measurement of one preparation. Files
+imported with an earlier parser version get their readings from the stored
+original when the profile opens, only when the re-read summary of every
+measurement matches the stored one value for value; otherwise they get none.
+
+## Experimental design
+
+A design (LIGHTSCATTERING → Designs) records, without touching any
+measurement, which experimental unit (an independent preparation) each
+measurement belongs to, its condition and its time point, which measurements
+are only technical repeats of their unit's observation, and which conditions
+are paired. A condition may be declared as derived from another one of the
+same preparation (for example C-SR obtained from F-SR by centrifugation); its
+measurements are then paired with the base condition within each unit, and a
+pair never joins two units. Time is a factor within the unit when the same
+units are measured at every time point.
+
+N is the number of experimental units. Technical repeats are listed with
+their unit's observation and never add to N; two experimental replicates of
+one unit in one cell are flagged as an error of the design, as are units that
+exist only under one condition when the names suggest the same preparation
+(pseudoreplication). The detected structure (paired, longitudinal, paired
+longitudinal or independent groups) is a review aid; no analysis is chosen or
+run from it automatically.
+
+Every save is a new immutable revision that keeps the field-level changes
+from the previous one (which measurement, which field, before and after) and
+an optional reason. A save against a revision that is no longer current is
+refused, so a change made meanwhile elsewhere is never overwritten.
+
+Units, conditions and times are never inferred silently from file names,
+sample names or labels. The suggestion reads only the levels and units the
+person declared (plus one short remaining word as a possible new unit name),
+shows the text it read each proposal from, stores nothing, and applies only
+the proposals the person confirms; every part can be corrected afterwards.
 
 ## Time and replication
 

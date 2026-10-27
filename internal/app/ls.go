@@ -161,6 +161,11 @@ func (p *Profile) importSelected(name string, data []byte, force bool, selection
 				return err
 			}
 		}
+		if strings.HasPrefix(f.Parser, "lightscattering-parser/") && selection == nil {
+			if _, err := t.Put(CollReadings, f.ID, fileReadings(f, r.Readings, f.Measurements)); err != nil {
+				return err
+			}
+		}
 		_, err = t.Put(CollFiles, f.ID, f)
 		return err
 	})
@@ -403,6 +408,11 @@ func (p *Profile) DeleteFile(id string) error {
 				if err := t.Delete(CollMeasurements, mid); err != nil {
 					return err
 				}
+			}
+		}
+		if _, err := t.Get(CollReadings, id, nil); err == nil {
+			if err := t.Delete(CollReadings, id); err != nil {
+				return err
 			}
 		}
 		if err := t.Delete(CollFiles, id); err != nil {
