@@ -364,8 +364,25 @@ base background, accent for selection, focus, icons, toggles and bars, deep
 accent for text, tooltips and the start-screen panel. The dark theme is
 derived from #143A52. Small accent text (`--accent-text`) and filled controls
 with white labels (`--accent-fill`) use slightly deeper shades of the accent,
-because white on #2C7FB8 is 4.3:1, below WCAG AA for normal text. Scientific
-figures keep their own colorblind-safe series palette and white paper. The
+because white on #2C7FB8 is 4.3:1, below WCAG AA for normal text. Surfaces
+are flat in both themes: no decorative gradients, glows or neon; the dark
+theme uses muted status colours (decision D10 of 2026-10-21, owner addenda
+A §49-51 and B §54-57). Scientific figures keep white paper and their own
+series palette (`internal/plot/style.go`): #2C7FB8, restrained rust, muted
+teal, #143A52, ochre, graphite, plum, wine, pale steel and slate indigo, in
+an order where the first six differ by at least 7 L* in grayscale and all
+ten stay apart under simulated protanopia, deuteranopia and tritanopia;
+past ten series, restrained colours are generated in OKLCH (golden-angle
+hues, no green band). Series are never told apart by colour alone: curves
+get distinct line patterns (solid, dashed, dotted, dash-dot, long dash,
+dash-dot-dot) and, when two visible curves would share a pattern, a few
+identity markers on real data points; means and replicates of temporal
+graphs get distinct marker shapes (circle, square, triangle, diamond,
+inverted triangle, cross) and patterns. Saved per-series `marker` and
+`lineStyle` override these defaults. The legend lists the visible series
+(default), all series (hidden ones muted) or only `visual.legendSeries`
+(`visual.legendMode` `selected`); what does not fit, or is not listed, is
+counted as "+N more", so many series never take the plot area. The
 icon, set by the owner on 2026-10-15, is a hammerhead shark seen from above
 in #143A52 on a light #F4F8FA tile, inside a fine goniometer-style graticule
 (the angle scale of light-scattering instruments) with one #2C7FB8 accent;
