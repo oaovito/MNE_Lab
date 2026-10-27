@@ -3,6 +3,7 @@ package design
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -215,5 +216,34 @@ func TestSuggestionIsAProposalFromNames(t *testing.T) {
 	}
 	if s := byID["6"]; !s.NewUnit || s.UnitLabel != "D" || s.UnitID != "" || s.Time != "Day 7" {
 		t.Fatalf("6: %+v", s)
+	}
+}
+
+// Time points follow their offsets (0, 7, 14, 21), never the byte order of
+// their labels (0, 14, 21, 7); labels without numbers come last.
+func TestTimeOrderFollowsOffsets(t *testing.T) {
+	times := []TimeLevel{{Label: "0", Offset: f(0), Unit: "days"}, {Label: "14", Offset: f(14), Unit: "days"}, {Label: "21", Offset: f(21), Unit: "days"}, {Label: "7", Offset: f(7), Unit: "days"}}
+	if got := strings.Join(OrderTimeLabels([]string{"0", "14", "21", "7"}, times), ","); got != "0,7,14,21" {
+		t.Fatalf("by offset: %s", got)
+	}
+	// Offsets decide even when the labels say otherwise.
+	named := []TimeLevel{{Label: "baseline", Offset: f(0), Unit: "days"}, {Label: "late", Offset: f(21), Unit: "days"}, {Label: "early", Offset: f(7), Unit: "days"}}
+	if got := strings.Join(OrderTimeLabels([]string{"late", "early", "baseline"}, named), ","); got != "baseline,early,late" {
+		t.Fatalf("named offsets: %s", got)
+	}
+	// Without offsets: leading numbers, then the rest in byte order.
+	if got := strings.Join(OrderTimeLabels([]string{"21 days", "post", "7 days", "0 days", "14 days", "pre"}, nil), ","); got != "0 days,7 days,14 days,21 days,post,pre" {
+		t.Fatalf("labels: %s", got)
+	}
+	d := Design{Times: times}
+	var got []string
+	for _, tl := range d.OrderedTimes() {
+		got = append(got, tl.Label)
+	}
+	if strings.Join(got, ",") != "0,7,14,21" {
+		t.Fatalf("design times: %v", got)
+	}
+	if got := strings.Join(OrderConditionLabels([]string{"C-SR", "X", "F-SR"}, []Condition{{Label: "F-SR"}, {Label: "C-SR"}}), ","); got != "F-SR,C-SR,X" {
+		t.Fatalf("conditions: %s", got)
 	}
 }

@@ -35,6 +35,20 @@ var (
 // SaveGraph creates or updates a reproducible graph definition (files,
 // series, parameters, scale and visual configuration — never just an image).
 func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
+	return p.saveGraph(def, "", "")
+}
+
+// saveGraph saves def. With duplicateOf it saves def as a new graph derived
+// from that saved graph (Duplicate of the editor's current state): the
+// parent record is only read, for its lineage hash and for what only the
+// server writes (combined parts, pinned groups).
+func (p *Profile) saveGraph(def graph.Definition, duplicateOf, title string) (graph.Definition, error) {
+	if duplicateOf != "" {
+		def.ID = ""
+		if title = clean(title, 160); title != "" {
+			def.Title = title
+		}
+	}
 	if err := normalizeSelection(&def); err != nil {
 		return def, err
 	}
@@ -56,6 +70,11 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 	case graph.KindParameterTime, graph.KindDistributionAt:
 		if def.CycleID == "" {
 			return def, ErrNoCycle
+		}
+		if def.ErrorBars == "sem" || def.ErrorBars == "ci" {
+			// n at a cycle point counts measurements, not experimental
+			// units (SEM), and a CI needs a saved analysis: SD is drawn.
+			def.ErrorBars = "sd"
 		}
 	case graph.KindDesignTime, graph.KindPairedCondition:
 		if def.DesignID == "" {
@@ -86,6 +105,27 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 		def.Visual = graph.DefaultVisual()
 	}
 	err := p.St.Update(func(t *store.Tx) error {
+		// The stored record this save builds on: the graph itself, or the
+		// graph being duplicated.
+		var old *graph.Definition
+		var parent graph.Lineage
+		if duplicateOf != "" {
+			var src graph.Definition
+			rec, err := t.Get(CollGraphs, duplicateOf, &src)
+			if err != nil {
+				return err
+			}
+			if src.Trashed {
+				return ErrGraphTrashed
+			}
+			old = &src
+			parent = graph.Lineage{GraphID: src.ID, Relation: graph.RelationDuplicate, Title: src.Title, DefinitionHash: graph.Hash(rec.Data), At: now}
+		} else if def.ID != "" {
+			var stored graph.Definition
+			if _, err := t.Get(CollGraphs, def.ID, &stored); err == nil {
+				old = &stored
+			}
+		}
 		if def.Kind == graph.KindStatistical {
 			var saved analysis.StatisticalAnalysis
 			if _, err := t.Get(CollAnalyses, def.AnalysisID, &saved); err != nil {
@@ -105,14 +145,29 @@ func (p *Profile) SaveGraph(def graph.Definition) (graph.Definition, error) {
 			}
 		}
 		if def.Kind == graph.KindDesignTime || def.Kind == graph.KindPairedCondition {
-			if err := checkDesignGraphTx(t, &def); err != nil {
+			// Combined parts are written only by Combine: they come from
+			// the stored record, never from the client.
+			def.Parts = nil
+			var pinned []graph.GroupSnapshot
+			if old != nil && (old.Kind == graph.KindDesignTime || old.Kind == graph.KindPairedCondition) && old.DesignID == def.DesignID {
+				if def.Kind == graph.KindDesignTime {
+					def.Parts = old.Parts
+				}
+				pinned = old.GroupSnapshots
+			}
+			if err := checkDesignGraphTx(t, &def, pinned); err != nil {
 				return err
 			}
+		} else {
+			def.GroupSnapshots, def.Parts = nil, nil
 		}
 		// Lineage is written only by the server (Duplicate); a client can
 		// neither invent nor drop it.
 		def.DerivedFrom = nil
-		if def.ID == "" {
+		if duplicateOf != "" {
+			def.ID, def.Created = secure.NewID(), now
+			def.DerivedFrom = []graph.Lineage{parent}
+		} else if def.ID == "" {
 			def.ID, def.Created = secure.NewID(), now
 		} else {
 			var old graph.Definition
@@ -234,8 +289,10 @@ func designOfGraphTx(t *store.Tx, id string) (design.Design, error) {
 
 // checkDesignGraphTx verifies a design graph against its design, groups
 // and linked analysis, and derives the measurements it reads (references
-// for relations, exports and the source snapshot).
-func checkDesignGraphTx(t *store.Tx, def *graph.Definition) error {
+// for relations, exports and the source snapshot). The members of its
+// groups are pinned in the definition (pinned: the snapshots already
+// stored for this graph); a combined graph keeps its parents' parts.
+func checkDesignGraphTx(t *store.Tx, def *graph.Definition, pinned []graph.GroupSnapshot) error {
 	d, err := designOfGraphTx(t, def.DesignID)
 	if err != nil {
 		return err
@@ -256,19 +313,34 @@ func checkDesignGraphTx(t *store.Tx, def *graph.Definition) error {
 	} else {
 		def.PairedAt = ""
 	}
-	members, err := groupMembersTx(t, def.Groups)
-	if err != nil {
-		return err
+	din := graph.DesignInput{Design: d}
+	if len(def.Parts) > 0 {
+		// Each part draws what its parent drew; the union of conditions
+		// and groups is kept for older readers and relations.
+		def.Conditions, def.Groups, def.GroupSnapshots = nil, nil, nil
+		for _, part := range def.Parts {
+			for _, c := range part.Conditions {
+				if !labels[c] {
+					return graph.ErrUnknownCondition
+				}
+				if !contains(def.Conditions, c) {
+					def.Conditions = append(def.Conditions, c)
+				}
+			}
+			for _, g := range part.Groups {
+				if !contains(def.Groups, g.ID) {
+					def.Groups = append(def.Groups, g.ID)
+				}
+			}
+		}
+	} else {
+		if def.GroupSnapshots, err = pinGroupsTx(t, def.Groups, def.GroupSnapshots, pinned); err != nil {
+			return err
+		}
+		din.Members = pinnedMembers(def.GroupSnapshots)
 	}
-	def.Measurements = []string{}
-	for _, a := range d.Assignments {
-		if members != nil && !members[a.MeasurementID] {
-			continue
-		}
-		if len(def.Conditions) > 0 && !contains(def.Conditions, a.Condition) {
-			continue
-		}
-		def.Measurements = append(def.Measurements, a.MeasurementID)
+	if def.Measurements, err = graph.DesignMeasurements(*def, din); err != nil {
+		return err
 	}
 	if def.AnalysisID != "" {
 		var saved analysis.StatisticalAnalysis
@@ -284,8 +356,100 @@ func checkDesignGraphTx(t *store.Tx, def *graph.Definition) error {
 		if err := graph.ValidateDesignAnnotations(*def, saved, d); err != nil {
 			return err
 		}
+		// An interval or brackets of the analysis are drawn only around
+		// the values it analysed.
+		in := graph.Input{Measurements: map[string]model.Measurement{}}
+		for _, id := range def.Measurements {
+			var m model.Measurement
+			if _, err := t.Get(CollMeasurements, id, &m); err == nil {
+				in.Measurements[id] = m
+			}
+		}
+		din.Analysis = &saved
+		if err := graph.CheckAnalysisData(*def, in, din); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// pinGroupsTx returns the member snapshots of a graph's groups. A snapshot
+// the graph already holds is kept, so the graph redraws the same
+// measurements after a group is edited; a group without one is pinned with
+// its current members. A snapshot sent by the client is accepted only when
+// it is the stored one or the group's current members (the person chose to
+// follow the group's change).
+func pinGroupsTx(t *store.Tx, ids []string, sent, stored []graph.GroupSnapshot) ([]graph.GroupSnapshot, error) {
+	find := func(list []graph.GroupSnapshot, id string) (graph.GroupSnapshot, bool) {
+		for _, g := range list {
+			if g.ID == id {
+				return g, true
+			}
+		}
+		return graph.GroupSnapshot{}, false
+	}
+	var out []graph.GroupSnapshot
+	for _, id := range ids {
+		var g Group
+		if _, err := t.Get(CollGroups, id, &g); err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return nil, ErrGroupMissing
+			}
+			return nil, err
+		}
+		live := graph.PinGroup(g.ID, g.Name, g.Measurements)
+		old, hasOld := find(stored, id)
+		if s, ok := find(sent, id); ok {
+			switch graph.MembersHash(s.Measurements) {
+			case live.Hash:
+				out = append(out, live)
+			case old.Hash:
+				if !hasOld {
+					return nil, analysis.ErrDefinition
+				}
+				out = append(out, old)
+			default:
+				return nil, analysis.ErrDefinition
+			}
+			continue
+		}
+		if hasOld {
+			out = append(out, old)
+		} else {
+			out = append(out, live)
+		}
+	}
+	return out, nil
+}
+
+// pinnedMembers is the union of pinned group members (nil: no group).
+func pinnedMembers(gs []graph.GroupSnapshot) map[string]bool {
+	if len(gs) == 0 {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, g := range gs {
+		for _, m := range g.Measurements {
+			out[m] = true
+		}
+	}
+	return out
+}
+
+// changedGroupsTx names the pinned groups whose current members differ
+// from the pinned ones (or that no longer exist).
+func changedGroupsTx(t *store.Tx, def graph.Definition) []string {
+	var out []string
+	for _, s := range def.PinnedGroups() {
+		var g Group
+		if _, err := t.Get(CollGroups, s.ID, &g); err != nil || graph.MembersHash(g.Measurements) != s.Hash {
+			name := firstNonEmpty(s.Name, g.Name, s.ID)
+			if !contains(out, name) {
+				out = append(out, name)
+			}
+		}
+	}
+	return out
 }
 
 // normalizeSelection checks a selection by SeriesID and derives the
@@ -407,6 +571,13 @@ func snapshotVersions(t *store.Tx, def *graph.Definition) {
 		}
 	}
 	sort.Strings(def.ParserVersions)
+}
+
+// DuplicateEdited saves the editor's current state of a saved graph as a new
+// graph derived from it. The saved graph is only read: its unsaved edits go
+// into the copy, never into it.
+func (p *Profile) DuplicateEdited(id, title string, edited graph.Definition) (graph.Definition, error) {
+	return p.saveGraph(edited, id, title)
 }
 
 // DuplicateGraph copies a saved graph into a new, independent definition
@@ -577,13 +748,29 @@ func (p *Profile) designInput(def graph.Definition) (graph.DesignInput, []string
 		if din.UnitLabels, err = unitLabelsTx(t); err != nil {
 			return err
 		}
-		if din.Members, err = groupMembersTx(t, def.Groups); err != nil {
-			return err
-		}
-		for _, a := range d.Assignments {
-			if din.Members == nil || din.Members[a.MeasurementID] {
-				ids = append(ids, a.MeasurementID)
+		// The members pinned when the graph was saved; a graph saved
+		// before pinning reads the group as it is now.
+		snaps := def.GroupSnapshots
+		var unpinned []string
+		for _, id := range def.Groups {
+			found := false
+			for _, s := range snaps {
+				found = found || s.ID == id
 			}
+			if !found && len(def.Parts) == 0 {
+				unpinned = append(unpinned, id)
+			}
+		}
+		if len(unpinned) > 0 {
+			if snaps, err = pinGroupsTx(t, unpinned, nil, snaps); err != nil {
+				return err
+			}
+			snaps = append(append([]graph.GroupSnapshot(nil), def.GroupSnapshots...), snaps...)
+		}
+		din.Members = pinnedMembers(snaps)
+		din.GroupsChanged = changedGroupsTx(t, def)
+		if ids, err = graph.DesignMeasurements(def, din); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -969,9 +1156,12 @@ type GraphRel struct {
 	// ChangedParents are parents whose stored definition changed since
 	// this graph was derived (changes never propagate on their own).
 	ChangedParents []string `json:"changedParents,omitempty"`
-	Design         string   `json:"design,omitempty"`
-	Groups         []string `json:"groups,omitempty"`
-	Analysis       string   `json:"analysis,omitempty"`
+	// ChangedGroups name the groups whose members changed since this graph
+	// pinned them (the graph keeps drawing the pinned members).
+	ChangedGroups []string `json:"changedGroups,omitempty"`
+	Design        string   `json:"design,omitempty"`
+	Groups        []string `json:"groups,omitempty"`
+	Analysis      string   `json:"analysis,omitempty"`
 }
 
 // CycleRel lists what a cycle uses and what uses it.
@@ -1082,6 +1272,12 @@ func (p *Profile) Relations() (Relations, error) {
 			}
 		}
 		gr.Design, gr.Groups, gr.Analysis = g.DesignID, g.Groups, g.AnalysisID
+		if len(g.PinnedGroups()) > 0 {
+			p.St.View(func(t *store.Tx) error {
+				gr.ChangedGroups = changedGroupsTx(t, g)
+				return nil
+			})
+		}
 		r.Graphs[g.ID] = gr
 		for _, f := range gr.Files {
 			addFile(f, func(fr *FileRel) { fr.Graphs = append(fr.Graphs, g.ID) })
@@ -1221,13 +1417,26 @@ func (p *Profile) CombineGraphs(ids []string, title, displayUnit string) (graph.
 			hashes[i] = graph.Hash(rec.Data)
 		}
 		now := time.Now().UTC()
-		c, err := graph.Combine(defs, hashes, clean(title, 160), ck, secure.NewID(), now)
+		parents := make([]graph.Definition, len(defs))
+		for i, d := range defs {
+			parents[i] = d
+			if d.Kind == graph.KindDesignTime && len(d.Parts) == 0 && len(d.GroupSnapshots) < len(d.Groups) {
+				// A parent saved before groups were pinned: its groups as
+				// they are now, which is what it currently draws.
+				snaps, err := pinGroupsTx(t, d.Groups, nil, d.GroupSnapshots)
+				if err != nil {
+					return err
+				}
+				parents[i].GroupSnapshots = snaps
+			}
+		}
+		c, err := graph.Combine(parents, results, hashes, clean(title, 160), ck, secure.NewID(), now)
 		if err != nil {
 			return err
 		}
 		switch c.Kind {
 		case graph.KindDesignTime:
-			if err := checkDesignGraphTx(t, &c); err != nil {
+			if err := checkDesignGraphTx(t, &c, nil); err != nil {
 				return err
 			}
 		default:

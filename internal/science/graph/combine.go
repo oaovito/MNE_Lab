@@ -39,6 +39,9 @@ const (
 	CombineNoData    = "graph.combine_no_data"
 	CombineTrashed   = "graph.combine_trashed"
 	CombineUnitFixed = "graph.combine_display_unit_invalid"
+	// CombineOverlap: two design graphs draw the same condition from
+	// different units or groups; one series cannot show both.
+	CombineOverlap = "graph.combine_parts_overlap"
 	// Notes that do not block it.
 	CombineErrorBarsNote = "graph.combine_error_bars_first"
 	CombineAnalysisNote  = "graph.combine_annotations_dropped"
@@ -168,6 +171,11 @@ func CheckCombine(parents []Definition, results []Result, displayUnit string) Co
 	if len(ck.XUnits) > 1 {
 		problem(CombineXDomain)
 	}
+	if ck.Kind == KindDesignTime && !contains(ck.Problems, CombineKind) {
+		if _, err := combineParts(parents, results); err != nil {
+			problem(CombineOverlap)
+		}
+	}
 	sort.Strings(ck.Units)
 	if len(ck.Units) > 1 {
 		// Units differ: an exact display conversion is offered where the
@@ -200,10 +208,69 @@ func combineLineage(p Definition, hash string, at time.Time) Lineage {
 	return Lineage{GraphID: p.ID, Relation: RelationCombine, Title: p.Title, DefinitionHash: hash, At: at}
 }
 
-// Combine builds the new definition. hashes are the SHA-256 of the stored
-// parent records, in the same order. The caller checks compatibility first.
-func Combine(parents []Definition, hashes []string, title string, ck CombineCheck, id string, now time.Time) (Definition, error) {
-	if !ck.Compatible || len(parents) != len(hashes) || len(parents) < 2 {
+// drawnConditions are the conditions a computed design graph drew.
+func drawnConditions(r Result) []string {
+	var out []string
+	for _, s := range r.Series {
+		if c := s.Meta["condition"]; s.Kind == "mean" && c != "" && !contains(out, c) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// PinnedGroups lists every group snapshot of a definition: its own and
+// those of its parts.
+func (def Definition) PinnedGroups() []GroupSnapshot {
+	out := append([]GroupSnapshot(nil), def.GroupSnapshots...)
+	for _, p := range def.Parts {
+		out = append(out, p.Groups...)
+	}
+	return out
+}
+
+// combineParts lists what each parent of a combined design graph drew: its
+// own parts when it is itself combined, otherwise the conditions it drew
+// with its pinned groups. A condition drawn by two parents from different
+// measurements is refused (ErrPartsOverlap); drawn identically, it is kept
+// once.
+func combineParts(parents []Definition, results []Result) ([]DesignPart, error) {
+	var parts []DesignPart
+	for i, p := range parents {
+		if len(p.Parts) > 0 {
+			parts = append(parts, p.Parts...)
+			continue
+		}
+		parts = append(parts, DesignPart{GraphID: p.ID, Title: p.Title, Conditions: drawnConditions(results[i]), Groups: append([]GroupSnapshot(nil), p.GroupSnapshots...)})
+	}
+	owner := map[string]map[string]bool{}
+	var out []DesignPart
+	for _, part := range parts {
+		members := snapshotMembers(part.Groups)
+		var conds []string
+		for _, c := range part.Conditions {
+			if prev, ok := owner[c]; ok {
+				if !sameMembers(prev, members) {
+					return nil, ErrPartsOverlap
+				}
+				continue
+			}
+			owner[c] = members
+			conds = append(conds, c)
+		}
+		if len(conds) > 0 {
+			part.Conditions = conds
+			out = append(out, part)
+		}
+	}
+	return out, nil
+}
+
+// Combine builds the new definition. results are the parents' computed
+// graphs and hashes the SHA-256 of the stored parent records, in the same
+// order. The caller checks compatibility first.
+func Combine(parents []Definition, results []Result, hashes []string, title string, ck CombineCheck, id string, now time.Time) (Definition, error) {
+	if !ck.Compatible || len(parents) != len(hashes) || len(parents) != len(results) || len(parents) < 2 {
 		return Definition{}, ErrCombine
 	}
 	first := parents[0]
@@ -284,6 +351,25 @@ func Combine(parents []Definition, hashes []string, title string, ck CombineChec
 	}
 	if allGroups {
 		c.Groups = nil
+	}
+	if first.Kind == KindDesignTime {
+		// Each series shows exactly what its parent showed: the parts keep
+		// every parent's conditions with its own pinned groups; the union
+		// above remains for older readers and for relations.
+		parts, err := combineParts(parents, results)
+		if err != nil {
+			return Definition{}, ErrCombine
+		}
+		c.Parts = parts
+		c.Conditions, c.Groups, c.GroupSnapshots = nil, nil, nil
+		for _, part := range parts {
+			c.Conditions = append(c.Conditions, part.Conditions...)
+			for _, g := range part.Groups {
+				if !contains(c.Groups, g.ID) {
+					c.Groups = append(c.Groups, g.ID)
+				}
+			}
+		}
 	}
 	if c.Measurements == nil {
 		c.Measurements = []string{}

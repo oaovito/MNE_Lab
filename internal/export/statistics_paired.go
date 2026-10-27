@@ -41,8 +41,9 @@ func designMeta(a analysis.StatisticalAnalysis) []KV {
 				names = append(names, unitName(a, o.UnitID))
 			}
 		}
+		levelsA, levelsB := a.Snapshot.OrderedLevels()
 		out = append(out, KV{Key: "experimentalUnits", Label: "Independent experimental units (N)", Value: fmt.Sprint(layout.ExperimentalUnits)}, KV{Key: "unitNames", Label: "Experimental units", Value: strings.Join(names, "; ")},
-			KV{Key: "factorA", Label: "Factor A (" + def.FactorAName + ") levels", Value: strings.Join(layout.LevelsA, "; ")}, KV{Key: "factorB", Label: "Factor B (" + def.FactorBName + ") levels", Value: strings.Join(layout.LevelsB, "; ")})
+			KV{Key: "factorA", Label: "Factor A (" + def.FactorAName + ") levels", Value: strings.Join(levelsA, "; ")}, KV{Key: "factorB", Label: "Factor B (" + def.FactorBName + ") levels", Value: strings.Join(levelsB, "; ")})
 	}
 	if def.Design == analysis.DesignWithinWithin {
 		out = append(out, KV{Key: "technicalReadingCells", Label: "Unit cells with several technical readings (averaged, never counted as N)", Value: fmt.Sprint(layout.TechnicalReadingCells)})
@@ -71,7 +72,7 @@ func designTable(a analysis.StatisticalAnalysis) Table {
 			}
 			t.Rows = append(t.Rows, []Cell{text("condition"), text(v)})
 		}
-		for _, tl := range d.Times {
+		for _, tl := range d.OrderedTimes() {
 			v := tl.Label
 			if tl.Offset != nil {
 				v += fmt.Sprintf(" (%g %s)", *tl.Offset, tl.Unit)

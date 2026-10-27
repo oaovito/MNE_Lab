@@ -12,6 +12,7 @@ import (
 	"github.com/oaovito/mne_lab/internal/science/analysis"
 	"github.com/oaovito/mne_lab/internal/science/design"
 	"github.com/oaovito/mne_lab/internal/science/model"
+	"github.com/oaovito/mne_lab/internal/science/units"
 )
 
 func fp(v float64) *float64 { return &v }
@@ -231,11 +232,18 @@ func TestPairedConditionJoinsUnits(t *testing.T) {
 	}
 }
 
-func savedAnalysis(d design.Design) analysis.StatisticalAnalysis {
+// savedAnalysis is a saved analysis of every measurement of the design, as
+// its snapshot would hold them (stored values and units).
+func savedAnalysis(d design.Design, in Input) analysis.StatisticalAnalysis {
 	a := analysis.StatisticalAnalysis{ID: "an1"}
 	a.Snapshot.Definition.Variable = model.EffectiveDiameter
 	a.Snapshot.Definition.Alpha = .05
 	a.Snapshot.ExperimentalDesign = &d
+	for _, as := range d.Assignments {
+		q := in.Measurements[as.MeasurementID].Params[model.EffectiveDiameter]
+		a.Snapshot.Observations = append(a.Snapshot.Observations, analysis.Observation{
+			ObservationDefinition: analysis.ObservationDefinition{MeasurementID: as.MeasurementID, FactorA: as.Condition, FactorB: as.Time, UnitID: as.UnitID}, Quantity: &q})
+	}
 	a.Results.Engine = "test engine"
 	a.Results.Groups = []analysis.Group{{FactorA: "F-SR", FactorB: "Day 0", N: 3, Mean: 120, CIUpper: fp(125)}}
 	a.Results.Comparisons = []analysis.Comparison{
@@ -249,7 +257,7 @@ func savedAnalysis(d design.Design) analysis.StatisticalAnalysis {
 
 func TestDesignAnnotationsComeFromSavedAnalysis(t *testing.T) {
 	in, d := pairedDesign("nm")
-	a := savedAnalysis(d)
+	a := savedAnalysis(d, in)
 	def := Definition{Kind: KindDesignTime, DesignID: d.ID, Param: model.EffectiveDiameter, AnalysisID: "an1", Annotations: []string{"comparison-1", "comparison-2"}}
 	res, err := DesignTime(def, in, DesignInput{Design: d, Analysis: &a})
 	if err != nil {
@@ -286,11 +294,16 @@ func TestDesignAnnotationsComeFromSavedAnalysis(t *testing.T) {
 	if _, err := DesignTime(def, in, DesignInput{Design: d, Analysis: &a}); err != analysis.ErrDefinition {
 		t.Fatalf("unknown comparison: %v", err)
 	}
-	// Another design or another variable is incompatible.
+	// Another design, another revision or another variable is incompatible.
 	other := d
 	other.Root = "other"
 	if err := CompatibleAnalysis(def, a, other); err != ErrAnalysisIncompatible {
 		t.Fatalf("other design: %v", err)
+	}
+	next := d
+	next.ID, next.Revision = "rev2", 2
+	if err := CompatibleAnalysis(def, a, next); err != ErrAnalysisIncompatible {
+		t.Fatalf("another revision of the design: %v", err)
 	}
 	def.Param = model.Polydispersity
 	if err := CompatibleAnalysis(def, a, d); err != ErrAnalysisIncompatible {
@@ -322,7 +335,7 @@ func TestCombineDesignGraphs(t *testing.T) {
 	if !ck.Compatible || len(ck.Problems) != 0 {
 		t.Fatalf("check: %+v", ck)
 	}
-	c, err := Combine([]Definition{g1, g2}, []string{"h1", "h2"}, "", ck, "g3", r1.Provenance.ComputedAt)
+	c, err := Combine([]Definition{g1, g2}, []Result{r1, r2}, []string{"h1", "h2"}, "", ck, "g3", r1.Provenance.ComputedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +367,7 @@ func TestCombineDesignGraphs(t *testing.T) {
 	if ck := CheckCombine([]Definition{g1}, []Result{r1}, ""); ck.Compatible || !contains(ck.Problems, CombineCount) {
 		t.Fatalf("one graph: %+v", ck)
 	}
-	if _, err := Combine([]Definition{g1, pdi}, []string{"a", "b"}, "", CheckCombine([]Definition{g1, pdi}, []Result{r1, rp}, ""), "x", r1.Provenance.ComputedAt); err != ErrCombine {
+	if _, err := Combine([]Definition{g1, pdi}, []Result{r1, rp}, []string{"a", "b"}, "", CheckCombine([]Definition{g1, pdi}, []Result{r1, rp}, ""), "x", r1.Provenance.ComputedAt); err != ErrCombine {
 		t.Fatalf("an incompatible combination must be refused: %v", err)
 	}
 }
@@ -378,8 +391,191 @@ func TestCombineOffersOnlyExactConversion(t *testing.T) {
 	if !ck.Compatible || ck.DisplayUnit != "nm" || !contains(ck.Notes, CombineConvertedNote) {
 		t.Fatalf("accepted conversion: %+v", ck)
 	}
-	c, _ := Combine([]Definition{g1, g2}, []string{"a", "b"}, "", ck, "g3", r1.Provenance.ComputedAt)
+	c, _ := Combine([]Definition{g1, g2}, []Result{r1, r2}, []string{"a", "b"}, "", ck, "g3", r1.Provenance.ComputedAt)
 	if c.DisplayUnit != "nm" {
 		t.Fatalf("display unit: %q", c.DisplayUnit)
+	}
+}
+
+// A saved analysis' interval and brackets are drawn only around the values
+// it analysed: a graph of another set of units (a group), with another
+// exclusion or with changed values does not use them, and says why.
+func TestAnalysisLinkNeedsTheSameUnitValues(t *testing.T) {
+	in, d := pairedDesign("nm")
+	a := savedAnalysis(d, in)
+	members := map[string]bool{}
+	for _, as := range d.Assignments {
+		if as.UnitID != "uA" {
+			members[as.MeasurementID] = true
+		}
+	}
+	def := Definition{Kind: KindDesignTime, DesignID: d.ID, Param: model.EffectiveDiameter, AnalysisID: "an1", ErrorBars: "ci", Conditions: []string{"F-SR"}, Annotations: []string{"comparison-2"}}
+	// Same units and values: the saved interval and bracket are drawn.
+	res, err := DesignTime(def, in, DesignInput{Design: d, Analysis: &a})
+	if err != nil || res.ErrorBars != "ci" || len(res.Annotations) != 1 || CheckAnalysisData(def, in, DesignInput{Design: d, Analysis: &a}) != nil {
+		t.Fatalf("matching analysis: %v %q %d %v", err, res.ErrorBars, len(res.Annotations), res.Warnings)
+	}
+	cases := map[string]func() (Input, DesignInput){
+		// The reviewer's probe: the graph shows units B and C of a group,
+		// the analysis was run on A, B and C.
+		"group of two units": func() (Input, DesignInput) {
+			return in, DesignInput{Design: d, Analysis: &a, Members: members}
+		},
+		"an observation excluded in the analysis": func() (Input, DesignInput) {
+			b := a
+			b.Snapshot.Observations = append([]analysis.Observation(nil), a.Snapshot.Observations...)
+			b.Snapshot.Observations[0].ExcludeReason = "invented exclusion"
+			return in, DesignInput{Design: d, Analysis: &b}
+		},
+		"a value changed since the analysis": func() (Input, DesignInput) {
+			c := Input{Measurements: map[string]model.Measurement{}, Files: in.Files}
+			for k, m := range in.Measurements {
+				c.Measurements[k] = m
+			}
+			m := c.Measurements["F-SR-B-0"]
+			m.Params = map[string]model.Quantity{model.EffectiveDiameter: {Value: 150, Raw: "150", Unit: "nm"}}
+			c.Measurements["F-SR-B-0"] = m
+			return c, DesignInput{Design: d, Analysis: &a}
+		},
+	}
+	for name, mk := range cases {
+		cin, din := mk()
+		res, err := DesignTime(def, cin, din)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		mean, _ := seriesByID(res, "mean:F-SR")
+		if res.ErrorBars != "sd" || len(res.Annotations) != 0 || !contains(res.Warnings, "graph.analysis_data_mismatch") || contains(res.Warnings, "graph.ci_needs_saved_analysis") {
+			t.Fatalf("%s: bars %q, annotations %d, warnings %v", name, res.ErrorBars, len(res.Annotations), res.Warnings)
+		}
+		for i, n := range mean.N {
+			if n >= 2 && mean.Err[i] == 5 {
+				t.Fatalf("%s: the saved half-width was drawn around other values", name)
+			}
+		}
+		if err := CheckAnalysisData(def, cin, din); err != ErrAnalysisData {
+			t.Fatalf("%s: saving must be refused: %v", name, err)
+		}
+	}
+	// Without an interval or brackets the link is only a reference.
+	plain := def
+	plain.ErrorBars, plain.Annotations = "sd", nil
+	if err := CheckAnalysisData(plain, in, DesignInput{Design: d, Analysis: &a, Members: members}); err != nil {
+		t.Fatalf("an unused link is not refused: %v", err)
+	}
+	// The paired view compares only its own time point.
+	pv := Definition{Kind: KindPairedCondition, DesignID: d.ID, Param: model.EffectiveDiameter, AnalysisID: "an1", PairedAt: "Day 0", Annotations: []string{"comparison-1"}}
+	res, err = PairedCondition(pv, in, DesignInput{Design: d, Analysis: &a})
+	if err != nil || len(res.Annotations) != 1 {
+		t.Fatalf("paired view: %v %v", err, res.Warnings)
+	}
+}
+
+// Conditions stored in different units are shown in a common unit with the
+// units package's exact conversion: one correctly rounded operation on the
+// stored number, never a product with a rounded factor (118 nm is 0.118 µm,
+// not 0.11800000000000001).
+func TestDesignTimeConvertsWithTheExactRule(t *testing.T) {
+	in, d := pairedDesign("nm")
+	for id, m := range in.Measurements {
+		if strings.HasPrefix(id, "C-SR") {
+			q := m.Params[model.EffectiveDiameter]
+			q.Unit = "µm"
+			m.Params = map[string]model.Quantity{model.EffectiveDiameter: q}
+			in.Measurements[id] = m
+		}
+	}
+	def := Definition{Kind: KindDesignTime, DesignID: d.ID, Param: model.EffectiveDiameter, DisplayUnit: "µm", ErrorBars: "sem"}
+	res, err := DesignTime(def, in, DesignInput{Design: d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	units, _ := seriesByID(res, "units:F-SR")
+	mean, _ := seriesByID(res, "mean:F-SR")
+	exact := func(v float64) float64 {
+		c, err := unitsDisplay(v, "nm", "µm")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	found := false
+	for i, v := range units.Y {
+		label := units.PointLabels[i]
+		if label == "B · Day 0" {
+			found = true
+			if v != 0.118 || v != exact(118) {
+				t.Fatalf("118 nm shown as %v µm", v)
+			}
+		}
+	}
+	vals := []float64{120, 118, 122}
+	m := (vals[0] + vals[1] + vals[2]) / 3
+	if !found || mean.Y[0] != exact(m) || mean.Err[0] != exact(sampleSD(vals)/math.Sqrt(3)) {
+		t.Fatalf("mean %v (want %v), sem %v", mean.Y[0], exact(m), mean.Err[0])
+	}
+}
+
+func unitsDisplay(v float64, from, to string) (float64, error) {
+	c, err := units.Display(v, "", from, to)
+	return c.DisplayValue, err
+}
+
+// The reviewer's probe: Graph 1 draws F-SR for the group {B, C}, Graph 2
+// draws C-SR for the group {A}. Graph 3 draws F-SR for B and C and C-SR for
+// A, exactly what each parent drew, never every condition for every member.
+func TestCombineKeepsEachParentsSelection(t *testing.T) {
+	in, d := pairedDesign("nm")
+	snap := func(id string, units ...string) GroupSnapshot {
+		g := GroupSnapshot{ID: id, Name: id}
+		for _, a := range d.Assignments {
+			if contains(units, a.UnitID) {
+				g.Measurements = append(g.Measurements, a.MeasurementID)
+			}
+		}
+		return g
+	}
+	bc, a := snap("grpBC", "uB", "uC"), snap("grpA", "uA")
+	g1 := Definition{ID: "g1", Title: "Graph 1", Kind: KindDesignTime, DesignID: d.ID, Param: model.EffectiveDiameter, Conditions: []string{"F-SR"}, Groups: []string{"grpBC"}, GroupSnapshots: []GroupSnapshot{bc}}
+	g2 := Definition{ID: "g2", Title: "Graph 2", Kind: KindDesignTime, DesignID: d.ID, Param: model.EffectiveDiameter, Conditions: []string{"C-SR"}, Groups: []string{"grpA"}, GroupSnapshots: []GroupSnapshot{a}}
+	r1, _ := DesignTime(g1, in, DesignInput{Design: d, Members: snapshotMembers(g1.GroupSnapshots)})
+	r2, _ := DesignTime(g2, in, DesignInput{Design: d, Members: snapshotMembers(g2.GroupSnapshots)})
+	ck := CheckCombine([]Definition{g1, g2}, []Result{r1, r2}, "")
+	c, err := Combine([]Definition{g1, g2}, []Result{r1, r2}, []string{"h1", "h2"}, "", ck, "g3", r1.Provenance.ComputedAt)
+	if err != nil || len(c.Parts) != 2 {
+		t.Fatalf("combine: %v %+v", err, c.Parts)
+	}
+	// The union of the groups would be every unit: the parts must win.
+	r3, err := DesignTime(c, in, DesignInput{Design: d, Members: snapshotMembers([]GroupSnapshot{bc, a})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fsr, _ := seriesByID(r3, "mean:F-SR")
+	csr, _ := seriesByID(r3, "mean:C-SR")
+	p1, _ := seriesByID(r1, "mean:F-SR")
+	p2, _ := seriesByID(r2, "mean:C-SR")
+	for i := range fsr.N {
+		if fsr.N[i] != 2 || csr.N[i] != 1 || fsr.Y[i] != p1.Y[i] || csr.Y[i] != p2.Y[i] {
+			t.Fatalf("graph 3 must draw what its parents drew: F-SR n %v %v, C-SR n %v %v", fsr.N, fsr.Y, csr.N, csr.Y)
+		}
+	}
+	// A parent without a group keeps drawing all its units; its sibling's
+	// group does not restrict it.
+	g4 := Definition{ID: "g4", Title: "Graph 4", Kind: KindDesignTime, DesignID: d.ID, Param: model.EffectiveDiameter, Conditions: []string{"C-SR"}}
+	r4, _ := DesignTime(g4, in, DesignInput{Design: d})
+	ck = CheckCombine([]Definition{g1, g4}, []Result{r1, r4}, "")
+	c, _ = Combine([]Definition{g1, g4}, []Result{r1, r4}, []string{"h1", "h4"}, "", ck, "g5", r1.Provenance.ComputedAt)
+	r5, _ := DesignTime(c, in, DesignInput{Design: d})
+	fsr, _ = seriesByID(r5, "mean:F-SR")
+	csr, _ = seriesByID(r5, "mean:C-SR")
+	if fsr.N[0] != 2 || csr.N[0] != 3 {
+		t.Fatalf("parent without group: F-SR n %v, C-SR n %v", fsr.N, csr.N)
+	}
+	// The same condition drawn from different units cannot be one series.
+	g6 := g1
+	g6.ID, g6.Groups, g6.GroupSnapshots = "g6", []string{"grpA"}, []GroupSnapshot{a}
+	r6, _ := DesignTime(g6, in, DesignInput{Design: d, Members: snapshotMembers(g6.GroupSnapshots)})
+	if ck := CheckCombine([]Definition{g1, g6}, []Result{r1, r6}, ""); ck.Compatible || !contains(ck.Problems, CombineOverlap) {
+		t.Fatalf("overlap: %+v", ck)
 	}
 }

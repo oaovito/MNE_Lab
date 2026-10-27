@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"math"
 	"strings"
 	"testing"
 
@@ -28,8 +27,10 @@ func TestParameterTimeErrorBarsAreNamed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sem.ErrorBars != "sem" || sem.Series[1].Label != "series.mean_sem" || math.Abs(sem.Series[1].Err[0]-sd.Series[1].Err[0]/math.Sqrt(2)) > 1e-12 {
-		t.Fatalf("%+v", sem.Series[1])
+	// n at a cycle point counts measurements, not experimental units: SEM
+	// is not drawn there; SD is, and the graph says why.
+	if sem.ErrorBars != "sd" || sem.Series[1].Label != "series.mean_sd" || sem.Series[1].Err[0] != sd.Series[1].Err[0] || !strings.Contains(strings.Join(sem.Warnings, " "), "graph.sem_needs_experimental_units") {
+		t.Fatalf("%+v %v", sem.Series[1], sem.Warnings)
 	}
 	ci, err := ParameterTime(Definition{Param: model.EffectiveDiameter, ErrorBars: "ci"}, in, cy)
 	if err != nil || ci.ErrorBars != "sd" || ci.Series[1].Err[0] != sd.Series[1].Err[0] || !strings.Contains(strings.Join(ci.Warnings, " "), "graph.ci_needs_saved_analysis") {

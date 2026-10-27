@@ -550,3 +550,295 @@ func TestUnitUsageCoversDisplayUnitsAndReadings(t *testing.T) {
 		t.Fatal("units stated by reading tables are not scanned")
 	}
 }
+
+// unitGroup saves a group with the design measurements of some units.
+func unitGroup(t *testing.T, p *Profile, v DesignView, name string, units ...string) Group {
+	t.Helper()
+	labels := map[string]string{}
+	for _, u := range v.Design.Units {
+		labels[u.ID] = u.ID
+	}
+	var ids []string
+	for _, a := range v.Design.Assignments {
+		if contains(units, a.UnitID) {
+			ids = append(ids, a.MeasurementID)
+		}
+	}
+	g, err := p.SaveGroup(Group{Name: name, Measurements: ids})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+func designUnits(v DesignView) []string {
+	var out []string
+	for _, u := range v.Design.Units {
+		out = append(out, u.ID)
+	}
+	return out
+}
+
+// The reviewer's probe through the profile: an analysis of units A, B and
+// C linked to a graph of a group with B and C only. Its interval is never
+// drawn around the two-unit means: saving is refused and the preview says
+// why.
+func TestSavedAnalysisIntervalNeedsTheGraphsUnits(t *testing.T) {
+	_, _, p := inspectionProfile(t)
+	v, saved := designWithAnalysis(t, p)
+	us := designUnits(v)
+	bc := unitGroup(t, p, v, "B and C", us[1:]...)
+	def := graph.Definition{Title: "B and C with CI", Kind: graph.KindDesignTime, DesignID: v.Design.ID, Param: model.EffectiveDiameter, Groups: []string{bc.ID}, AnalysisID: saved.ID, ErrorBars: "ci"}
+	if _, err := p.SaveGraph(def); !errors.Is(err, graph.ErrAnalysisData) {
+		t.Fatalf("an interval of 3 units around 2-unit means must be refused: %v", err)
+	}
+	res, err := p.Compute(def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ErrorBars != "sd" || !contains(res.Warnings, "graph.analysis_data_mismatch") {
+		t.Fatalf("preview: %q %v", res.ErrorBars, res.Warnings)
+	}
+	for _, s := range res.Series {
+		if s.Kind == "mean" {
+			for _, n := range s.N {
+				if n != 2 {
+					t.Fatalf("n %v", s.N)
+				}
+			}
+		}
+	}
+	// The same graph of every unit draws the saved interval.
+	def.Groups = nil
+	if _, err := p.SaveGraph(def); err != nil {
+		t.Fatalf("all units: %v", err)
+	}
+}
+
+// Graph 1 draws F-SR for the group {B, C}, Graph 2 C-SR for {A}: Graph 3
+// draws F-SR with n = 2 and C-SR with n = 1, and both parents stay
+// byte-identical.
+func TestCombinedGraphDrawsWhatEachParentDrew(t *testing.T) {
+	_, _, p := inspectionProfile(t)
+	v, _ := designWithAnalysis(t, p)
+	us := designUnits(v)
+	bc, a := unitGroup(t, p, v, "B and C", us[1:]...), unitGroup(t, p, v, "A", us[0])
+	g1, err := p.SaveGraph(graph.Definition{Title: "Graph 1", Kind: graph.KindDesignTime, DesignID: v.Design.ID, Param: model.EffectiveDiameter, Conditions: []string{"F-SR"}, Groups: []string{bc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g2, err := p.SaveGraph(graph.Definition{Title: "Graph 2", Kind: graph.KindDesignTime, DesignID: v.Design.ID, Param: model.EffectiveDiameter, Conditions: []string{"C-SR"}, Groups: []string{a.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b1, b2 := storedGraph(t, p, g1.ID), storedGraph(t, p, g2.ID)
+	g3, _, err := p.CombineGraphs([]string{g1.ID, g2.ID}, "Graph 3", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(storedGraph(t, p, g1.ID), b1) || !bytes.Equal(storedGraph(t, p, g2.ID), b2) {
+		t.Fatal("combining changed a parent")
+	}
+	if len(g3.Parts) != 2 || len(g3.Measurements) != 12 {
+		t.Fatalf("parts %+v, measurements %d", g3.Parts, len(g3.Measurements))
+	}
+	n := func(g graph.Definition) map[string]int {
+		res, err := p.Compute(g)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]int{}
+		for _, s := range res.Series {
+			if s.Kind == "mean" {
+				out[s.Meta["condition"]] = s.N[0]
+			}
+		}
+		return out
+	}
+	if got := n(g3); got["F-SR"] != 2 || got["C-SR"] != 1 || len(got) != 2 {
+		t.Fatalf("graph 3 draws %v, want F-SR n=2 and C-SR n=1", got)
+	}
+	// Editing Graph 3 keeps the parts; a client cannot rewrite them.
+	g3.Title, g3.Parts, g3.Conditions, g3.Groups = "Graph 3 edited", nil, []string{"F-SR", "C-SR"}, nil
+	if g3, err = p.SaveGraph(g3); err != nil || len(g3.Parts) != 2 {
+		t.Fatalf("edit: %v %+v", err, g3.Parts)
+	}
+	if got := n(g3); got["F-SR"] != 2 || got["C-SR"] != 1 {
+		t.Fatalf("after edit graph 3 draws %v", got)
+	}
+}
+
+// A saved graph keeps drawing the members its groups had when it was
+// saved; a later edit of the group is reported, never followed, and the
+// membership is in the provenance.
+func TestSavedGraphPinsGroupMembers(t *testing.T) {
+	_, _, p := inspectionProfile(t)
+	v, _ := designWithAnalysis(t, p)
+	us := designUnits(v)
+	grp := unitGroup(t, p, v, "Pinned", us[1:]...)
+	g, err := p.SaveGraph(graph.Definition{Title: "Pinned", Kind: graph.KindDesignTime, DesignID: v.Design.ID, Param: model.EffectiveDiameter, Groups: []string{grp.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.GroupSnapshots) != 1 || len(g.GroupSnapshots[0].Measurements) != 16 || g.GroupSnapshots[0].Hash != graph.MembersHash(grp.Measurements) {
+		t.Fatalf("snapshot: %+v", g.GroupSnapshots)
+	}
+	before, err := p.Compute(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The group now holds every unit.
+	grp.Measurements = nil
+	for _, a := range v.Design.Assignments {
+		grp.Measurements = append(grp.Measurements, a.MeasurementID)
+	}
+	if _, err := p.SaveGroup(grp); err != nil {
+		t.Fatal(err)
+	}
+	after, err := p.Compute(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range before.Series {
+		if !equalFloats(before.Series[i].Y, after.Series[i].Y) {
+			t.Fatalf("a group edit changed a saved graph: %v → %v", before.Series[i].Y, after.Series[i].Y)
+		}
+	}
+	if !contains(after.Warnings, "graph.group_changed:Pinned") || !strings.Contains(strings.Join(after.Provenance.Transformations, "\n"), "group Pinned ("+grp.ID+"): 16 members pinned") {
+		t.Fatalf("warnings %v", after.Warnings)
+	}
+	rel, _ := p.Relations()
+	if strings.Join(rel.Graphs[g.ID].ChangedGroups, ",") != "Pinned" {
+		t.Fatalf("relations: %+v", rel.Graphs[g.ID])
+	}
+	// Re-saving the graph keeps the pinned members ...
+	g.Title = "Pinned, renamed"
+	if g, err = p.SaveGraph(g); err != nil || len(g.GroupSnapshots[0].Measurements) != 16 {
+		t.Fatalf("re-save: %v %+v", err, g.GroupSnapshots)
+	}
+	// ... until the person takes the group's current members.
+	g.GroupSnapshots = []graph.GroupSnapshot{{ID: grp.ID, Measurements: grp.Measurements}}
+	if g, err = p.SaveGraph(g); err != nil || len(g.GroupSnapshots[0].Measurements) != 24 {
+		t.Fatalf("follow: %v %+v", err, g.GroupSnapshots)
+	}
+	rel, _ = p.Relations()
+	if len(rel.Graphs[g.ID].ChangedGroups) != 0 {
+		t.Fatalf("relations after follow: %+v", rel.Graphs[g.ID])
+	}
+	// A member list that is neither the pinned nor the current one is refused.
+	g.GroupSnapshots = []graph.GroupSnapshot{{ID: grp.ID, Measurements: grp.Measurements[:3]}}
+	if _, err := p.SaveGraph(g); !errors.Is(err, analysis.ErrDefinition) {
+		t.Fatalf("forged snapshot: %v", err)
+	}
+}
+
+func equalFloats(a, b []float64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// Duplicate copies the editor's current state into the new graph and never
+// writes the unsaved edits into the original.
+func TestDuplicateCopiesEditorStateWithoutSavingOriginal(t *testing.T) {
+	_, c, p := inspectionProfile(t)
+	v, _ := designWithAnalysis(t, p)
+	orig, err := p.SaveGraph(graph.Definition{Title: "Graph A", Kind: graph.KindDesignTime, DesignID: v.Design.ID, Param: model.EffectiveDiameter, Conditions: []string{"F-SR"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored := storedGraph(t, p, orig.ID)
+	edited := orig
+	edited.Conditions, edited.ErrorBars, edited.Title = []string{"C-SR"}, "sem", "unsaved title"
+	var dup graph.Definition
+	c.json("POST", "/api/graphs/"+orig.ID+"/duplicate", map[string]any{"title": "Graph A copy", "definition": edited}, &dup)
+	if dup.ID == "" || dup.ID == orig.ID || dup.Title != "Graph A copy" || strings.Join(dup.Conditions, ",") != "C-SR" || dup.ErrorBars != "sem" {
+		t.Fatalf("copy: %+v", dup)
+	}
+	if len(dup.DerivedFrom) != 1 || dup.DerivedFrom[0].GraphID != orig.ID || dup.DerivedFrom[0].DefinitionHash != graph.Hash(stored) || dup.DerivedFrom[0].Relation != graph.RelationDuplicate {
+		t.Fatalf("lineage: %+v", dup.DerivedFrom)
+	}
+	if !bytes.Equal(stored, storedGraph(t, p, orig.ID)) {
+		t.Fatal("Duplicate wrote the unsaved edits into the original")
+	}
+}
+
+// Graph → Analyze: the rows a graph does not draw stay in a design-bound
+// definition, excluded with a reason, so the saved design still binds.
+// Dropping them is refused as a design mismatch. A graph of one condition
+// is analysed by the original one-within-factor layout (Time within
+// units); the paired Condition × Time layout needs two conditions.
+func TestAnalyzeFromGraphExcludesWhatItDoesNotDraw(t *testing.T) {
+	_, _, p := inspectionProfile(t)
+	v, saved := designWithAnalysis(t, p)
+	g1, err := p.SaveGraph(graph.Definition{Title: "Graph 1 · F-SR", Kind: graph.KindDesignTime, DesignID: v.Design.ID, Param: model.EffectiveDiameter, Conditions: []string{"F-SR"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g1.Measurements) != 12 {
+		t.Fatalf("graph 1 draws %d measurements", len(g1.Measurements))
+	}
+	base := saved.Snapshot.Definition
+	shown := map[string]bool{}
+	for _, id := range g1.Measurements {
+		shown[id] = true
+	}
+	excluded, dropped := base, base
+	excluded.Observations, dropped.Observations = nil, nil
+	for _, o := range base.Observations {
+		if !shown[o.MeasurementID] {
+			o.ExcludeReason = "Not shown in the graph “Graph 1 · F-SR”"
+			excluded.Observations = append(excluded.Observations, o)
+			continue
+		}
+		excluded.Observations = append(excluded.Observations, o)
+		dropped.Observations = append(dropped.Observations, o)
+	}
+	if _, err := p.PrepareAnalysis(dropped); !errors.Is(err, analysis.ErrDesignMismatch) {
+		t.Fatalf("dropping the rows must not bind to the design: %v", err)
+	}
+	// Condition × Time with one condition left is not a paired design.
+	if _, err := p.PrepareAnalysis(excluded); !errors.Is(err, analysis.ErrDesign) {
+		t.Fatalf("one condition cannot be analysed as Condition × Time: %v", err)
+	}
+	one := excluded
+	one.Design, one.Method, one.Structure, one.PostHoc, one.Adjustment, one.SphericityCorrection = "", "repeated", "repeated", "none", "", "GG"
+	s, err := p.PrepareAnalysis(one)
+	if err != nil {
+		t.Fatalf("Time within units of one condition: %v", err)
+	}
+	if s.Design.Excluded != 12 || s.Design.N != 12 || s.Design.ExperimentalUnits != 3 || len(s.Design.LevelsB) != 4 || s.ExperimentalDesign == nil || s.ExperimentalDesign.ID != v.Design.ID {
+		t.Fatalf("design: %+v", s.Design)
+	}
+	// Two conditions of a group of units keep the paired layout.
+	bc := unitGroup(t, p, v, "B and C", designUnits(v)[1:]...)
+	g2, err := p.SaveGraph(graph.Definition{Title: "B and C", Kind: graph.KindDesignTime, DesignID: v.Design.ID, Param: model.EffectiveDiameter, Groups: []string{bc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pair := base
+	pair.Observations = nil
+	in := map[string]bool{}
+	for _, id := range g2.Measurements {
+		in[id] = true
+	}
+	for _, o := range base.Observations {
+		if !in[o.MeasurementID] {
+			o.ExcludeReason = "Not shown in the graph “B and C”"
+		}
+		pair.Observations = append(pair.Observations, o)
+	}
+	s, err = p.PrepareAnalysis(pair)
+	if err != nil {
+		t.Fatalf("paired layout of two units: %v", err)
+	}
+	if s.Design.ExperimentalUnits != 2 || s.Design.Excluded != 8 {
+		t.Fatalf("paired subset: %+v", s.Design)
+	}
+}

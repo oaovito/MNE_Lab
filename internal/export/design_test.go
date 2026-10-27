@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/oaovito/mne_lab/internal/science/analysis"
 	"github.com/oaovito/mne_lab/internal/science/design"
 	"github.com/oaovito/mne_lab/internal/science/graph"
 	"github.com/oaovito/mne_lab/internal/science/model"
@@ -54,7 +55,7 @@ func TestDesignExportGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	T := func(key string, kv ...string) string { return key }
-	ds := DesignData("Graph 3", tab, in, Translator(T))
+	ds := DesignData("Graph 3", tab, in, Translator(T), "sd")
 	if len(ds.Tables) != 3 || len(ds.Provenance) != 13 {
 		t.Fatalf("tables %d, sources %d", len(ds.Tables), len(ds.Provenance))
 	}
@@ -83,5 +84,71 @@ func TestDesignExportGolden(t *testing.T) {
 	// and n stays 3 experimental units.
 	if tab.Units[0].Readings != 2 || tab.Units[0].Value != (120.1+121.9)/2 || tab.Summary[0].N != 3 {
 		t.Fatalf("units: %+v summary: %+v", tab.Units[0], tab.Summary[0])
+	}
+}
+
+// The statistics note names the error bars the graph showed: SEM when it
+// showed SEM, the saved interval when it showed one, SD otherwise.
+func TestDesignExportNamesTheErrorBars(t *testing.T) {
+	in, d := designFixture()
+	tab, err := graph.DesignTables(graph.Definition{Kind: graph.KindDesignTime, DesignID: d.ID, Param: model.EffectiveDiameter}, in, graph.DesignInput{Design: d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	T := func(key string, kv ...string) string { return key }
+	for bars, want := range map[string]string{"sem": "plot.meta.design_stats_sem", "ci": "plot.meta.design_stats_ci", "sd": "plot.meta.design_stats_sd", "": "plot.meta.design_stats_sd"} {
+		ds := DesignData("g", tab, in, Translator(T), bars)
+		got := ""
+		for _, kv := range ds.Meta {
+			if kv.Key == "statistics" {
+				got = kv.Value
+			}
+		}
+		if got != want {
+			t.Fatalf("%q bars: statistics note %q, want %q", bars, got, want)
+		}
+	}
+}
+
+// Time points are exported in the order of their offsets, never as text.
+func TestDesignExportOrdersTimesByOffset(t *testing.T) {
+	in, d := designFixture()
+	f := func(v float64) *float64 { return &v }
+	// Relabel the two days as bare numbers that sort wrongly as text.
+	d.Times = []design.TimeLevel{{Label: "14", Offset: f(14), Unit: "days"}, {Label: "7", Offset: f(7), Unit: "days"}}
+	for i := range d.Assignments {
+		if d.Assignments[i].Time == "Day 0" {
+			d.Assignments[i].Time = "7"
+		} else {
+			d.Assignments[i].Time = "14"
+		}
+	}
+	tab, err := graph.DesignTables(graph.Definition{Kind: graph.KindDesignTime, DesignID: d.ID, Param: model.EffectiveDiameter}, in, graph.DesignInput{Design: d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tab.Summary[0].Time != "7" || tab.Summary[1].Time != "14" {
+		t.Fatalf("time order: %+v", tab.Summary)
+	}
+}
+
+// The paired analysis export lists its time levels by offset.
+func TestPairedAnalysisExportOrdersLevels(t *testing.T) {
+	f := func(v float64) *float64 { return &v }
+	d := design.Design{ID: "rev1", Name: "Synthetic", Conditions: []design.Condition{{Label: "F-SR"}, {Label: "C-SR"}}}
+	for _, v := range []float64{0, 7, 14, 21} {
+		d.Times = append(d.Times, design.TimeLevel{Label: strconv.FormatFloat(v, 'f', -1, 64), Offset: f(v), Unit: "days"})
+	}
+	var a analysis.StatisticalAnalysis
+	a.Snapshot.Definition.Design = analysis.DesignWithinWithin
+	a.Snapshot.ExperimentalDesign = &d
+	a.Snapshot.Design.LevelsA = []string{"C-SR", "F-SR"}
+	a.Snapshot.Design.LevelsB = []string{"0", "14", "21", "7"}
+	got := map[string]string{}
+	for _, kv := range designMeta(a) {
+		got[kv.Key] = kv.Value
+	}
+	if got["factorA"] != "F-SR; C-SR" || got["factorB"] != "0; 7; 14; 21" {
+		t.Fatalf("levels: %q / %q", got["factorA"], got["factorB"])
 	}
 }

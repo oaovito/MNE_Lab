@@ -5,6 +5,9 @@ package app
 // keeps a set of series chosen in the Series Explorer. Both store
 // references only: identifiers of measurements or series, never values, so
 // a group never duplicates raw data and always reads the current records.
+// A graph pins the member list of its groups when it is saved (graph
+// GroupSnapshots), so editing a group later never changes a saved graph;
+// the change is reported until the person chooses the new members.
 // Groups sync with the profile like every other library object.
 
 import (
@@ -172,26 +175,4 @@ func (p *Profile) DeleteGroup(id string) error {
 		}
 		return t.Delete(CollGroups, id)
 	})
-}
-
-// groupMembersTx returns the measurements of the named groups (nil when
-// no group is named: no restriction).
-func groupMembersTx(t *store.Tx, ids []string) (map[string]bool, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	out := map[string]bool{}
-	for _, id := range ids {
-		var g Group
-		if _, err := t.Get(CollGroups, id, &g); err != nil {
-			if errors.Is(err, store.ErrNotFound) {
-				return nil, ErrGroupMissing
-			}
-			return nil, err
-		}
-		for _, m := range g.Measurements {
-			out[m] = true
-		}
-	}
-	return out, nil
 }

@@ -549,7 +549,7 @@ func (p *Profile) graphOutputs(def graph.Definition, formats []string, spec plot
 				if e != nil {
 					return nil, "", e
 				}
-				ds = export.DesignData(fig.Title, tab, in, T)
+				ds = export.DesignData(fig.Title, tab, in, T, res.ErrorBars)
 				ds.Meta = append(ds.Meta, p.graphMeta(def, res)...)
 			case def.Kind == graph.KindStatistical:
 				saved, e := p.Analysis(def.AnalysisID)

@@ -12,7 +12,9 @@ import (
 // point and replicate kind; each unit's value per cell (technical readings
 // averaged, never counted as n); and the condition × time summary over
 // experimental units. Values are in their stored units, exactly as read.
-func DesignData(title string, tab graph.DesignTable, in graph.Input, T Translator) DataSet {
+// errorBars is what the graph's error bars showed (sd, sem or ci); the
+// statistics note names it, never a fixed "Mean ± SD".
+func DesignData(title string, tab graph.DesignTable, in graph.Input, T Translator, errorBars string) DataSet {
 	ds := DataSet{Title: title, Created: time.Now().UTC(), Engine: graph.EngineVersion, t: T, Rules: []string{"ls.design", "ls.stats", "ls.units"}}
 	unit := ""
 	if len(tab.Units) > 0 {
@@ -83,8 +85,19 @@ func DesignData(title string, tab graph.DesignTable, in graph.Input, T Translato
 	ds.Tables = []Table{readings, units, st}
 	ds.Meta = append(ds.Meta,
 		KV{"parameter", T("meta.parameter"), T("param." + tab.Param)},
-		KV{"statistics", T("meta.statistics"), T("plot.meta.design_stats_sd")},
+		KV{"statistics", T("meta.statistics"), T(designStatsKey(errorBars))},
 		KV{"n", T("meta.n"), T("meta.n_units")},
 	)
 	return ds
+}
+
+// designStatsKey names the error bars a design graph drew (SD by default).
+func designStatsKey(kind string) string {
+	switch kind {
+	case "sem":
+		return "plot.meta.design_stats_sem"
+	case "ci":
+		return "plot.meta.design_stats_ci"
+	}
+	return "plot.meta.design_stats_sd"
 }

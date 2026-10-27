@@ -464,3 +464,17 @@ func (d Definition) validateWithinWithin() error {
 func ValidText(s string, limit int) bool {
 	return len(s) <= limit && strings.IndexFunc(s, unicode.IsControl) < 0
 }
+
+// OrderedLevels returns the factor levels of the analysed observations in
+// their scientific order: conditions as the design declares them and time
+// points by their offset (0, 7, 14, 21, never the byte order 0, 14, 21, 7),
+// with byte order only between labels that carry no number. Design.LevelsA
+// and LevelsB stay sorted as stored (they enter the source hash).
+func (s Snapshot) OrderedLevels() (a, b []string) {
+	var conds []design.Condition
+	var times []design.TimeLevel
+	if d := s.ExperimentalDesign; d != nil {
+		conds, times = d.Conditions, d.Times
+	}
+	return design.OrderConditionLabels(s.Design.LevelsA, conds), design.OrderTimeLabels(s.Design.LevelsB, times)
+}

@@ -152,6 +152,36 @@ type Definition struct {
 	PairedAt         string   `json:"pairedAt,omitempty"`
 	Groups           []string `json:"groups,omitempty"`
 	UnitTrajectories bool     `json:"unitTrajectories,omitempty"`
+	// GroupSnapshots pin the members of each group in Groups as they were
+	// when the graph was saved, so the graph redraws the same measurements
+	// after a group is edited (the change is reported, never followed).
+	GroupSnapshots []GroupSnapshot `json:"groupSnapshots,omitempty"`
+	// Parts are the selections of the parents of a combined design graph:
+	// each part draws exactly the conditions and group members its parent
+	// drew. When present they replace Conditions and Groups (which then
+	// list their union for older readers). Written only by Combine.
+	Parts []DesignPart `json:"parts,omitempty"`
+}
+
+// GroupSnapshot is the member list of a saved group when a graph was saved.
+type GroupSnapshot struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name,omitempty"`
+	Measurements []string `json:"measurements"`
+	// Hash is the SHA-256 of the sorted member list (MembersHash).
+	Hash string `json:"hash"`
+}
+
+// DesignPart is what one parent of a combined design graph showed.
+type DesignPart struct {
+	GraphID string `json:"graphId,omitempty"`
+	Title   string `json:"title,omitempty"`
+	// Conditions are the conditions the parent drew (every condition of the
+	// design when it drew all of them).
+	Conditions []string `json:"conditions"`
+	// Groups restrict the part to the members of these groups, pinned as
+	// the parent had them.
+	Groups []GroupSnapshot `json:"groups,omitempty"`
 }
 
 // DefaultVisual is the visual configuration of a new graph.
@@ -583,16 +613,18 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 	series := cycle.Series(cy.Points, cy.Assignments, values)
 	ind := Series{ID: "individual", Label: "series.individual", Kind: "individual"}
 	mean := Series{ID: "mean", Label: "series.mean_sd", Kind: "mean"}
-	// SD is the default; SEM is offered; a confidence interval needs a
-	// saved statistical analysis (decision D8), so it is never computed here.
-	sem := false
+	// SD is the default. A confidence interval needs a saved statistical
+	// analysis (decision D8), so it is never computed here. SEM is not
+	// drawn either: n at a cycle point counts measurements, which may be
+	// technical repeats of one preparation, not experimental units, so
+	// SD/√n would understate the uncertainty. The design graph (n =
+	// experimental units) offers SEM.
 	switch def.ErrorBars {
 	case "sd":
 		res.ErrorBars = "sd"
 	case "sem":
-		sem, res.ErrorBars = true, "sem"
-		mean.Label = "series.mean_sem"
-		res.Provenance.Statistics = "mean and standard error of the mean (sample SD (n−1) / √n), n ≥ 2"
+		res.ErrorBars = "sd"
+		res.Warnings = append(res.Warnings, "graph.sem_needs_experimental_units")
 	case "ci":
 		res.ErrorBars = "sd"
 		res.Warnings = append(res.Warnings, "graph.ci_needs_saved_analysis")
@@ -616,9 +648,6 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 			mean.X = append(mean.X, x)
 			mean.Y = append(mean.Y, *pr.Summary.Mean)
 			bar := *pr.Summary.SD
-			if sem {
-				bar /= math.Sqrt(float64(pr.Summary.N))
-			}
 			mean.Err = append(mean.Err, bar)
 			mean.N = append(mean.N, pr.Summary.N)
 			ymin = math.Min(ymin, *pr.Summary.Mean-bar)

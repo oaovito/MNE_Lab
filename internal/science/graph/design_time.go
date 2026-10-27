@@ -32,6 +32,9 @@ var (
 	ErrPairedConditions = errors.New("graph.paired_needs_two_conditions")
 	ErrUnknownTime      = errors.New("graph.unknown_time")
 	ErrVariable         = errors.New("graph.invalid_variable")
+	// ErrPartsOverlap refuses a combined design graph in which two parents
+	// draw the same condition from different measurements.
+	ErrPartsOverlap = errors.New("graph.combine_parts_overlap")
 )
 
 // DesignRef identifies the design revision a graph was computed from.
@@ -54,6 +57,13 @@ type DesignInput struct {
 	// Analysis is the saved statistical analysis linked to the graph, when
 	// it is compatible; it supplies confidence intervals and annotations.
 	Analysis *analysis.StatisticalAnalysis
+	// GroupsChanged names the groups whose current members differ from the
+	// members pinned in the graph (reported; the pinned ones are drawn).
+	GroupsChanged []string
+
+	// refused is set when the linked analysis was not used because its
+	// experimental-unit values differ from the graph's.
+	refused bool
 }
 
 // DesignVariable reports whether a parameter can be drawn by a design graph.
@@ -90,7 +100,7 @@ type designData struct {
 	labels    map[string]string
 	cells     map[[3]string]*designCell
 	unitOf    map[string]string // condition → stored unit of the parameter
-	factor    map[string]float64
+	display   string            // display unit when conditions are stored in different units
 	converted bool
 	used      []string // measurement IDs, sorted
 	averaged  int      // cells whose unit value averages several readings
@@ -121,29 +131,34 @@ func collectDesign(def Definition, in Input, din DesignInput, res *Result) (*des
 	if !DesignVariable(def.Param) {
 		return nil, ErrVariable
 	}
-	dd := &designData{labels: map[string]string{}, cells: map[[3]string]*designCell{}, unitOf: map[string]string{}, factor: map[string]float64{}}
-	if len(def.Conditions) > 0 {
-		for _, c := range def.Conditions {
-			found := false
-			for _, dc := range d.Conditions {
-				found = found || dc.Label == c
-			}
-			if !found {
-				return nil, ErrUnknownCondition
-			}
-			if !contains(dd.conds, c) {
-				dd.conds = append(dd.conds, c)
-			}
+	dd := &designData{labels: map[string]string{}, cells: map[[3]string]*designCell{}, unitOf: map[string]string{}}
+	sels, err := designSelectors(def, din)
+	if err != nil {
+		return nil, err
+	}
+	allConds := len(sels) == 1 && sels[0].all
+	if !allConds {
+		for _, sel := range sels {
+			dd.conds = append(dd.conds, sel.conds...)
 		}
 	}
-	allConds := len(dd.conds) == 0
+	// The selector that draws a condition (each condition has one).
+	selOf := func(cond string) *selector {
+		for i := range sels {
+			if sels[i].all || contains(sels[i].conds, cond) {
+				return &sels[i]
+			}
+		}
+		return nil
+	}
 	used := map[string]bool{}
 	missingUnit := 0
 	for _, a := range d.Assignments {
-		if din.Members != nil && !din.Members[a.MeasurementID] {
+		if a.Condition == "" || a.Time == "" {
 			continue
 		}
-		if a.Condition == "" || a.Time == "" || (!allConds && !contains(dd.conds, a.Condition)) {
+		sel := selOf(a.Condition)
+		if sel == nil || (sel.members != nil && !sel.members[a.MeasurementID]) {
 			continue
 		}
 		if a.UnitID == "" {
@@ -190,7 +205,7 @@ func collectDesign(def Definition, in Input, din DesignInput, res *Result) (*des
 			}
 		}
 	}
-	for _, tl := range d.Times {
+	for _, tl := range d.OrderedTimes() {
 		for k := range dd.cells {
 			if k[2] == tl.Label && contains(dd.conds, k[1]) {
 				dd.times = append(dd.times, tl)
@@ -230,28 +245,154 @@ func collectDesign(def Definition, in Input, din DesignInput, res *Result) (*des
 			same = false
 		}
 	}
-	for _, c := range dd.conds {
-		dd.factor[c] = 1
-	}
 	if !same {
 		if def.DisplayUnit == "" {
 			return nil, ErrMixedUnits
 		}
 		for _, c := range dd.conds {
-			r, err := units.Ratio(dd.unitOf[c], def.DisplayUnit)
-			if err != nil {
+			if _, err := units.Ratio(dd.unitOf[c], def.DisplayUnit); err != nil {
 				return nil, ErrMixedUnits
 			}
-			f, _ := r.Float64()
-			dd.factor[c] = f
 		}
-		dd.converted = true
+		dd.display, dd.converted = def.DisplayUnit, true
 	}
 	for id := range used {
 		dd.used = append(dd.used, id)
 	}
 	sort.Strings(dd.used)
 	return dd, nil
+}
+
+// conv shows a value of a condition in the display unit, with the units
+// package's exact conversion (one correctly rounded operation), or returns
+// it as stored when the graph does not convert.
+func (dd *designData) conv(cond string, v float64) float64 {
+	if !dd.converted {
+		return v
+	}
+	c, err := units.Display(v, "", dd.unitOf[cond], dd.display)
+	if err != nil {
+		return v
+	}
+	return c.DisplayValue
+}
+
+// selector is one selection a design graph draws: some conditions (or all
+// of them) restricted to some measurements (nil: no restriction).
+type selector struct {
+	all     bool
+	conds   []string
+	members map[string]bool
+}
+
+// snapshotMembers is the union of the members pinned in group snapshots
+// (nil when there is none).
+func snapshotMembers(gs []GroupSnapshot) map[string]bool {
+	if len(gs) == 0 {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, g := range gs {
+		for _, m := range g.Measurements {
+			out[m] = true
+		}
+	}
+	return out
+}
+
+func sameMembers(a, b map[string]bool) bool {
+	if (a == nil) != (b == nil) || len(a) != len(b) {
+		return false
+	}
+	for k := range a {
+		if !b[k] {
+			return false
+		}
+	}
+	return true
+}
+
+// designSelectors lists what a design graph draws: the parts of a combined
+// graph (each exactly what its parent drew), or its own conditions and
+// groups. A condition drawn by two parts must come from the same
+// measurements in both; otherwise the parts would be mixed.
+func designSelectors(def Definition, din DesignInput) ([]selector, error) {
+	known := map[string]bool{}
+	for _, dc := range din.Design.Conditions {
+		known[dc.Label] = true
+	}
+	if len(def.Parts) == 0 {
+		sel := selector{all: len(def.Conditions) == 0, members: din.Members}
+		for _, c := range def.Conditions {
+			if !known[c] {
+				return nil, ErrUnknownCondition
+			}
+			if !contains(sel.conds, c) {
+				sel.conds = append(sel.conds, c)
+			}
+		}
+		return []selector{sel}, nil
+	}
+	var out []selector
+	owner := map[string]map[string]bool{}
+	for _, p := range def.Parts {
+		sel := selector{members: snapshotMembers(p.Groups)}
+		for _, c := range p.Conditions {
+			if !known[c] {
+				return nil, ErrUnknownCondition
+			}
+			if prev, ok := owner[c]; ok {
+				if !sameMembers(prev, sel.members) {
+					return nil, ErrPartsOverlap
+				}
+				continue
+			}
+			owner[c] = sel.members
+			sel.conds = append(sel.conds, c)
+		}
+		if len(sel.conds) > 0 {
+			out = append(out, sel)
+		}
+	}
+	if len(out) == 0 {
+		return nil, ErrNoParameter
+	}
+	return out, nil
+}
+
+// MembersHash fingerprints a member list (order and repeats ignored).
+func MembersHash(ids []string) string {
+	s := uniqueStrings(ids)
+	sort.Strings(s)
+	return Hash([]byte(strings.Join(s, "\n")))
+}
+
+// PinGroup is the snapshot of a group's current members.
+func PinGroup(id, name string, members []string) GroupSnapshot {
+	ms := uniqueStrings(members)
+	if ms == nil {
+		ms = []string{}
+	}
+	return GroupSnapshot{ID: id, Name: name, Measurements: ms, Hash: MembersHash(ms)}
+}
+
+// DesignMeasurements lists the measurements of the design a graph draws
+// (before values are read): its parts, or its conditions and groups.
+func DesignMeasurements(def Definition, din DesignInput) ([]string, error) {
+	sels, err := designSelectors(def, din)
+	if err != nil {
+		return nil, err
+	}
+	out := []string{}
+	for _, a := range din.Design.Assignments {
+		for _, sel := range sels {
+			if (sel.all || contains(sel.conds, a.Condition)) && (sel.members == nil || sel.members[a.MeasurementID]) {
+				out = append(out, a.MeasurementID)
+				break
+			}
+		}
+	}
+	return out, nil
 }
 
 func firstNonEmpty(s ...string) string {
@@ -312,7 +453,9 @@ func errorKind(def Definition, din DesignInput, res *Result) string {
 		if din.Analysis != nil {
 			return "ci"
 		}
-		res.Warnings = append(res.Warnings, "graph.ci_needs_saved_analysis")
+		if !din.refused {
+			res.Warnings = append(res.Warnings, "graph.ci_needs_saved_analysis")
+		}
 	}
 	return "sd"
 }
@@ -340,12 +483,23 @@ type cellSummary struct {
 	n      int
 }
 
+// summarize describes one condition × time. Statistics are computed on the
+// stored values; every number shown is then converted once, exactly, when
+// the graph shows another unit.
 func summarize(dd *designData, cond, tm, bars string, din DesignInput) (cellSummary, bool) {
+	s, ok := summarizeStored(dd, cond, tm, bars, din)
+	for i := range s.values {
+		s.values[i] = dd.conv(cond, s.values[i])
+	}
+	s.mean, s.bar = dd.conv(cond, s.mean), dd.conv(cond, s.bar)
+	return s, ok
+}
+
+func summarizeStored(dd *designData, cond, tm, bars string, din DesignInput) (cellSummary, bool) {
 	var s cellSummary
-	f := dd.factor[cond]
 	for _, u := range dd.units {
 		if c := dd.cells[[3]string{u, cond, tm}]; c != nil {
-			s.values = append(s.values, c.unitValue()*f)
+			s.values = append(s.values, c.unitValue())
 			s.units = append(s.units, u)
 		}
 	}
@@ -368,7 +522,7 @@ func summarize(dd *designData, cond, tm, bars string, din DesignInput) (cellSumm
 			s.bar = sd / math.Sqrt(float64(s.n))
 		case "ci":
 			if h, ok := analysisCI(din.Analysis, cond, tm); ok {
-				s.bar = h * f
+				s.bar = h
 			}
 		default:
 			s.bar = sd
@@ -399,6 +553,18 @@ func designResult(kind string, def Definition, din DesignInput, dd *designData, 
 		names = append(names, dd.labels[u]+"="+u)
 	}
 	res.Provenance.Transformations = append(res.Provenance.Transformations, "experimental units: "+strings.Join(names, ", "))
+	// Group membership as pinned when the graph was saved (what is drawn).
+	for _, p := range def.Parts {
+		res.Provenance.Transformations = append(res.Provenance.Transformations,
+			fmt.Sprintf("combined part from graph %s (%s): conditions %s", p.GraphID, p.Title, strings.Join(p.Conditions, ", ")))
+	}
+	for _, g := range def.PinnedGroups() {
+		res.Provenance.Transformations = append(res.Provenance.Transformations,
+			fmt.Sprintf("group %s (%s): %d members pinned when the graph was saved (sha256 %s): %s", g.Name, g.ID, len(g.Measurements), g.Hash, strings.Join(g.Measurements, ", ")))
+	}
+	for _, name := range din.GroupsChanged {
+		res.Warnings = append(res.Warnings, "graph.group_changed:"+name)
+	}
 	return res
 }
 
@@ -458,9 +624,11 @@ func DesignTime(def Definition, in Input, din DesignInput) (Result, error) {
 	if err != nil {
 		return pre, err
 	}
+	linkAnalysis(def, &din, dd, &pre)
 	bars := errorKind(def, din, &pre)
 	res := designResult(KindDesignTime, def, din, dd, bars)
 	res.Warnings = append(res.Warnings, pre.Warnings...)
+	res.Provenance.Transformations = append(res.Provenance.Transformations, pre.Provenance.Transformations...)
 	ax, pos := timeAxis(dd.times)
 	res.X = ax
 	span := ax.Max - ax.Min
@@ -605,9 +773,11 @@ func PairedCondition(def Definition, in Input, din DesignInput) (Result, error) 
 	if len(dd.conds) < 2 {
 		return pre, ErrPairedConditions
 	}
+	linkAnalysis(def, &din, dd, &pre)
 	bars := errorKind(def, din, &pre)
 	res := designResult(KindPairedCondition, def, din, dd, bars)
 	res.Warnings = append(res.Warnings, pre.Warnings...)
+	res.Provenance.Transformations = append(res.Provenance.Transformations, pre.Provenance.Transformations...)
 	res.X = Axis{Label: "axis.condition", Scale: "linear", Min: .5, Max: float64(len(dd.conds)) + .5, Categories: append([]string{}, dd.conds...)}
 	ymin, ymax := math.Inf(1), math.Inf(-1)
 	mean := Series{ID: "mean", Label: "design:mean_" + bars + ":", Kind: "mean", NoLine: true, Meta: map[string]string{"time": at}}
@@ -646,7 +816,7 @@ func PairedCondition(def Definition, in Input, din DesignInput) (Result, error) 
 				se.Gaps = append(se.Gaps, float64(i+1))
 				continue
 			}
-			v := c.unitValue() * dd.factor[cond]
+			v := dd.conv(cond, c.unitValue())
 			se.X, se.Y = append(se.X, float64(i+1)), append(se.Y, v)
 			se.PointLabels = append(se.PointLabels, dd.labels[u]+" · "+cond)
 			conds = append(conds, cond)

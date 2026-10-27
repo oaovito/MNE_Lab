@@ -751,6 +751,9 @@ func (s *Server) routes() {
 		}
 		var in struct {
 			Title string `json:"title"`
+			// Definition is the editor's current state (unsaved edits
+			// included); without it the stored graph is copied.
+			Definition *graph.Definition `json:"definition"`
 		}
 		if r.ContentLength != 0 {
 			if err := decode(r, &in); err != nil {
@@ -758,6 +761,9 @@ func (s *Server) routes() {
 			}
 		}
 		defer a.hub.Publish("library", nil)
+		if in.Definition != nil {
+			return p.DuplicateEdited(pathID(r), in.Title, *in.Definition)
+		}
 		return p.DuplicateGraph(pathID(r), in.Title)
 	})
 	s.handle("POST /api/graphs/{id}/trash", trashRoute(a, func(p *Profile, id string, t bool) error { return p.TrashGraph(id, t) }))

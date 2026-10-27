@@ -17,8 +17,13 @@ import (
 )
 
 // ErrAnalysisIncompatible refuses linking a graph to a saved analysis of
-// another design or another variable.
+// another design, another revision of it or another variable.
 var ErrAnalysisIncompatible = errors.New("graph.analysis_incompatible")
+
+// ErrAnalysisData refuses intervals or brackets from a saved analysis whose
+// experimental-unit values are not the ones the graph draws (other units,
+// other readings, exclusions or changed values).
+var ErrAnalysisData = errors.New("graph.analysis_data_mismatch")
 
 // MaxDesignAnnotations bounds the brackets of one design graph.
 const MaxDesignAnnotations = 12
@@ -31,15 +36,111 @@ const (
 	AnnotationEffect = "effect"
 )
 
-// CompatibleAnalysis reports whether a saved analysis can supply intervals
-// and annotations to a design graph: same variable and the same design
-// (any revision of it).
+// CompatibleAnalysis reports whether a saved analysis can be linked to a
+// design graph: the same variable and the same design revision. Whether its
+// values are the graph's is checked on the data (analysisDataMatches).
 func CompatibleAnalysis(def Definition, saved analysis.StatisticalAnalysis, d design.Design) error {
 	ed := saved.Snapshot.ExperimentalDesign
-	if saved.Snapshot.Definition.Variable != def.Param || ed == nil || ed.Root != d.Root {
+	if saved.Snapshot.Definition.Variable != def.Param || ed == nil || ed.Root != d.Root || ed.ID != d.ID {
 		return ErrAnalysisIncompatible
 	}
 	return nil
+}
+
+// usesAnalysis reports whether a design graph draws something from its
+// linked analysis (a confidence interval or brackets).
+func usesAnalysis(def Definition) bool {
+	return def.ErrorBars == "ci" || len(def.Annotations) > 0
+}
+
+// shownTimes are the time points a design graph draws.
+func shownTimes(def Definition, din DesignInput, dd *designData) []string {
+	if def.Kind == KindPairedCondition {
+		return []string{PairedConditionAt(def, din.Design)}
+	}
+	var out []string
+	for _, tl := range dd.times {
+		out = append(out, tl.Label)
+	}
+	return out
+}
+
+// analysisDataMatches checks that, in every condition × time the graph
+// draws, the saved analysis included exactly the graph's readings: the same
+// measurements of the same experimental units, with the same stored values
+// and unit. Nothing is recalculated: the check compares identities and the
+// stored numbers of the analysis snapshot.
+func analysisDataMatches(dd *designData, a *analysis.StatisticalAnalysis, times []string) error {
+	type key [3]string
+	type reading struct {
+		value float64
+		unit  string
+	}
+	shown := func(cond, tm string) bool { return contains(dd.conds, cond) && contains(times, tm) }
+	saved := map[key]map[string]reading{}
+	for _, o := range a.Snapshot.Observations {
+		if o.ExcludeReason != "" || o.Missing || o.Quantity == nil || !shown(o.FactorA, o.FactorB) {
+			continue
+		}
+		k := key{o.UnitID, o.FactorA, o.FactorB}
+		if saved[k] == nil {
+			saved[k] = map[string]reading{}
+		}
+		saved[k][o.MeasurementID] = reading{o.Quantity.Value, o.Quantity.Unit}
+	}
+	drawn := 0
+	for k, c := range dd.cells {
+		if !shown(k[1], k[2]) {
+			continue
+		}
+		drawn++
+		s := saved[key(k)]
+		if len(s) != len(c.ids) {
+			return ErrAnalysisData
+		}
+		for i, id := range c.ids {
+			r, ok := s[id]
+			if !ok || r.value != c.values[i] || r.unit != dd.unitOf[k[1]] {
+				return ErrAnalysisData
+			}
+		}
+	}
+	// A unit the analysis included but the graph leaves out (another
+	// group, an exclusion) is a difference too.
+	if drawn != len(saved) {
+		return ErrAnalysisData
+	}
+	return nil
+}
+
+// linkAnalysis keeps the linked analysis only when its values are the
+// graph's; otherwise it is not used (no interval, no bracket) and the
+// graph says why. The link itself stays in the definition.
+func linkAnalysis(def Definition, din *DesignInput, dd *designData, res *Result) {
+	if din.Analysis == nil || !usesAnalysis(def) {
+		return
+	}
+	if err := analysisDataMatches(dd, din.Analysis, shownTimes(def, *din, dd)); err != nil {
+		res.Warnings = append(res.Warnings, ErrAnalysisData.Error())
+		res.Provenance.Transformations = append(res.Provenance.Transformations,
+			"linked saved analysis "+din.Analysis.ID+" not used: its experimental-unit values differ from the values this graph draws (units, readings, exclusions or design revision); no interval or bracket is drawn from it")
+		din.Analysis, din.refused = nil, true
+	}
+}
+
+// CheckAnalysisData refuses saving a design graph that would draw an
+// interval or brackets of a saved analysis around other values.
+func CheckAnalysisData(def Definition, in Input, din DesignInput) error {
+	if din.Analysis == nil || !usesAnalysis(def) {
+		return nil
+	}
+	var res Result
+	dd, err := collectDesign(def, in, din, &res)
+	if err != nil {
+		// Nothing can be drawn; computing the graph reports why.
+		return nil
+	}
+	return analysisDataMatches(dd, din.Analysis, shownTimes(def, din, dd))
 }
 
 // ValidateDesignAnnotations checks the annotations of a design graph
@@ -128,7 +229,7 @@ func annotationLabel(style string, c analysis.Comparison, unit string) string {
 func designAnnotations(def Definition, din DesignInput, xOf func(cond, tm string) (float64, bool), res *Result) error {
 	a := din.Analysis
 	if a == nil {
-		if len(def.Annotations) > 0 {
+		if len(def.Annotations) > 0 && !din.refused {
 			res.Warnings = append(res.Warnings, "graph.annotations_need_analysis")
 		}
 		return nil
