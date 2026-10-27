@@ -34,13 +34,20 @@ jobs:
         name: Tag the tested commit with the next development version
         env:
           SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           git fetch --tags --force origin
           if [ "$(git rev-parse origin/main)" != "$SHA" ]; then
             echo "main moved past $SHA; its own CI run releases the newer commit"; exit 0
           fi
-          if [ -n "$(git tag --points-at "$SHA" 'v*')" ]; then
-            echo "$SHA already has a version tag"; exit 0
+          # A tag left without a release by a failed build is built again.
+          tagged=$(git tag --points-at "$SHA" 'v*' | sort -V | tail -n 1)
+          if [ -n "$tagged" ]; then
+            if gh release view "$tagged" >/dev/null 2>&1; then
+              echo "$SHA is already released as $tagged"; exit 0
+            fi
+            echo "tag=$tagged" >> "$GITHUB_OUTPUT"; exit 0
           fi
           last=$(git tag -l 'v*-dev.*' | sort -V | tail -n 1)
           [[ $last =~ ^(v[0-9]+\.[0-9]+\.[0-9]+-dev\.)([0-9]+)$ ]] || { echo "No development tag to continue from"; exit 1; }

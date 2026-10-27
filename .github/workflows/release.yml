@@ -19,7 +19,6 @@ permissions:
 
 env:
   GH_REPO: ${{ github.repository }}
-  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   gate:
@@ -32,14 +31,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
           persist-credentials: false
       - id: v
         name: Version, branch and CI of the tagged commit
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ env.RELEASE_TAG }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           SHA=$(git rev-parse "refs/tags/$TAG^{commit}")
           version=${TAG#v}
@@ -57,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-go@v5
@@ -104,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
@@ -136,7 +135,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           persist-credentials: false
       - name: Collect the statistical runtime source
         env:
@@ -156,7 +155,7 @@ jobs:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ env.RELEASE_TAG }}
+      TAG: ${{ inputs.tag || github.ref_name }}
       VERSION: ${{ needs.gate.outputs.version }}
     steps:
       - uses: actions/download-artifact@v4
