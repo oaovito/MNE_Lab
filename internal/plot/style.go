@@ -316,7 +316,7 @@ func assignStyles(res graph.Result, lw float64, points bool) []look {
 		c := se.Color
 		switch {
 		case c != "":
-		case se.Kind == "individual":
+		case se.Kind == "individual" && res.Kind != graph.KindSeriesValues:
 			c = inkIndiv
 		case group != "" && groupColor[group] != "":
 			c = groupColor[group]

@@ -387,7 +387,11 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 	total := len(entries) + unlisted
 	moreText := func(n int) string { return T("plot.more", "n", strconv.Itoa(n)) }
 	swatch := func(x, y float64, e entry) []Op {
-		return legendSwatch(x, y-fs*0.32, sw, looks[e.idx], res.Series[e.idx].Kind, e.hidden, lw, fs)
+		kind := res.Series[e.idx].Kind
+		if res.Kind == graph.KindSeriesValues && kind == "individual" {
+			kind = "value"
+		}
+		return legendSwatch(x, y-fs*0.32, sw, looks[e.idx], kind, e.hidden, lw, fs)
 	}
 	labelOp := func(x, y float64, text string, e entry) Op {
 		ink := inkText
@@ -565,10 +569,14 @@ func Layout(res graph.Result, spec Spec, T Translator) Figure {
 		}
 		switch se.Kind {
 		case "individual":
-			r := fs * 0.26
+			r, fill := fs*0.26, 0.35
+			if res.Kind == graph.KindSeriesValues {
+				// One value per series: the point is the series itself.
+				r, fill = fs*0.4, 0.85
+			}
 			for i := range se.X {
 				x, y := mx(se.X[i]), my(se.Y[i])
-				fig.Ops = append(fig.Ops, markerOp(lk.marker, x, y, r, c, 0.35, c, 0.7*s.Scale, "point"))
+				fig.Ops = append(fig.Ops, markerOp(lk.marker, x, y, r, c, fill, c, 0.7*s.Scale, "point"))
 				fig.Hits = append(fig.Hits, Hit{si, i, x, y})
 			}
 		case "mean":
@@ -725,6 +733,8 @@ func legendSwatch(x, y, w float64, lk look, kind string, hidden bool, lw, fs flo
 	switch kind {
 	case "individual":
 		return []Op{markerOp(lk.marker, x+w/2, y, fs*0.26, color, 0.35, color, 0.7, "legend")}
+	case "value":
+		return []Op{markerOp(lk.marker, x+w/2, y, fs*0.34, color, 0.85, color, 0.7, "legend")}
 	case "mean":
 		return []Op{{K: "line", X: x, Y: y, X2: x + w, Y2: y, Stroke: color, SW: lw, Dash: lk.dash, Role: "legend"},
 			{K: "line", X: x + w/2, Y: y - fs*0.35, X2: x + w/2, Y2: y + fs*0.35, Stroke: color, SW: lw * 0.8, Role: "legend"},

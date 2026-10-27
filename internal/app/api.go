@@ -790,7 +790,7 @@ func (s *Server) routes() {
 			return nil, err
 		}
 		return map[string]any{"figure": fig, "warnings": res.Warnings, "series": res.Series, "provenance": res.Provenance,
-			"x": res.X, "y": res.Y, "gaps": res.Gaps, "weightings": res.Weightings}, nil
+			"x": res.X, "y": res.Y, "gaps": res.Gaps, "weightings": res.Weightings, "errorBars": res.ErrorBars}, nil
 	})
 	s.handle("GET /api/graphs/{id}/thumb.svg", func(w http.ResponseWriter, r *http.Request) (any, error) {
 		p, err := prof()
