@@ -172,7 +172,8 @@ for (const [language, theme, size] of [
     await page.waitForURL(/\/ls\/statistics\/new\?design=/);
     await page.locator('.stat-graph-one').waitFor();
     await sleep(600);
-    const reasons = await page.locator('table input.input').evaluateAll((els) => els.map((e) => e.value));
+    // The exclusion reason is the last field of each measurement row.
+    const reasons = await page.locator('table tbody tr').evaluateAll((rows) => rows.map((tr) => [...tr.querySelectorAll('input.input')].pop()?.value).filter((v) => v !== undefined));
     report.check(`${tag} Analyze from Graph 1 keeps the design's 24 rows, 12 excluded as not shown`, reasons.length === 24 && reasons.filter(Boolean).length === 12 && reasons.filter(Boolean).every((v) => v.includes(`F-SR ${tag}`)), JSON.stringify(reasons));
     const one = await page.locator('select').evaluateAll((els) => els.map((e) => e.value));
     report.check(`${tag} one condition proposes Time within units, not Condition × Time`, !one.includes('within_within') && one.includes('repeated'), one.join(','));
