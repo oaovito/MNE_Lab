@@ -3,7 +3,10 @@ package export
 // Golden data of a design graph export. Every value is synthetic.
 
 import (
+	"bytes"
+	"encoding/csv"
 	"flag"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -76,7 +79,7 @@ func TestDesignExportGolden(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if string(b) != string(want) {
+		if !sameCSV(b, want) {
 			t.Fatalf("%s differs from the golden file:\n%s", tb.ID, b)
 		}
 	}
@@ -85,6 +88,41 @@ func TestDesignExportGolden(t *testing.T) {
 	if tab.Units[0].Readings != 2 || tab.Units[0].Value != (120.1+121.9)/2 || tab.Summary[0].N != 3 {
 		t.Fatalf("units: %+v summary: %+v", tab.Units[0], tab.Summary[0])
 	}
+}
+
+// sameCSV compares two exported tables cell by cell: text exactly, numbers
+// within a relative 1e-9, since the last digits of a mean or a standard
+// deviation differ between amd64 and arm64.
+func sameCSV(got, want []byte) bool {
+	read := func(b []byte) [][]string {
+		r := csv.NewReader(bytes.NewReader(b))
+		r.FieldsPerRecord = -1
+		rows, err := r.ReadAll()
+		if err != nil {
+			return nil
+		}
+		return rows
+	}
+	g, w := read(got), read(want)
+	if g == nil || w == nil || len(g) != len(w) {
+		return false
+	}
+	for i := range g {
+		if len(g[i]) != len(w[i]) {
+			return false
+		}
+		for j := range g[i] {
+			if g[i][j] == w[i][j] {
+				continue
+			}
+			a, errA := strconv.ParseFloat(g[i][j], 64)
+			b, errB := strconv.ParseFloat(w[i][j], 64)
+			if errA != nil || errB != nil || math.Abs(a-b) > 1e-9*math.Max(1, math.Abs(b)) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // The statistics note names the error bars the graph showed: SEM when it
