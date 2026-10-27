@@ -129,7 +129,7 @@ func StatisticalGroups(def Definition, saved analysis.StatisticalAnalysis) (Resu
 		}
 		for _, series := range []*Series{&raw, &mean} {
 			if st, ok := def.Series[series.ID]; ok {
-				series.Hidden, series.Color = st.Hidden, st.Color
+				series.Hidden, series.Color, series.Marker, series.LineStyle = st.Hidden, st.Color, st.Marker, st.LineStyle
 				if st.Label != "" {
 					series.Label = st.Label
 				}

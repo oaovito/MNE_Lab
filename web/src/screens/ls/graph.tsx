@@ -422,8 +422,8 @@ function SeriesPanel(p: { series: Series[]; def: GraphDef; setStyle: (id: string
         const hidden = !!st.hidden;
         return (
           <div class={`series-row ${hidden ? 'off' : ''}`}>
-            <label class="swatch" style={{ '--c': se.color || '#0072B2' } as any} data-tip={t('graph.series.color')}>
-              <input type="color" value={se.color || '#0072B2'} onInput={(e) => p.setStyle(se.id, { color: (e.target as HTMLInputElement).value.toUpperCase() })} aria-label={t('graph.series.color')} />
+            <label class="swatch" style={{ '--c': se.color || '#2C7FB8' } as any} data-tip={t('graph.series.color')}>
+              <input type="color" value={se.color || '#2C7FB8'} onInput={(e) => p.setStyle(se.id, { color: (e.target as HTMLInputElement).value.toUpperCase() })} aria-label={t('graph.series.color')} />
             </label>
             {editing === se.id ? (
               <input

@@ -46,6 +46,10 @@ type SeriesStyle struct {
 	Label  string `json:"label,omitempty"`
 	Color  string `json:"color,omitempty"`
 	Hidden bool   `json:"hidden,omitempty"`
+	// Marker and LineStyle override the default shape and pattern (empty
+	// means the default; see the plot package for the names).
+	Marker    string `json:"marker,omitempty"`
+	LineStyle string `json:"lineStyle,omitempty"`
 }
 
 // Visual is the visual configuration of a graph.
@@ -58,6 +62,10 @@ type Visual struct {
 	FontScale float64 `json:"fontScale"`
 	// View is a zoom window; it changes what is shown, never the data.
 	View *Range `json:"view,omitempty"`
+	// LegendMode lists all series, the visible ones (empty, the default) or
+	// only LegendSeries ("selected"); series left out are counted as "+N more".
+	LegendMode   string   `json:"legendMode,omitempty"`
+	LegendSeries []string `json:"legendSeries,omitempty"`
 }
 
 // Range is an axis window.
@@ -118,6 +126,8 @@ type Series struct {
 	Meta          map[string]string `json:"meta,omitempty"`
 	Hidden        bool              `json:"hidden,omitempty"`
 	Color         string            `json:"color,omitempty"`
+	Marker        string            `json:"marker,omitempty"`
+	LineStyle     string            `json:"lineStyle,omitempty"`
 }
 
 // Source is one input of a graph.
@@ -353,7 +363,7 @@ func Distribution(def Definition, in Input) (Result, error) {
 		s := Series{ID: m.ID, MeasurementID: m.ID, Label: seriesLabel(def, m, i), Kind: "line", Meta: meta(m),
 			X: append([]float64(nil), dc.Values...), Y: append([]float64(nil), wc.Values...)}
 		if st, ok := def.Series[m.ID]; ok {
-			s.Hidden, s.Color = st.Hidden, st.Color
+			s.Hidden, s.Color, s.Marker, s.LineStyle = st.Hidden, st.Color, st.Marker, st.LineStyle
 		}
 		for j := range s.X {
 			if s.X[j] <= 0 {
@@ -502,7 +512,7 @@ func ParameterTime(def Definition, in Input, cy CycleInput) (Result, error) {
 	}
 	for _, se := range []*Series{&ind, &mean} {
 		if st, ok := def.Series[se.ID]; ok {
-			se.Hidden, se.Color = st.Hidden, st.Color
+			se.Hidden, se.Color, se.Marker, se.LineStyle = st.Hidden, st.Color, st.Marker, st.LineStyle
 		}
 	}
 	res.Series = append(res.Series, ind)

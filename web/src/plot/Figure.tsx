@@ -66,6 +66,22 @@ function draw(ops: Op[], hidden?: Set<string>): JSX.Element[] {
       case 'circle':
         push(<circle key={i} cx={o.x || 0} cy={o.y || 0} r={o.r || 0} {...paint} />);
         break;
+      case 'marker': {
+        // Marker shapes come with their outline points from the core, so the
+        // screen draws the same geometry as the SVG, PDF and raster exports.
+        const p = o.pts || [];
+        const xy = (j: number) => p[j].toFixed(2) + ' ' + p[j + 1].toFixed(2);
+        if (o.shape === 'cross' && p.length >= 8) {
+          push(<path key={i} d={`M${xy(0)} L${xy(2)} M${xy(4)} L${xy(6)}`} fill="none" stroke={o.stroke} stroke-width={o.sw} stroke-linecap="round" />);
+        } else if (p.length >= 6) {
+          let d = '';
+          for (let j = 0; j + 1 < p.length; j += 2) d += (j ? ' ' : '') + p[j].toFixed(2) + ',' + p[j + 1].toFixed(2);
+          push(<polygon key={i} points={d} stroke-linejoin="round" {...paint} />);
+        } else {
+          push(<circle key={i} cx={o.x || 0} cy={o.y || 0} r={o.r || 0} {...paint} />);
+        }
+        break;
+      }
       case 'text':
         push(
           <text

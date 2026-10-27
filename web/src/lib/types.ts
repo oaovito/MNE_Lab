@@ -206,8 +206,11 @@ export type ImportInspection = {
     warnings?: string[]; error?: string; parser: string; spec: string };
 };
 
-export type SeriesStyle = { label?: string; color?: string; hidden?: boolean };
-export type Visual = { legend: boolean; metadata: boolean; grid: boolean; points: boolean; lineWidth: number; fontScale: number; view?: { XMin: number; XMax: number; YMin: number; YMax: number } | null };
+/** Marker shapes and line styles drawn by the core (internal/plot/style.go). */
+export type MarkerShape = 'circle' | 'square' | 'triangle' | 'diamond' | 'triangle_down' | 'cross';
+export type LineStyle = 'solid' | 'dashed' | 'dotted' | 'dashdot' | 'longdash' | 'dashdotdot';
+export type SeriesStyle = { label?: string; color?: string; hidden?: boolean; marker?: MarkerShape | 'none'; lineStyle?: LineStyle };
+export type Visual = { legend: boolean; metadata: boolean; grid: boolean; points: boolean; lineWidth: number; fontScale: number; view?: { XMin: number; XMax: number; YMin: number; YMax: number } | null; legendMode?: 'all' | 'visible' | 'selected'; legendSeries?: string[] };
 
 export type GraphDef = {
   schema?: number;
@@ -235,6 +238,7 @@ export type GraphDef = {
 
 export type Op = {
   k: string;
+  shape?: string;
   x?: number;
   y?: number;
   w?: number;
@@ -279,6 +283,8 @@ export type Series = {
   meta?: Record<string, string>;
   hidden?: boolean;
   color?: string;
+  marker?: string;
+  lineStyle?: string;
 };
 
 export type CycleConfig = {

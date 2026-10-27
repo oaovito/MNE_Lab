@@ -37,13 +37,6 @@ func SVG(f Figure, spec Spec) []byte {
 		case "line":
 			fmt.Fprintf(&b, `<line x1="%s" y1="%s" x2="%s" y2="%s"%s/>`+"\n", num(op.X), num(op.Y), num(op.X2), num(op.Y2), paint(op))
 		case "poly":
-			var p strings.Builder
-			for i := 0; i+1 < len(op.Pts); i += 2 {
-				if i > 0 {
-					p.WriteByte(' ')
-				}
-				p.WriteString(num(op.Pts[i]) + "," + num(op.Pts[i+1]))
-			}
 			dash := ""
 			if len(op.Dash) > 0 {
 				var d []string
@@ -52,9 +45,20 @@ func SVG(f Figure, spec Spec) []byte {
 				}
 				dash = ` stroke-dasharray="` + strings.Join(d, " ") + `"`
 			}
-			fmt.Fprintf(&b, `<polyline points="%s" fill="none" stroke="%s" stroke-width="%s"%s stroke-linejoin="round" stroke-linecap="round"/>`+"\n", p.String(), op.Stroke, num(op.SW), dash)
+			fmt.Fprintf(&b, `<polyline points="%s" fill="none" stroke="%s" stroke-width="%s"%s stroke-linejoin="round" stroke-linecap="round"/>`+"\n", svgPoints(op.Pts), op.Stroke, num(op.SW), dash)
 		case "circle":
 			fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s"%s/>`+"\n", num(op.X), num(op.Y), num(op.R), paint(op))
+		case "marker":
+			switch {
+			case op.Shape == MarkerCross && len(op.Pts) >= 8:
+				p := op.Pts
+				fmt.Fprintf(&b, `<path d="M%s %s L%s %s M%s %s L%s %s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="round"/>`+"\n",
+					num(p[0]), num(p[1]), num(p[2]), num(p[3]), num(p[4]), num(p[5]), num(p[6]), num(p[7]), op.Stroke, num(op.SW))
+			case len(op.Pts) >= 6:
+				fmt.Fprintf(&b, `<polygon points="%s"%s stroke-linejoin="round"/>`+"\n", svgPoints(op.Pts), paint(op))
+			default:
+				fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s"%s/>`+"\n", num(op.X), num(op.Y), num(op.R), paint(op))
+			}
 		case "text":
 			weight := ""
 			if op.Font == FontSansBold {
@@ -85,6 +89,17 @@ func SVG(f Figure, spec Spec) []byte {
 	}
 	b.WriteString("</svg>\n")
 	return b.Bytes()
+}
+
+func svgPoints(pts []float64) string {
+	var p strings.Builder
+	for i := 0; i+1 < len(pts); i += 2 {
+		if i > 0 {
+			p.WriteByte(' ')
+		}
+		p.WriteString(num(pts[i]) + "," + num(pts[i+1]))
+	}
+	return p.String()
 }
 
 func svgSize(f Figure, s Spec) (string, string) {
@@ -264,8 +279,23 @@ func Raster(f Figure, spec Spec) (*image.RGBA, error) {
 				}
 			}
 			stroke(op)
-		case "circle":
-			dc.DrawCircle(op.X*k, op.Y*k, op.R*k)
+		case "circle", "marker":
+			switch {
+			case op.K == "marker" && op.Shape == MarkerCross && len(op.Pts) >= 8:
+				dc.DrawLine(op.Pts[0]*k, op.Pts[1]*k, op.Pts[2]*k, op.Pts[3]*k)
+				stroke(op)
+				dc.DrawLine(op.Pts[4]*k, op.Pts[5]*k, op.Pts[6]*k, op.Pts[7]*k)
+				stroke(op)
+				continue
+			case op.K == "marker" && len(op.Pts) >= 6:
+				dc.NewSubPath()
+				for i := 0; i+1 < len(op.Pts); i += 2 {
+					dc.LineTo(op.Pts[i]*k, op.Pts[i+1]*k)
+				}
+				dc.ClosePath()
+			default:
+				dc.DrawCircle(op.X*k, op.Y*k, op.R*k)
+			}
 			if op.Fill != "" {
 				set(op.Fill, op.Opacity)
 				if op.Stroke != "" {
@@ -383,6 +413,21 @@ func PDF(f Figure, spec Spec, created time.Time) ([]byte, error) {
 			pdf.DrawPath("D")
 		case "circle":
 			fill(op, func(st string) { pdf.Circle(op.X, op.Y, op.R, st) })
+		case "marker":
+			switch {
+			case op.Shape == MarkerCross && len(op.Pts) >= 8:
+				setStroke(op)
+				pdf.Line(op.Pts[0], op.Pts[1], op.Pts[2], op.Pts[3])
+				pdf.Line(op.Pts[4], op.Pts[5], op.Pts[6], op.Pts[7])
+			case len(op.Pts) >= 6:
+				var pts []fpdf.PointType
+				for i := 0; i+1 < len(op.Pts); i += 2 {
+					pts = append(pts, fpdf.PointType{X: op.Pts[i], Y: op.Pts[i+1]})
+				}
+				fill(op, func(st string) { pdf.Polygon(pts, st) })
+			default:
+				fill(op, func(st string) { pdf.Circle(op.X, op.Y, op.R, st) })
+			}
 		case "text":
 			family, style := "inter", ""
 			switch op.Font {
