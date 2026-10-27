@@ -36,6 +36,17 @@ export function GraphLibrary() {
     setSel([]);
     toast('info', t('graphs.trashed', { n: ids.length }), { label: t('ui.undo'), run: () => ids.forEach((id) => run(() => post(`/api/graphs/${id}/trash`, { trashed: false }))) });
   };
+  // Server-side copies with a Derived From record; the originals are only read.
+  const duplicateSel = async () => {
+    let n = 0;
+    for (const id of sel) {
+      const g = (graphs.data || []).find((x) => x.id === id);
+      const copy = await run(() => post<GraphDef>(`/api/graphs/${id}/duplicate`, { title: t('graph.copy_of', { name: g?.title || t('graph.kind.' + (g?.kind || 'dls_distribution')) }) }));
+      if (copy) n++;
+    }
+    setSel([]);
+    if (n) toast('success', t('graphs.duplicated', { n }));
+  };
   const restoreSel = async () => {
     for (const id of sel) await run(() => post(`/api/graphs/${id}/trash`, { trashed: false }));
     setSel([]);
@@ -61,6 +72,7 @@ export function GraphLibrary() {
           options={[
             { value: 'all', label: t('ui.all') },
             { value: 'dls_distribution', label: t('graph.kind.dls_distribution') },
+            { value: 'series_values', label: t('graph.kind.series_values') },
             { value: 'parameter_time', label: t('graph.kind.parameter_time') },
             { value: 'dls_by_time', label: t('graph.kind.dls_by_time') },
             { value: 'statistical_groups', label: t('graph.kind.statistical_groups') },
@@ -82,6 +94,9 @@ export function GraphLibrary() {
             <>
               <span class="small muted">{t('graphs.n_selected', { n: sel.length })}</span>
               <Button size="sm" kind="ghost" icon="trash" tip={t('ui.trash')} onClick={trashSel} />
+              <Button size="sm" icon="copy" class="graphs-duplicate" tip={t('gb.duplicate.d')} onClick={duplicateSel}>
+                {t('graphs.duplicate')}
+              </Button>
               {selMeasurements.length > 0 && (
                 <>
                   <Button size="sm" icon="layers" onClick={() => navigate('/ls/graphs/new?m=' + selMeasurements.join(','))}>
@@ -170,6 +185,11 @@ function GraphCard(p: { g: GraphDef; on: boolean; onToggle: () => void; cycle?: 
           {p.cycle && (
             <Badge kind="accent" icon="cycle">
               {p.cycle}
+            </Badge>
+          )}
+          {!!g.derivedFrom?.length && (
+            <Badge kind="info" icon="history" tip={t('gb.derived_from', { name: g.derivedFrom[0].title || '—' })}>
+              {t('gb.copy')}
             </Badge>
           )}
         </div>

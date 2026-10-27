@@ -78,6 +78,9 @@ export const FEATURES: Feature[] = [
 
   { id: 'dls_graph', group: 'graphs', icon: 'chart', open: () => navigate('/ls/files'), avail: needsProfile, words: 'graph distribution intensity diameter' },
   { id: 'compare', group: 'graphs', icon: 'layers', open: () => navigate('/ls/files'), avail: needsProfile, words: 'compare overlay multiple' },
+  { id: 'graph_builder', group: 'graphs', icon: 'sliders', open: () => navigate('/ls/graphs/new'), avail: needsProfile, words: 'graph builder live preview axes units error bars sd sem marker line legend publication construtor grafico eixo unidade barras de erro marcador legenda constructor', isNew: true },
+  { id: 'series_explorer', group: 'graphs', icon: 'listChecks', open: () => navigate('/ls/graphs/new'), avail: needsProfile, words: 'series explorer select series search filter many readings focus selecionar series buscar filtrar leituras seleccionar lecturas', isNew: true },
+  { id: 'duplicate_graph', group: 'graphs', icon: 'copy', open: () => navigate('/ls/graphs'), avail: needsProfile, words: 'duplicate copy graph lineage derived duplicar copia linhagem linaje', isNew: true },
   { id: 'graph_library', group: 'graphs', icon: 'grid', open: () => navigate('/ls/graphs'), avail: needsProfile, words: 'saved graphs dls lightscattering' },
   { id: 'present', group: 'graphs', icon: 'present', open: () => navigate('/ls/graphs'), avail: needsProfile, words: 'presentation slides fullscreen' },
 

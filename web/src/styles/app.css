@@ -880,12 +880,256 @@
 .split.files {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
 }
-.split.graph {
-  grid-template-columns: 280px minmax(0, 1fr) 336px;
+/* Graph Builder: explorer | live preview | settings, actions below. */
+.builder {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 320px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--s3) var(--s4);
 }
-.split.graph > .inspector .tab {
+.builder > .builder-left,
+.builder > .builder-centre,
+.builder > .builder-right {
+  grid-row: 1;
+  min-width: 0;
+}
+.builder .tab {
   padding: 0 var(--s2);
   font-size: var(--fs-sm);
+}
+.builder .pad {
+  padding: var(--s3);
+}
+.builder-centre {
+  min-height: 0;
+}
+.builder-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  min-width: 0;
+}
+.builder-bar .btn {
+  flex: none;
+}
+.builder .warn-list {
+  max-height: 72px;
+  overflow: auto;
+}
+.gb-settings .gb-sec {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--s3);
+}
+.gb-settings .gb-sec:last-child {
+  border-bottom: 0;
+}
+.gb-sec > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 2px 0 var(--s2);
+}
+.gb-sec > summary::-webkit-details-marker {
+  display: none;
+}
+.gb-sec > summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--t1);
+  margin-right: 4px;
+}
+.gb-sec[open] > summary::before {
+  transform: rotate(45deg);
+}
+.gb-axes {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+}
+.gb-unit {
+  padding: 4px 0;
+}
+.gb-bars-now {
+  color: var(--text-2);
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.gb-note {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  min-width: 0;
+}
+.gb-note input.num {
+  width: 72px;
+  flex: none;
+}
+.series-style {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.series-style.off,
+.series-style.muted {
+  opacity: 0.6;
+}
+.series-shape > * {
+  flex: 1;
+  min-width: 0;
+}
+.fig-progress {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 10px;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 4px 4px 4px 10px;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #dde3ea;
+  color: #3a4452;
+  overflow: hidden;
+}
+.fig-progress .bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #2c7fb8, transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: fig-progress 1.1s linear infinite;
+}
+.fig-progress .xs {
+  flex: 1;
+}
+.fig-progress .btn {
+  color: #143a52;
+}
+@keyframes fig-progress {
+  from {
+    background-position: -40% 0;
+  }
+  to {
+    background-position: 140% 0;
+  }
+}
+
+/* Series Explorer */
+.sx {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sx-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) var(--s3) var(--s2);
+  border-bottom: 1px solid var(--border);
+}
+.sx-filters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+.sx-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.sx-bar .btn {
+  padding-inline: 6px;
+  flex: none;
+}
+.sx-count {
+  min-width: 0;
+  padding-left: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sx-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+.sx-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--s2) 0 var(--s3);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  min-width: 0;
+  user-select: none;
+}
+.sx-row:hover {
+  background: var(--surface-hover);
+}
+.sx-row.on {
+  background: var(--accent-soft);
+}
+.sx-row.off .sx-text {
+  opacity: 0.55;
+}
+.sx-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.sx-text {
+  gap: 0;
+  min-width: 0;
+}
+.sx-kind {
+  flex: none;
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-2xs);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  color: var(--text-2);
+}
+.sx-acts {
+  gap: 0;
+  flex: none;
+}
+.sx-acts .btn {
+  padding-inline: 4px;
+}
+.sx-foot {
+  padding: var(--s1) var(--s3);
+  border-top: 1px solid var(--border);
+  color: var(--text-2);
 }
 .split.cycle {
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -2165,14 +2409,16 @@
 
 /* ---------- adaptive layout ---------- */
 @media (max-width: 1180px) {
-  .split.graph {
+  .builder {
     grid-template-columns: 272px minmax(0, 1fr);
   }
-  /* The inspector becomes a drawer opened from the page header. */
-  .split.graph {
+  /* The settings become a drawer opened from the page header. */
+  .builder {
     position: relative;
   }
-  .split.graph > .inspector {
+  .builder > .builder-right {
+    /* Placed in the preview's grid area so the action bar stays reachable. */
+    grid-column: 2;
     position: absolute;
     top: 0;
     right: 0;
@@ -2186,7 +2432,7 @@
       transform var(--t2) var(--ease-out),
       visibility var(--t2);
   }
-  .split.graph > .inspector.open {
+  .builder > .builder-right.open {
     transform: none;
     visibility: visible;
   }

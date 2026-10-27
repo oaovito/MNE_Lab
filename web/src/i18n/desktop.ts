@@ -6,8 +6,9 @@ import { errors } from './errors';
 import { exp } from './export';
 import { help } from './help';
 import { ls } from './ls';
+import { series } from './series';
 import { statistics } from './statistics';
 import { tutorial } from './tutorial';
 import { units } from './units';
 
-addCatalogs(core, ls, exp, help, errors, tutorial, design, statistics, units);
+addCatalogs(core, ls, exp, help, errors, tutorial, design, statistics, units, series);

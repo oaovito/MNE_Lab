@@ -210,13 +210,18 @@ export type ImportInspection = {
 export type MarkerShape = 'circle' | 'square' | 'triangle' | 'diamond' | 'triangle_down' | 'cross';
 export type LineStyle = 'solid' | 'dashed' | 'dotted' | 'dashdot' | 'longdash' | 'dashdotdot';
 export type SeriesStyle = { label?: string; color?: string; hidden?: boolean; marker?: MarkerShape | 'none'; lineStyle?: LineStyle };
-export type Visual = { legend: boolean; metadata: boolean; grid: boolean; points: boolean; lineWidth: number; fontScale: number; view?: { XMin: number; XMax: number; YMin: number; YMax: number } | null; legendMode?: 'all' | 'visible' | 'selected'; legendSeries?: string[] };
+export type Visual = { legend: boolean; metadata: boolean; grid: boolean; points: boolean; lineWidth: number; fontScale: number; view?: { XMin: number; XMax: number; YMin: number; YMax: number } | null; legendMode?: 'all' | 'visible' | 'selected'; legendSeries?: string[]; margin?: number; preset?: string };
+
+/** A graph's origin, written only by the core (Duplicate; Combine later). */
+export type Lineage = { graphId: string; relation: 'duplicate' | string; title?: string; definitionHash: string; at: string };
+export type TextNote = { text: string; x: number; y: number };
+export type GraphKind = 'dls_distribution' | 'series_values' | 'parameter_time' | 'dls_by_time' | 'statistical_groups';
 
 export type GraphDef = {
   schema?: number;
   id?: string;
   title: string;
-  kind: 'dls_distribution' | 'parameter_time' | 'dls_by_time' | 'statistical_groups';
+  kind: GraphKind;
   analysisId?: string;
   errorBars?: 'sd'|'sem'|'ci';
   annotations?: string[];
@@ -234,6 +239,21 @@ export type GraphDef = {
   created?: string;
   updated?: string;
   trashed?: boolean;
+  // schema 2 (all optional; a schema 1 graph draws as before)
+  seriesIds?: string[];
+  focusSeries?: string[];
+  subtitle?: string;
+  xLabel?: string;
+  yLabel?: string;
+  yScale?: '' | 'log';
+  displayUnit?: string;
+  showIndividual?: boolean;
+  connectMeans?: boolean;
+  textNotes?: TextNote[];
+  derivedFrom?: Lineage[];
+  sourceFiles?: string[];
+  parserVersions?: string[];
+  calculationVersion?: string;
 };
 
 export type Op = {
@@ -285,6 +305,10 @@ export type Series = {
   color?: string;
   marker?: string;
   lineStyle?: string;
+  seriesId?: string;
+  muted?: boolean;
+  noLine?: boolean;
+  yOriginal?: number[];
 };
 
 export type CycleConfig = {
@@ -333,7 +357,7 @@ export type CycleView = CycleDoc & {
 
 export type Relations = {
   files: Record<string, { graphs: string[] | null; cycles: string[] | null; analyses?:string[] | null }>;
-  graphs: Record<string, { files: string[] | null; cycle?: string }>;
+  graphs: Record<string, { files: string[] | null; cycle?: string; derivedFrom?: string[]; derived?: string[] }>;
   cycles: Record<string, { files: string[] | null; graphs: string[] | null; analyses?:string[] | null }>;
 };
 
@@ -409,6 +433,9 @@ export type SeriesEntry = {
   x?: { key: string; label?: string; unit?: string; points?: number };
   y: { key: string; label?: string; unit?: string; points?: number };
   value?: Quantity;
+  distribution?: { id: string; method?: string; format?: string; weighting: string; selected: boolean };
+  reading?: { index: number; run: string; line: number; header: string; value: { raw: string; value?: number }; parser: string };
   parser: string;
   spec: string;
 };
+export type SeriesCatalog = { version: string; series: SeriesEntry[]; design?: Design };

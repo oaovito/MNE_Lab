@@ -406,7 +406,6 @@ export const ls: Record<string, readonly [string, string, string]> = {
   'graph.title.ph': ['Untitled graph', 'Gráfico sem título', 'Gráfico sin título'],
   'graph.unsaved': ['Unsaved changes', 'Alterações não salvas', 'Cambios sin guardar'],
   'graph.save_library': ['Save to library', 'Salvar na biblioteca', 'Guardar en la biblioteca'],
-  'graph.save_new': ['Save as a new graph', 'Salvar como novo gráfico', 'Guardar como gráfico nuevo'],
   'graph.saved': ['Graph saved.', 'Gráfico salvo.', 'Gráfico guardado.'],
   'graph.copy_of': ['Copy of {name}', 'Cópia de {name}', 'Copia de {name}'],
   'graph.save_first.q': ['Save the graph first?', 'Salvar o gráfico antes?', '¿Guardar el gráfico antes?'],

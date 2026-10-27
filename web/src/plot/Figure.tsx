@@ -16,6 +16,10 @@ export type View = { XMin: number; XMax: number; YMin: number; YMax: number };
 export function seriesLabel(label: string): string {
   if(label.startsWith('statistics:')){const [,key,...rest]=label.split(':');return t('series.stat_'+key)+' · '+rest.join(':');}
   if (label.startsWith('series.')) return t(label);
+  if (label.startsWith('reading:')) {
+    const i = label.indexOf(':', 8); // reading:<run>:<series label>
+    if (i > 0) return t('series.reading', { name: label.slice(i + 1), run: label.slice(8, i) });
+  }
   if (label.startsWith('point:')) {
     const p = label.split(':'); // point:<unit>:<offset>[:<replicate>]
     if (p.length === 3) return t('point.' + p[1], { n: p[2] });
