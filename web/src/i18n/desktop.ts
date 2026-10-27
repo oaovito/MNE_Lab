@@ -8,5 +8,6 @@ import { help } from './help';
 import { ls } from './ls';
 import { statistics } from './statistics';
 import { tutorial } from './tutorial';
+import { units } from './units';
 
-addCatalogs(core, ls, exp, help, errors, tutorial, design, statistics);
+addCatalogs(core, ls, exp, help, errors, tutorial, design, statistics, units);

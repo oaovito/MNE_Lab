@@ -70,9 +70,19 @@ func (s *Server) measurementUnitRoutes() {
 			Symbol    string          `json:"symbol"`
 			Name      string          `json:"name"`
 			Dimension units.Dimension `json:"dimension"`
+			// Field (a parameter key) gives the dimension when created from
+			// a unit selector.
+			Field string `json:"field"`
 		}
 		if err := decode(r, &in); err != nil {
 			return nil, err
+		}
+		if in.Field != "" {
+			d, ok := units.FieldDimension(in.Field)
+			if !ok || in.Dimension != "" && in.Dimension != d {
+				return nil, units.ErrDimension
+			}
+			in.Dimension = d
 		}
 		return changed(p.CreateMeasurementUnit(in.Symbol, in.Name, in.Dimension))
 	})

@@ -12,6 +12,7 @@ import { createStore, useStore } from '../../lib/store';
 import type { Field as FieldT, FileView, ImportInspection, ImportResult, ImportSelection, ColumnMapping, SheetSelection, ImportProfile, Measurement, MeasurementSummary, ProducerOrigin, SourceFile } from '../../lib/types';
 import { Icon } from '../../ui/icons';
 import { Badge, Button, Check, confirmDialog, Empty, Field, Input, Menu as MenuLazy, Modal, Notice, Seg, Select, Skeleton, Spinner, Tabs, useAsync } from '../../ui/kit';
+import { UnitSelect } from '../../ui/unit-select';
 
 /** The measurements selected for a graph, a cycle or an export. */
 export const selection = createStore<{ ids: string[] }>({ ids: [] });
@@ -251,7 +252,7 @@ function ColumnMappingEditor({ row }: { row: ImportRow }) {
         const set=(column:number,unit:string)=>change({columns:[...m.columns.filter(c=>c.key!==key),...(column ? [{key,column,unit}] : [])]});
         return <div class="row gap2 wrap">
           <Field label={t('param.'+key)+' · '+t('imp.mapping_column')}><Input type="number" min={0} max={workbook ? 16384 : 1024} aria-label={t('param.'+key)+' · '+t('imp.mapping_column')} value={String(c?.column || 0)} disabled={disabled} onValue={v=>set(Number(v),c?.unit || '')} /></Field>
-          <Field label={t('param.'+key)+' · '+t('imp.mapping_unit')}><Input aria-label={t('param.'+key)+' · '+t('imp.mapping_unit')} value={c?.unit || ''} maxLength={64} disabled={disabled || !c} onValue={v=>set(c!.column,v)} /></Field>
+          <Field label={t('param.'+key)+' · '+t('imp.mapping_unit')}><UnitSelect field={key} label={t('param.'+key)+' · '+t('imp.mapping_unit')} value={c?.unit || ''} disabled={disabled || !c} headers={{ 'X-Account-ID': row.accountId, 'X-Profile-ID': row.profileId }} onValue={v=>set(c!.column,v)} /></Field>
         </div>;
       })}
       <span class="xs faint">{t('imp.mapping_zero')}</span>

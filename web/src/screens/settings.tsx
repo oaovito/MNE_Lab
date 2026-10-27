@@ -15,12 +15,14 @@ import { Icon, type IconName } from '../ui/icons';
 import { Badge, Button, confirmDialog, Empty, Field, Modal, Notice, PasswordInput, Seg, Select, Skeleton, Switch, useAsync } from '../ui/kit';
 import { ProviderCards, ProviderLogo, providerName, type Connected } from '../ui/providers';
 import { AvatarPicker, ColorPick } from './profiles';
+import { UnitsTab } from './units';
 
 const TABS: { id: string; icon: IconName }[] = [
   { id: 'general', icon: 'sliders' },
   { id: 'profile', icon: 'user' },
   { id: 'account', icon: 'key' },
   { id: 'storage', icon: 'cloud' },
+  { id: 'units', icon: 'ruler' },
   { id: 'backups', icon: 'history' },
   { id: 'updates', icon: 'package' },
   { id: 'mobile', icon: 'phone' },
@@ -50,6 +52,7 @@ export function Settings(p: { arg?: string | null }) {
           {tab === 'profile' && <ProfileTab s={s} />}
           {tab === 'account' && <AccountTab s={s} />}
           {tab === 'storage' && <StorageTab s={s} />}
+          {tab === 'units' && <UnitsTab />}
           {tab === 'backups' && <BackupsTab s={s} />}
           {tab === 'updates' && <UpdatesTab s={s} />}
           {tab === 'mobile' && <MobileTab s={s} />}
