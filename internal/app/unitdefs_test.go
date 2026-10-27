@@ -85,7 +85,7 @@ func listed(list []UnitView, symbol string) bool {
 	return slices.ContainsFunc(list, func(u UnitView) bool { return u.Symbol == symbol })
 }
 
-func measurementBytes(t *testing.T, p *Profile, id string) []byte {
+func measurementRecordBytes(t *testing.T, p *Profile, id string) []byte {
 	t.Helper()
 	var data []byte
 	if err := p.St.View(func(tx *store.Tx) error {
@@ -303,12 +303,12 @@ func TestMeasurementUnitReplaceRefusesSnapshotsAndSourceFileUnits(t *testing.T) 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	before := measurementBytes(t, p, ms[0].ID)
+	before := measurementRecordBytes(t, p, ms[0].ID)
 	nm := unitBySymbol(t, p, "nm")
 	if _, err := p.ReplaceMeasurementUnit(custom.ID, nm.ID); !errors.Is(err, ErrUnitReplaceBlocked) {
 		t.Fatal("saved analysis snapshot overridden", err)
 	}
-	if !bytes.Equal(before, measurementBytes(t, p, ms[0].ID)) {
+	if !bytes.Equal(before, measurementRecordBytes(t, p, ms[0].ID)) {
 		t.Fatal("refused replacement changed data")
 	}
 	res, _ := p.DeleteMeasurementUnit(custom.ID)
@@ -341,7 +341,7 @@ func TestDisplayConversionLeavesStoredBytesUnchanged(t *testing.T) {
 		t.Fatal(imp.Error)
 	}
 	f, ms, _ := p.File(imp.FileID)
-	before := measurementBytes(t, p, ms[0].ID)
+	before := measurementRecordBytes(t, p, ms[0].ID)
 	_, orig, _ := p.Original(f.ID)
 	c, err := units.DisplayQuantity(ms[0].Params[model.EffectiveDiameter], "µm")
 	if err != nil || c.OriginalRaw != "239.80" || c.OriginalUnit != "nm" || c.DisplayValue != 0.2398 || c.DisplayUnit != "µm" {
@@ -351,7 +351,7 @@ func TestDisplayConversionLeavesStoredBytesUnchanged(t *testing.T) {
 		t.Fatal("incompatible conversion", err)
 	}
 	_, orig2, _ := p.Original(f.ID)
-	if !bytes.Equal(before, measurementBytes(t, p, ms[0].ID)) || !bytes.Equal(orig, orig2) {
+	if !bytes.Equal(before, measurementRecordBytes(t, p, ms[0].ID)) || !bytes.Equal(orig, orig2) {
 		t.Fatal("conversion wrote data")
 	}
 }
