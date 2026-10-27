@@ -29,7 +29,9 @@ Graphs, cycle statistics and normalized exports can select the average
 independently. Current-only and average-only measurements leave the other
 quantity absent. The current implementation refuses statistics across mixed
 units; normalized measurement exports retain per-value units when units differ.
-No automatic count-rate scaling or unit conversion is applied.
+No automatic count-rate scaling or unit conversion is applied to stored data;
+the only conversion is the display-only one described under "Units of
+measure" below.
 
 The official scientific reference names Current Count Rate. Privately reviewed
 instrument exports explicitly name Average Count Rate. Their different labels
@@ -55,6 +57,44 @@ header line. Otherwise the unit stays missing and is reported. Reports imported
 with an earlier parser get the same lookup once when the profile opens: only
 the unit is added, and the file records `unitsReviewed` with the parser that
 did it. `Polydispersity` and `Baseline Index` are dimensionless.
+
+## Units of measure (registry and display conversion)
+
+Settings → Manage Units lists units of measure (not experimental units).
+System scientific units are exactly the spellings the LIGHTSCATTERING parser
+recognizes: nm, µm (U+00B5), μm (U+03BC), um, mm, cps, kcps, Kcps, Mcps, mcps,
+s, ms, °C, C, K, mV, cP, %, a.u., au, deg and °. Each spelling is its own
+entry; none is an alias of another. deg and ° stay unclassified because they
+can name an angle or a temperature. System units are never deleted; they can
+be hidden and shown again. A test checks this list against the parser.
+
+Custom units are created by the person with a symbol (kept exactly as
+written, up to 64 characters), an optional name and a dimension. A symbol
+that repeats a registered spelling is refused. The column-mapping unit field
+uses a searchable selector that offers only units of the field's dimension
+(a diameter field never offers count-rate units), with favourites and units
+recently used on this computer. Archived or hidden units are not offered,
+but data, recipes, graphs and analyses that use one keep it and show it.
+
+A custom unit that nothing uses can be deleted. One that is used (by
+measurements, saved import recipes, graphs or cycles through their
+measurements, or saved analysis snapshots) is never deleted destructively:
+the choices are Archive, Replace Usage Then Delete, or Cancel. Replacement
+rewrites only units a person assigned (column-mapped measurement values and
+saved recipes) to another registered unit of the same dimension, records a
+provenance entry with the old definition and every change, then deletes the
+custom unit. Values are not converted. Units stated by a source file and
+saved analysis snapshots are never rewritten; while any use them, replacement
+is refused and archiving remains available. The file's original import
+declaration is kept as imported.
+
+Conversion is display-only and exists only between exact spellings of the
+same dimension with exact factors: nm, µm and m; cps, kcps and Mcps; s, min, h
+and d. It always carries the original value, its source text and its unit
+next to the display value and unit; the stored value is never changed.
+Different dimensions and any pair without an exact factor (including spelling
+variants such as um, μm, Kcps or mcps) are refused. Decimals are carried
+through only for power-of-ten factors.
 
 ## Instrument distribution alternatives
 
